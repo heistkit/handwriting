@@ -38,10 +38,10 @@
 
 <header class="topbar">
   <div class="wrap topbar-inner">
-    <div class="brand">
+    <button class="brand" id="brand-home" type="button" aria-label="Inkwell — back to the start">
       <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pen"/></svg>
       <span class="brand-name">Inkwell</span>
-    </div>
+    </button>
 
     <nav class="steps" id="steps" aria-label="Progress">
       <!-- populated by app.js -->
@@ -108,6 +108,91 @@
           <p>No account, no upload, no server. The font is built on your machine and saved straight to your downloads.</p>
         </li>
       </ul>
+
+      <section class="band" id="how">
+        <header class="band-head">
+          <p class="eyebrow">The process</p>
+          <h2>Four steps, about ten minutes</h2>
+        </header>
+        <ol class="how-list">
+          <li>
+            <span class="how-num">1</span>
+            <div>
+              <h3>Copy the sheet</h3>
+              <p>The app shows you roughly 120 characters. Write them on any blank paper with any dark pen, leaving a gap between each one. No printer and no special paper needed.</p>
+            </div>
+          </li>
+          <li>
+            <span class="how-num">2</span>
+            <div>
+              <h3>Photograph it</h3>
+              <p>Shoot straight down in ordinary light. Page rotation and uneven lighting are corrected automatically, so it does not need to be neat — only readable.</p>
+            </div>
+          </li>
+          <li>
+            <span class="how-num">3</span>
+            <div>
+              <h3>Check and adjust</h3>
+              <p>Every character it found is shown back to you. Redraw any that came out wrong, then type a sentence and move the sliders until the spacing feels like your hand.</p>
+            </div>
+          </li>
+          <li>
+            <span class="how-num">4</span>
+            <div>
+              <h3>Install it</h3>
+              <p>Download all four styles as one zip and install them like any other font. They share a family name, so Bold and Italic work normally in every app.</p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section class="band" id="detail">
+        <header class="band-head">
+          <p class="eyebrow">Under the hood</p>
+          <h2>Why it doesn't look like a fake handwriting font</h2>
+          <p class="lede">Three things separate a convincing handwriting font from the ones that read as a ransom note. All three are hard, and all three are handled.</p>
+        </header>
+
+        <div class="detail-grid">
+          <article>
+            <h3>Spacing is measured, not guessed</h3>
+            <p>Most handwriting fonts give every letter the same margin. That looks wrong, because a round <b>o</b> already carries space in its own curve while a flat <b>H</b> carries none — identical margins make one look loose and the other cramped.</p>
+            <p>Inkwell measures the ink profile of every character and sets its bearings so the <em>perceived</em> gap comes out equal. On a real layout engine, ordinary prose shifts by under 1.5%, while a deliberately awkward line like <span class="mono">AVATAR To Wave off; r.</span> tightens by 5%.</p>
+          </article>
+          <article>
+            <h3>No letter repeats itself</h3>
+            <p>Type a double L in a typical handwriting font and you get the same shape stamped twice. Real writing never does that, and the eye catches it immediately.</p>
+            <p>Every character is built in three subtly different versions, rotated by a standard OpenType feature as you type — so the word <em>letter</em> shows three different t's. It stays on by default and can be switched off anywhere.</p>
+          </article>
+          <article>
+            <h3>The baseline is solved, not assumed</h3>
+            <p>Blank paper has no ruled line, so there is nothing to align letters to. Guess it and everything floats.</p>
+            <p>Because the app knows which characters it asked for, it knows that <b>p</b> drops below the line and <b>k</b> rises above it. Solving those constraints across a whole row at once recovers the baseline far more reliably than any single letter could — and it does it per row, so writing that drifts in size down the page still comes out even.</p>
+          </article>
+          <article>
+            <h3>Bold and italic are real</h3>
+            <p>Ask a word processor to bold a font that has no bold and it smears the outline sideways. It looks like exactly what it is.</p>
+            <p>Inkwell generates genuine Bold and Italic from your single sample — thickening outlines along their own edges, and leaning them about the middle of the x-height so the rhythm of the line survives. Markdown and rich text behave properly.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="band" id="faq">
+        <header class="band-head">
+          <p class="eyebrow">Questions</p>
+          <h2>Before you start</h2>
+        </header>
+        <div class="faq-list" id="faq-list"><!-- populated --></div>
+      </section>
+
+      <section class="cta">
+        <h2>Ready when you are</h2>
+        <p>All you need is paper, a pen, and a camera.</p>
+        <button class="btn btn-primary btn-lg" data-goto="write" type="button">
+          <span>Start writing</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </button>
+      </section>
     </div>
   </section>
 
@@ -422,9 +507,32 @@
   </div>
 </div>
 
+<div class="sheet-modal" id="legal" hidden>
+  <div class="sheet-modal-panel" role="dialog" aria-modal="true" aria-labelledby="legal-title">
+    <header class="modal-head">
+      <h2 id="legal-title">Privacy</h2>
+      <button class="btn btn-icon" id="close-legal" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <div class="seg seg-wide" id="legal-tabs" role="group" aria-label="Document"></div>
+      <div id="legal-body"></div>
+    </div>
+  </div>
+</div>
+
 <footer class="footer">
   <div class="wrap footer-inner">
-    <p>Built in the browser. No uploads, no accounts, no tracking. The font you make is yours.</p>
+    <div>
+      <p>Built in the browser. No uploads, no accounts, no tracking. The font you make is yours.</p>
+      <nav class="footer-links" aria-label="Legal">
+        <a href="#privacy" data-legal="privacy">Privacy</a>
+        <a href="#terms" data-legal="terms">Terms</a>
+        <a href="#licenses" data-legal="licenses">Licences</a>
+        <a href="https://github.com/heistkit/handwriting" target="_blank" rel="noopener">Source</a>
+      </nav>
+    </div>
     <button class="btn btn-ghost" id="open-feedback" type="button">
       <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg>
       <span>Send feedback</span>

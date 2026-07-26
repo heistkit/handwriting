@@ -23,7 +23,8 @@ import { glyphToCanvas } from './segment.js';
 import { scoreLabel } from './health.js';
 import { PREVIEW_SAMPLES, REQUIRED, LIGATURE_SHEET } from './charset.js';
 import { download } from './export.js';
-import { FALLBACK_LESSONS, FALLBACK_INSTALL } from './content.js';
+import { FALLBACK_LESSONS, FALLBACK_INSTALL, FALLBACK_FAQ } from './content.js';
+import { DOCUMENTS, documentById, LEGAL_VERSION, LEGAL_UPDATED } from './legal.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -766,6 +767,93 @@ function feedbackReport() {
   return `${written}\n\n---\n\n<details><summary>Diagnostics</summary>\n\n\`\`\`\n${buildDiagnostics()}\n\`\`\`\n\n</details>`;
 }
 
+// ---------------------------------------------------------------------------
+// Landing page and legal documents
+// ---------------------------------------------------------------------------
+
+async function renderFAQ() {
+  const mod = await loadModule('tutorial', './tutorial.js');
+  const faq = mod?.FAQ ?? FALLBACK_FAQ;
+  $('#faq-list').replaceChildren(
+    ...faq.map((item, i) => {
+      const d = document.createElement('details');
+      d.className = 'faq-item';
+      if (i === 0) d.open = true;
+      const s = document.createElement('summary');
+      s.textContent = item.q;
+      const p = document.createElement('p');
+      p.textContent = item.a;
+      d.append(s, p);
+      return d;
+    })
+  );
+}
+
+/**
+ * Legal documents get real hash URLs so they can be linked to directly.
+ *
+ * App stores, payment processors and some jurisdictions expect a privacy policy
+ * to live at a stable, shareable address. A modal with no URL cannot be cited,
+ * so the hash is the routing even though this is a single page.
+ */
+function renderLegal(id) {
+  const doc = documentById(id) ?? DOCUMENTS[0];
+  $('#legal-title').textContent = doc.title;
+
+  $('#legal-tabs').replaceChildren(
+    ...DOCUMENTS.map((d) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = d.title;
+      if (d.id === doc.id) b.classList.add('is-on');
+      b.addEventListener('click', () => {
+        history.replaceState(null, '', `#${d.id}`);
+        renderLegal(d.id);
+      });
+      return b;
+    })
+  );
+
+  const body = $('#legal-body');
+  body.replaceChildren();
+
+  const summary = document.createElement('p');
+  summary.className = 'legal-summary';
+  summary.textContent = doc.summary;
+  body.append(summary);
+
+  for (const section of doc.sections) {
+    const sec = document.createElement('section');
+    sec.className = 'legal-section';
+    const h = document.createElement('h3');
+    h.textContent = section.heading;
+    sec.append(h);
+    for (const para of section.body) {
+      const p = document.createElement('p');
+      p.textContent = para;
+      sec.append(p);
+    }
+    body.append(sec);
+  }
+
+  const meta = document.createElement('p');
+  meta.className = 'legal-meta';
+  meta.textContent = `Version ${LEGAL_VERSION} — last updated ${LEGAL_UPDATED}. This document describes what the code in this repository actually does; you can verify it by reading the source or by watching your browser's network tab, which stays empty.`;
+  body.append(meta);
+}
+
+function openLegal(id) {
+  renderLegal(id);
+  openModal('#legal');
+}
+
+const LEGAL_IDS = DOCUMENTS.map((d) => d.id);
+
+function handleHash() {
+  const id = location.hash.replace('#', '');
+  if (LEGAL_IDS.includes(id)) openLegal(id);
+}
+
 function openModal(sel) {
   const el = $(sel);
   el.hidden = false;
@@ -860,7 +948,26 @@ function init() {
   renderSheets();
   renderCaptureList();
   renderSamples();
+  renderFAQ();
   bindControls();
+
+  $('#brand-home').addEventListener('click', () => goto('start'));
+
+  $$('[data-legal]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      history.replaceState(null, '', `#${a.dataset.legal}`);
+      openLegal(a.dataset.legal);
+    })
+  );
+  $('#close-legal').addEventListener('click', () => {
+    closeModal('#legal');
+    if (LEGAL_IDS.includes(location.hash.replace('#', ''))) {
+      history.replaceState(null, '', location.pathname);
+    }
+  });
+  window.addEventListener('hashchange', handleHash);
+  handleHash();
 
   const preview = $('#preview-text');
   preview.dataset.placeholder = 'Type something…';
@@ -942,6 +1049,8 @@ function init() {
     if (e.key === 'Escape') {
       closeModal('#guide');
       closeModal('#draw-modal');
+      closeModal('#legal');
+      closeModal('#feedback');
     }
   });
 
