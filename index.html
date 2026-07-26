@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inkwell — turn your handwriting into a real font</title>
+<meta name="description" content="Write on a sheet of paper, photograph it, and get an installable font of your own handwriting. Runs entirely in your browser — nothing is uploaded.">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#14161a">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>✒</text></svg>">
+</head>
+<body>
+
+<!-- Icon sprite. Inline SVG so there is no icon font and no network request. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L20 8a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m14 6 4 4"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r=".6" fill="currentColor"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 8V3h10v5"/><rect x="3" y="8" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5V4.5Z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v4H6.5A2.5 2.5 0 0 1 4 20.5Z"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m11 18-6-6 6-6"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 6V4h16v2"/><path d="M12 4v16"/><path d="M9 20h6"/></symbol>
+  </defs>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pen"/></svg>
+      <span class="brand-name">Inkwell</span>
+    </div>
+
+    <nav class="steps" id="steps" aria-label="Progress">
+      <!-- populated by app.js -->
+    </nav>
+
+    <button class="btn btn-ghost" id="open-guide" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-book"/></svg>
+      <span>Guide</span>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ── Step: Start ─────────────────────────────────────────────────── -->
+  <section class="step is-active" data-step="start">
+    <div class="wrap">
+      <div class="hero">
+        <p class="eyebrow">Your handwriting, as a real font</p>
+        <h1>Write it once.<br>Type it forever.</h1>
+        <p class="lede">
+          Copy a short sheet of characters onto blank paper, photograph it, and
+          Inkwell builds an installable font in your own hand — with proper
+          spacing, bold, italic, and letters that vary the way real writing does.
+        </p>
+
+        <div class="hero-actions">
+          <button class="btn btn-primary btn-lg" data-goto="write" type="button">
+            <span>Start writing</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+          </button>
+          <button class="btn btn-lg" id="start-guide" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-book"/></svg>
+            <span>How it works</span>
+          </button>
+        </div>
+
+        <p class="privacy">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg>
+          Everything runs inside your browser. Your handwriting is never uploaded,
+          and this page works with the network switched off.
+        </p>
+      </div>
+
+      <ul class="feature-grid">
+        <li>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-type"/></svg>
+          <h3>Spacing that actually works</h3>
+          <p>Each letter's bearings are measured from its own ink profile, so round, flat and diagonal shapes all end up looking equally spaced.</p>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-refresh"/></svg>
+          <h3>Letters that don't repeat</h3>
+          <p>Every character is built in three subtly different versions that rotate as you type, so "letter" doesn't show three identical t's.</p>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"/></svg>
+          <h3>Bold and italic included</h3>
+          <p>All four styles are generated from your single sample, so <strong>bold</strong> and <em>italic</em> work properly in any app.</p>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg>
+          <h3>Nothing leaves your device</h3>
+          <p>No account, no upload, no server. The font is built on your machine and saved straight to your downloads.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ── Step: Write ─────────────────────────────────────────────────── -->
+  <section class="step" data-step="write">
+    <div class="wrap">
+      <header class="step-head">
+        <h2>Copy these onto blank paper</h2>
+        <p class="sub">
+          Any paper, any dark pen. Write each character once, left to right, with a
+          clear gap between them. Keep the rows well separated.
+        </p>
+      </header>
+
+      <div class="write-layout">
+        <div class="sheet-stack" id="sheet-stack"><!-- populated --></div>
+
+        <aside class="write-aside">
+          <div class="card">
+            <h3>Before you start</h3>
+            <ul class="tips" id="write-tips"><!-- populated --></ul>
+          </div>
+          <div class="card">
+            <h3>Prefer guide boxes?</h3>
+            <p class="muted">Print a sheet with a box for every character. The blue guides disappear automatically when the photo is processed.</p>
+            <button class="btn btn-block" id="print-template" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-print"/></svg>
+              <span>Print a template</span>
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      <div class="step-actions">
+        <button class="btn" data-goto="start" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+          <span>Back</span>
+        </button>
+        <button class="btn btn-primary" data-goto="capture" type="button">
+          <span>I've written it</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Step: Capture ───────────────────────────────────────────────── -->
+  <section class="step" data-step="capture">
+    <div class="wrap">
+      <header class="step-head">
+        <h2>Photograph your sheets</h2>
+        <p class="sub">
+          Lay the paper flat in even light and shoot straight down. Slight
+          rotation and uneven lighting are corrected automatically.
+        </p>
+      </header>
+
+      <div class="capture-list" id="capture-list"><!-- populated --></div>
+
+      <div class="step-actions">
+        <button class="btn" data-goto="write" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+          <span>Back</span>
+        </button>
+        <button class="btn btn-primary" id="to-review" type="button" disabled>
+          <span>Review characters</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Step: Review ────────────────────────────────────────────────── -->
+  <section class="step" data-step="review">
+    <div class="wrap">
+      <header class="step-head">
+        <h2>Check the characters</h2>
+        <p class="sub">
+          These are the shapes Inkwell found. Anything that looks wrong can be
+          redrawn — click it.
+        </p>
+      </header>
+
+      <div class="review-bar" id="review-bar"><!-- populated --></div>
+      <div class="glyph-grid" id="glyph-grid"><!-- populated --></div>
+
+      <div class="step-actions">
+        <button class="btn" data-goto="capture" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+          <span>Back</span>
+        </button>
+        <button class="btn btn-primary" id="to-refine" type="button">
+          <span>Build my font</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Step: Refine ────────────────────────────────────────────────── -->
+  <section class="step" data-step="refine">
+    <div class="wrap">
+      <header class="step-head">
+        <h2>Try it out</h2>
+        <p class="sub">Type anything. Adjust until it feels like your hand.</p>
+      </header>
+
+      <div class="refine-layout">
+        <div class="preview-pane">
+          <div class="preview-toolbar">
+            <label class="field field-inline">
+              <span>Size</span>
+              <input type="range" id="preview-size" min="18" max="96" value="40" step="1">
+            </label>
+            <div class="seg" role="group" aria-label="Style">
+              <button type="button" data-style="Regular" class="is-on">Regular</button>
+              <button type="button" data-style="Bold">Bold</button>
+              <button type="button" data-style="Italic">Italic</button>
+              <button type="button" data-style="Bold Italic">Both</button>
+            </div>
+          </div>
+
+          <div class="preview-surface">
+            <div class="preview-text" id="preview-text" contenteditable="true" spellcheck="false"
+                 role="textbox" aria-multiline="true" aria-label="Preview text"></div>
+          </div>
+
+          <div class="preview-samples" id="preview-samples"><!-- populated --></div>
+        </div>
+
+        <aside class="controls">
+          <div class="card">
+            <h3>Font name</h3>
+            <input type="text" id="family-name" class="input" value="My Handwriting" maxlength="40">
+          </div>
+
+          <div class="card">
+            <h3>Adjust</h3>
+            <label class="field">
+              <span>Letter spacing <output id="out-spacing"></output></span>
+              <input type="range" id="ctl-spacing" min="0.12" max="0.5" step="0.01" value="0.3">
+            </label>
+            <label class="field">
+              <span>Bold weight <output id="out-bold"></output></span>
+              <input type="range" id="ctl-bold" min="0.008" max="0.045" step="0.001" value="0.02">
+            </label>
+            <label class="field">
+              <span>Italic slant <output id="out-italic"></output></span>
+              <input type="range" id="ctl-italic" min="4" max="20" step="0.5" value="11">
+            </label>
+            <label class="field">
+              <span>Variation <output id="out-variants"></output></span>
+              <input type="range" id="ctl-variants" min="1" max="3" step="1" value="3">
+            </label>
+            <label class="check">
+              <input type="checkbox" id="ctl-straighten">
+              <span>Straighten my slant</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" id="ctl-kerning" checked>
+              <span>Automatic kerning</span>
+            </label>
+          </div>
+
+          <div class="card" id="health-card"><!-- populated --></div>
+        </aside>
+      </div>
+
+      <div class="step-actions">
+        <button class="btn" data-goto="review" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+          <span>Back</span>
+        </button>
+        <button class="btn btn-primary" data-goto="export" type="button">
+          <span>Download</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Step: Export ────────────────────────────────────────────────── -->
+  <section class="step" data-step="export">
+    <div class="wrap">
+      <header class="step-head">
+        <h2>Your font is ready</h2>
+        <p class="sub" id="export-sub"></p>
+      </header>
+
+      <div class="export-layout">
+        <div class="export-main">
+          <div class="download-card">
+            <div class="download-copy">
+              <h3 id="download-title">Everything, in one file</h3>
+              <p class="muted">All four styles, web fonts, a stylesheet and installation notes.</p>
+            </div>
+            <button class="btn btn-primary btn-lg" id="dl-zip" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"/></svg>
+              <span>Download</span>
+            </button>
+          </div>
+
+          <div class="dl-row" id="dl-individual"><!-- populated --></div>
+
+          <div class="card">
+            <h3>Install it</h3>
+            <div class="seg seg-wide" id="os-tabs" role="group" aria-label="Operating system"></div>
+            <ol class="install-steps" id="install-steps"></ol>
+          </div>
+        </div>
+
+        <aside class="export-aside">
+          <div class="card summary" id="font-summary"><!-- populated --></div>
+          <div class="card">
+            <h3>Use it on a website</h3>
+            <p class="muted">Paste this into your stylesheet. The <code>woff</code> folder in the zip has the files.</p>
+            <pre class="code" id="css-snippet"></pre>
+            <button class="btn btn-block" id="copy-css" type="button"><span>Copy CSS</span></button>
+          </div>
+        </aside>
+      </div>
+
+      <div class="step-actions">
+        <button class="btn" data-goto="refine" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+          <span>Keep adjusting</span>
+        </button>
+        <button class="btn" id="start-over" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-refresh"/></svg>
+          <span>Make another</span>
+        </button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ── Overlays ──────────────────────────────────────────────────────── -->
+
+<div class="sheet-modal" id="guide" hidden>
+  <div class="sheet-modal-panel" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <header class="modal-head">
+      <h2 id="guide-title">How it works</h2>
+      <button class="btn btn-icon" id="close-guide" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+      </button>
+    </header>
+    <div class="modal-body" id="guide-body"></div>
+  </div>
+</div>
+
+<div class="sheet-modal" id="draw-modal" hidden>
+  <div class="sheet-modal-panel narrow" role="dialog" aria-modal="true" aria-labelledby="draw-title">
+    <header class="modal-head">
+      <h2 id="draw-title">Redraw</h2>
+      <button class="btn btn-icon" id="close-draw" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+      </button>
+    </header>
+    <div class="modal-body" id="draw-body"></div>
+  </div>
+</div>
+
+<div class="busy" id="busy" hidden>
+  <div class="busy-panel">
+    <div class="spinner" aria-hidden="true"><i></i><i></i><i></i></div>
+    <p class="busy-stage" id="busy-stage">Working</p>
+    <div class="bar"><div class="bar-fill" id="busy-bar"></div></div>
+    <p class="busy-note">Everything is happening on your device.</p>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<div class="sheet-modal" id="feedback" hidden>
+  <div class="sheet-modal-panel" role="dialog" aria-modal="true" aria-labelledby="fb-title">
+    <header class="modal-head">
+      <h2 id="fb-title">Send feedback</h2>
+      <button class="btn btn-icon" id="close-feedback" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <p class="muted" style="margin-bottom:1rem">
+        Nothing is sent automatically. Write what happened, check the details
+        below, and the report opens in GitHub for you to post — or copy it and
+        send it however you like.
+      </p>
+
+      <label class="field">
+        <span>What happened?</span>
+        <textarea class="input" id="fb-text" rows="5" placeholder="What you expected, and what you got instead."></textarea>
+      </label>
+
+      <details class="fb-details">
+        <summary>Details that will be included</summary>
+        <pre class="code" id="fb-diagnostics"></pre>
+      </details>
+
+      <p class="privacy" style="margin-top:1rem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg>
+        No handwriting, images or font files are included — only the numbers shown above.
+      </p>
+
+      <div class="fb-actions">
+        <button class="btn btn-primary" id="fb-github" type="button">
+          <span>Open a GitHub issue</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </button>
+        <button class="btn" id="fb-copy" type="button"><span>Copy report</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <p>Built in the browser. No uploads, no accounts, no tracking. The font you make is yours.</p>
+    <button class="btn btn-ghost" id="open-feedback" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg>
+      <span>Send feedback</span>
+    </button>
+  </div>
+</footer>
+
+<script src="vendor/opentype.js"></script>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>

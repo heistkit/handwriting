@@ -1,0 +1,10 @@
+{
+  "name": "inkwell-handwriting-font",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Turn handwriting into a real, installable font. Runs entirely in the browser.",
+  "scripts": {
+    "test": "node tools/run-tests.mjs"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "//": "Marks vendored bundles as CommonJS so Node can require() them even though the project root is type:module. Browsers ignore this file entirely.",
+  "type": "commonjs"
+}
