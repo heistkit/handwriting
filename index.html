@@ -540,7 +540,9 @@
   </div>
 </footer>
 
-<script src="vendor/opentype.js"></script>
+<!-- Minified build for the browser; the readable one stays in vendor/ for the
+     Node test suite, which requires it directly. -->
+<script src="vendor/opentype.min.js"></script>
 <script type="module" src="src/app.js"></script>
 </body>
 </html>
