@@ -65,6 +65,11 @@ export function printTemplate(element) {
   if (!wasAttached) document.body.append(root);
   document.body.classList.add('ivt-printing');
 
+  // Two independent "printing has finished" signals, because afterprint is not
+  // fired reliably by every engine. Both only fire once the dialog is gone, so
+  // neither can tear the sheet down mid-print — which a timer-based fallback
+  // could, in any browser where print() does not block.
+  const mql = window.matchMedia?.('print');
   let done = false;
   const cleanup = () => {
     if (done) return;
@@ -72,14 +77,13 @@ export function printTemplate(element) {
     document.body.classList.remove('ivt-printing');
     if (!wasAttached) root.remove();
     window.removeEventListener('afterprint', cleanup);
+    mql?.removeEventListener?.('change', onMediaChange);
   };
+  const onMediaChange = (e) => { if (!e.matches) cleanup(); };
 
   window.addEventListener('afterprint', cleanup);
+  mql?.addEventListener?.('change', onMediaChange);
   window.print();
-  // Safari has historically not fired afterprint reliably; reclaim the DOM on
-  // the next turn if it did not. print() blocks until the dialog closes, so by
-  // the time this runs the user is done with it either way.
-  setTimeout(cleanup, 0);
 }
 
 // ---------------------------------------------------------------------------
