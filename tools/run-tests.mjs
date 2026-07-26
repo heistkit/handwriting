@@ -7,6 +7,7 @@ const suites = [
   './trace.test.mjs',
   './metrics.test.mjs',
   './fontbuild.test.mjs',
+  './draw.test.mjs',
 ];
 
 let total = 0;

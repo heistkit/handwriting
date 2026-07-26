@@ -1,0 +1,492 @@
+/**
+ * draw.js — the canvas drawing pad.
+ *
+ * Two jobs: it is the capture path for anyone with a stylus or tablet, and it is
+ * the repair path when one character from a photograph comes out wrong and the
+ * review grid asks for a single glyph to be redrawn.
+ *
+ * The output must be indistinguishable from a scanned glyph, because everything
+ * downstream (trace.vectorize -> metrics.buildMetrics -> fontbuild) cannot tell
+ * the two apart and must not need to. So the committed shape is exactly what
+ * segment.extractGlyph returns: an ink bitmap cropped tight to the ink, plus the
+ * tight ink bounds in `page` so the metrics stage can place it against a
+ * baseline.
+ *
+ * The bitmap is produced by rasterising the recorded stroke geometry at 3x, not
+ * by reading pixels back off the on-screen canvas. The two are equivalent after
+ * thresholding, but rasterising from geometry keeps the export deterministic and
+ * free of the display's device-pixel-ratio and colour — which is also what lets
+ * the extraction helper be unit-tested with no DOM at all.
+ */
+
+const SCALE = 3;          // backing raster resolution, per the field spec
+const PAD = 2;            // transparent border around the ink, matching extractGlyph
+const INK_THRESHOLD = 0.5;
+
+// ---------------------------------------------------------------------------
+// Pure extraction — no DOM, unit-tested in tools/draw.test.mjs
+// ---------------------------------------------------------------------------
+
+/**
+ * Rasterise stroke geometry into a scanned-glyph-shaped object.
+ *
+ * @param {Array<{points: Array<{x:number,y:number,r:number}>}>} strokes
+ *        stroke paths already in backing-pixel coordinates; `r` is the brush
+ *        radius at that sample, also in backing pixels.
+ * @param {object} opts
+ * @param {number} opts.width   backing canvas width
+ * @param {number} opts.height  backing canvas height
+ * @param {string} [opts.ch]
+ * @param {number} [opts.pad=PAD]
+ * @param {number} [opts.threshold=INK_THRESHOLD]
+ * @returns {{ch,bitmap:Uint8Array,w:number,h:number,pad:number,page:{x0,y0,x1,y1}}|null}
+ *          null when no ink was laid down.
+ */
+export function rasterizeGlyph(strokes, { width, height, ch = '', pad = PAD, threshold = INK_THRESHOLD } = {}) {
+  const cov = new Float32Array(width * height);
+  for (const stroke of strokes) stampStroke(cov, width, height, stroke.points);
+
+  // Tight ink bounds first, so the crop carries no empty margin into metrics.
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (cov[y * width + x] >= threshold) {
+        if (x < x0) x0 = x;
+        if (y < y0) y0 = y;
+        if (x > x1) x1 = x;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (!Number.isFinite(x0)) return null;
+
+  const inkW = x1 - x0 + 1;
+  const inkH = y1 - y0 + 1;
+  const w = inkW + pad * 2;
+  const h = inkH + pad * 2;
+  const bitmap = new Uint8Array(w * h);
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      if (cov[y * width + x] >= threshold) {
+        bitmap[(y - y0 + pad) * w + (x - x0 + pad)] = 1;
+      }
+    }
+  }
+
+  return {
+    ch,
+    bitmap,
+    w,
+    h,
+    pad,
+    // Same convention as extractGlyph: x1/y1 are one past the last ink pixel, so
+    // (x1 - x0) is the ink width. This is what the baseline solver reads.
+    page: { x0, y0, x1: x1 + 1, y1: y1 + 1 },
+  };
+}
+
+/**
+ * Stamp a variable-width stroke into the coverage buffer as a run of discs.
+ *
+ * Coverage is soft over the outermost pixel (a linear ramp across one pixel of
+ * the radius) so that thresholding at 0.5 lands the edge sub-pixel rather than
+ * on a hard pixel boundary — the tracer downstream is only as accurate as this
+ * edge is.
+ */
+function stampStroke(cov, width, height, points) {
+  if (!points.length) return;
+  if (points.length === 1) {
+    stampDisc(cov, width, height, points[0].x, points[0].y, points[0].r);
+    return;
+  }
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    const dist = Math.hypot(b.x - a.x, b.y - a.y);
+    const steps = Math.max(1, Math.ceil(dist / 0.6));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      stampDisc(
+        cov, width, height,
+        a.x + (b.x - a.x) * t,
+        a.y + (b.y - a.y) * t,
+        a.r + (b.r - a.r) * t
+      );
+    }
+  }
+}
+
+function stampDisc(cov, width, height, cx, cy, r) {
+  const rOuter = r + 0.5;
+  const minX = Math.max(0, Math.floor(cx - rOuter));
+  const maxX = Math.min(width - 1, Math.ceil(cx + rOuter));
+  const minY = Math.max(0, Math.floor(cy - rOuter));
+  const maxY = Math.min(height - 1, Math.ceil(cy + rOuter));
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+      const c = Math.min(1, Math.max(0, r + 0.5 - d));
+      if (c) {
+        const i = y * width + x;
+        if (c > cov[i]) cov[i] = c;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The interactive pad
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {HTMLElement} mount
+ * @param {object} opts
+ * @param {string} opts.ch                 the character being drawn
+ * @param {number} [opts.guideXHeight=0.5] x-height as a fraction of box height
+ * @param {(glyph) => void} opts.onCommit
+ * @param {() => void} [opts.onClose]       optional; called on Esc
+ * @returns {{destroy():void, clear():void, undo():void, isEmpty():boolean}}
+ */
+export function createDrawPad(mount, opts = {}) {
+  const { ch = '', guideXHeight = 0.5, onCommit = () => {}, onClose } = opts;
+
+  const W = Math.min(Math.max(mount.clientWidth || 360, 260), 440);
+  const H = Math.round(W * 1.15);
+  const dpr = window.devicePixelRatio || 1;
+
+  // Guide lines, expressed as fractions of the pad height. The x-height rule is
+  // placed guideXHeight of the way from baseline up to the ascender, matching
+  // the printable sheet so the two capture flows produce comparable proportions.
+  const yAsc = Math.round(H * 0.16);
+  const yBase = Math.round(H * 0.74);
+  const yDesc = Math.round(H * 0.92);
+  const yX = Math.round(yBase - guideXHeight * (yBase - yAsc));
+
+  const penWidth = Math.max(2.2, H * 0.012);
+
+  const ink = getVar('--text', '#e4e9ef');
+  const guideColor = getVar('--border-strong', '#3a424c');
+  const lineColor = getVar('--accent', '#3fb950');
+  const ghostColor = getVar('--text-3', '#757d88');
+
+  // -- DOM ------------------------------------------------------------------
+  const wrap = document.createElement('div');
+  wrap.className = 'draw-pad';
+  Object.assign(wrap.style, { position: 'relative', width: `${W}px`, margin: '0 auto', touchAction: 'none' });
+
+  const stage = document.createElement('div');
+  Object.assign(stage.style, { position: 'relative', width: `${W}px`, height: `${H}px` });
+
+  const guideCanvas = makeCanvas(W, H, dpr);
+  const inkCanvas = makeCanvas(W, H, dpr);
+  Object.assign(guideCanvas.style, { position: 'absolute', inset: '0' });
+  Object.assign(inkCanvas.style, { position: 'absolute', inset: '0', cursor: 'crosshair' });
+  stage.append(guideCanvas, inkCanvas);
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'draw-tools';
+  Object.assign(toolbar.style, { display: 'flex', gap: '.5rem', marginTop: '.75rem', justifyContent: 'flex-end' });
+
+  const undoBtn = toolButton('i-refresh', 'Undo', () => undo());
+  const clearBtn = toolButton('i-x', 'Clear', () => clear());
+  const saveBtn = toolButton('i-check', 'Save character', () => commit());
+  saveBtn.classList.add('btn-primary');
+  toolbar.append(undoBtn, clearBtn, saveBtn);
+
+  wrap.append(stage, toolbar);
+  mount.append(wrap);
+
+  const gctx = guideCanvas.getContext('2d');
+  const ictx = inkCanvas.getContext('2d');
+  gctx.scale(dpr, dpr);
+  ictx.scale(dpr, dpr);
+
+  // -- State ----------------------------------------------------------------
+  /** @type {Array<{points: Array<{x,y,p}>, pressured: boolean}>} */
+  const strokes = [];
+  let current = null;
+
+  drawGuides();
+  updateButtons();
+
+  // -- Drawing --------------------------------------------------------------
+  function onPointerDown(e) {
+    if (e.button != null && e.button !== 0) return;
+    e.preventDefault();
+    inkCanvas.setPointerCapture?.(e.pointerId);
+    const pt = localPoint(e);
+    current = { points: [pt], pressured: reportsPressure(e.pressure) };
+    strokes.push(current);
+  }
+
+  function onPointerMove(e) {
+    if (!current) return;
+    e.preventDefault();
+    // A move can coalesce several samples; replaying them all makes fast strokes
+    // smoother and gives the tracer more to work with.
+    const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of events.length ? events : [e]) {
+      const pt = localPoint(ev);
+      if (reportsPressure(ev.pressure)) current.pressured = true;
+      current.points.push(pt);
+    }
+    redrawInk();
+  }
+
+  function onPointerUp(e) {
+    if (!current) return;
+    e.preventDefault();
+    inkCanvas.releasePointerCapture?.(e.pointerId);
+    current = null;
+    redrawInk();
+    updateButtons();
+  }
+
+  function onKeyDown(e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      undo();
+    } else if (e.key === 'Escape') {
+      // The host app owns the modal and closes it on Escape too; calling back is
+      // only for standalone use, so this never double-closes anything.
+      onClose?.();
+    }
+  }
+
+  inkCanvas.addEventListener('pointerdown', onPointerDown);
+  inkCanvas.addEventListener('pointermove', onPointerMove);
+  inkCanvas.addEventListener('pointerup', onPointerUp);
+  inkCanvas.addEventListener('pointercancel', onPointerUp);
+  document.addEventListener('keydown', onKeyDown);
+
+  // -- Rendering ------------------------------------------------------------
+  function drawGuides() {
+    gctx.clearRect(0, 0, W, H);
+
+    // The character being drawn, large and pale, so the writer knows the target.
+    gctx.save();
+    gctx.fillStyle = ghostColor;
+    gctx.globalAlpha = 0.16;
+    gctx.textAlign = 'center';
+    gctx.textBaseline = 'alphabetic';
+    gctx.font = `${Math.round((yBase - yX) * 1.9)}px ui-sans-serif, system-ui, sans-serif`;
+    gctx.fillText(ch, W / 2, yBase);
+    gctx.restore();
+
+    const line = (y, color, alpha, dash) => {
+      gctx.save();
+      gctx.strokeStyle = color;
+      gctx.globalAlpha = alpha;
+      gctx.setLineDash(dash);
+      gctx.lineWidth = 1;
+      gctx.beginPath();
+      gctx.moveTo(0, y + 0.5);
+      gctx.lineTo(W, y + 0.5);
+      gctx.stroke();
+      gctx.restore();
+    };
+    line(yAsc, guideColor, 0.5, [4, 4]);
+    line(yX, lineColor, 0.5, [6, 4]);
+    line(yBase, lineColor, 0.85, []);
+    line(yDesc, guideColor, 0.5, [4, 4]);
+  }
+
+  function redrawInk() {
+    ictx.clearRect(0, 0, W, H);
+    ictx.strokeStyle = ink;
+    ictx.fillStyle = ink;
+    ictx.lineJoin = 'round';
+    ictx.lineCap = 'round';
+    for (const stroke of strokes) strokeOnScreen(ictx, stroke, penWidth);
+  }
+
+  // -- Actions --------------------------------------------------------------
+  function undo() {
+    if (!strokes.length) return;
+    strokes.pop();
+    current = null;
+    redrawInk();
+    updateButtons();
+  }
+
+  function clear() {
+    strokes.length = 0;
+    current = null;
+    redrawInk();
+    updateButtons();
+  }
+
+  function isEmpty() {
+    return strokes.length === 0;
+  }
+
+  function commit() {
+    if (isEmpty()) return;
+    const backing = strokes.map((s) => ({
+      points: densify(s.points, s.pressured, penWidth).map((p) => ({
+        x: p.x * SCALE,
+        y: p.y * SCALE,
+        r: (p.w * SCALE) / 2,
+      })),
+    }));
+    const glyph = rasterizeGlyph(backing, { width: W * SCALE, height: H * SCALE, ch });
+    if (glyph) onCommit(glyph);
+  }
+
+  function updateButtons() {
+    const empty = isEmpty();
+    undoBtn.disabled = empty;
+    clearBtn.disabled = empty;
+    saveBtn.disabled = empty;
+  }
+
+  function destroy() {
+    inkCanvas.removeEventListener('pointerdown', onPointerDown);
+    inkCanvas.removeEventListener('pointermove', onPointerMove);
+    inkCanvas.removeEventListener('pointerup', onPointerUp);
+    inkCanvas.removeEventListener('pointercancel', onPointerUp);
+    document.removeEventListener('keydown', onKeyDown);
+    wrap.remove();
+  }
+
+  function localPoint(e) {
+    const rect = inkCanvas.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      p: e.pressure,
+    };
+  }
+
+  return { destroy, clear, undo, isEmpty };
+}
+
+// ---------------------------------------------------------------------------
+// Shared stroke geometry
+// ---------------------------------------------------------------------------
+
+/**
+ * A device reports real pressure when the value is above zero and not exactly
+ * 0.5 — 0.5 is the constant every non-pressure pointer returns, so trusting it
+ * would just feed the width jitter that is noise, not signal.
+ */
+function reportsPressure(pressure) {
+  return typeof pressure === 'number' && pressure > 0 && pressure !== 0.5;
+}
+
+function widthFor(p, pressured, base) {
+  if (!pressured) return base;
+  // Map pressure onto a width range wide enough to read as a stylus, floored so
+  // a light touch never disappears entirely.
+  return base * (0.45 + 1.2 * Math.min(1, Math.max(0, p)));
+}
+
+/**
+ * Turn raw samples into a dense, width-carrying polyline using a quadratic curve
+ * through successive midpoints. A raw lineTo per sample leaves visible polygonal
+ * kinks on fast strokes, and the tracer reproduces every one as a corner in the
+ * outline, so the smoothing has to happen before the bitmap, not after.
+ */
+function densify(raw, pressured, base) {
+  const pts = raw.map((p) => ({ x: p.x, y: p.y, w: widthFor(p.p, pressured, base) }));
+  if (pts.length <= 2) return pts;
+
+  const out = [pts[0]];
+  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, w: (a.w + b.w) / 2 });
+
+  // First segment: straight run into the first midpoint.
+  sampleQuad(pts[0], pts[0], mid(pts[0], pts[1]), out);
+  for (let i = 1; i < pts.length - 1; i++) {
+    sampleQuad(mid(pts[i - 1], pts[i]), pts[i], mid(pts[i], pts[i + 1]), out);
+  }
+  // Final segment: last midpoint out to the last raw point.
+  const n = pts.length;
+  sampleQuad(mid(pts[n - 2], pts[n - 1]), pts[n - 1], pts[n - 1], out);
+  return out;
+}
+
+function sampleQuad(p0, c, p1, out) {
+  const approx = Math.hypot(c.x - p0.x, c.y - p0.y) + Math.hypot(p1.x - c.x, p1.y - c.y);
+  const steps = Math.max(2, Math.ceil(approx / 2));
+  for (let s = 1; s <= steps; s++) {
+    const t = s / steps;
+    const mt = 1 - t;
+    const a = mt * mt, b = 2 * mt * t, d = t * t;
+    out.push({
+      x: a * p0.x + b * c.x + d * p1.x,
+      y: a * p0.y + b * c.y + d * p1.y,
+      w: a * p0.w + b * c.w + d * p1.w,
+    });
+  }
+}
+
+/** Draw one stroke on screen with the same midpoint-quadratic smoothing. */
+function strokeOnScreen(ctx, stroke, base) {
+  const pts = densify(stroke.points, stroke.pressured, base);
+  if (!pts.length) return;
+  if (pts.length === 1) {
+    ctx.beginPath();
+    ctx.arc(pts[0].x, pts[0].y, pts[0].w / 2, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  // Variable width: draw each short segment at its own line width. The segments
+  // are dense enough that the width steps read as a continuous taper.
+  for (let i = 1; i < pts.length; i++) {
+    ctx.beginPath();
+    ctx.lineWidth = (pts[i - 1].w + pts[i].w) / 2;
+    ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
+    ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Small DOM helpers
+// ---------------------------------------------------------------------------
+
+function makeCanvas(w, h, dpr) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * dpr);
+  c.height = Math.round(h * dpr);
+  c.style.width = `${w}px`;
+  c.style.height = `${h}px`;
+  return c;
+}
+
+function toolButton(icon, label, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn';
+  b.append(iconSvg(icon));
+  const span = document.createElement('span');
+  span.textContent = label;
+  b.append(span);
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function iconSvg(id) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', '18');
+  svg.setAttribute('height', '18');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.8');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', `#${id}`);
+  svg.append(use);
+  return svg;
+}
+
+function getVar(name, fallback) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch {
+    return fallback;
+  }
+}
