@@ -697,8 +697,16 @@
         <p class="sub" id="export-sub"></p>
       </header>
 
+      <!-- One column, and everything except the thing you came for is folded.
+           This screen had grown to six cards across a main column and a 340px
+           sidebar, all of them competing with the one button that matters. The
+           download stays open and full width; the rest are disclosures, so the
+           screen is a short list of headings until you ask for one.
+
+           They are real <details>, so src/fold.js animates them, Ctrl-F still
+           reaches inside them in the browsers that support it, and with no
+           script at all they are still ordinary open/close controls. -->
       <div class="export-layout">
-        <div class="export-main">
           <div class="download-card">
             <!-- The flaps fold shut as the zip is assembled, on the same
                  --dl-fill the ring uses. It is a picture of what packageFamily
@@ -741,58 +749,57 @@
               </span>
             </button>
 
-          <!-- Hidden until script confirms Web Share can actually take a zip
-               here. It is a control, not content: with no script it stays
-               absent and #dl-zip, which is always visible, remains the way
-               out. Deliberately not gated on "is this a phone" — desktop
-               Chrome can share files too, and a user-agent guess would be
-               wrong in both directions. -->
-          <button class="sharebtn" id="share-font" type="button" data-state="idle" hidden>
-            <span class="sharebtn__ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M14 5.5v3.6C8.2 9.7 5.6 13.4 5 18.5c1.9-3 4.7-4.4 9-4.4v3.6l5.5-6.1L14 5.5Z"
-                      stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-              </svg>
-            </span>
-            <span class="sharebtn__label" id="share-font-label">Share</span>
-          </button>
-          <span class="sr-only" id="share-font-live" role="status" aria-live="polite"></span>
+            <!-- Hidden until script confirms Web Share can actually take a zip
+                 here. It is a control, not content: with no script it stays
+                 absent and #dl-zip, which is always visible, remains the way
+                 out. Deliberately not gated on "is this a phone" — desktop
+                 Chrome can share files too, and a user-agent guess would be
+                 wrong in both directions. -->
+            <button class="sharebtn" id="share-font" type="button" data-state="idle" hidden>
+              <span class="sharebtn__ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M14 5.5v3.6C8.2 9.7 5.6 13.4 5 18.5c1.9-3 4.7-4.4 9-4.4v3.6l5.5-6.1L14 5.5Z"
+                        stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <span class="sharebtn__label" id="share-font-label">Share</span>
+            </button>
+            <span class="sr-only" id="share-font-live" role="status" aria-live="polite"></span>
           </div>
 
-          <div class="card dl-separate">
-            <!-- Hover it and the four style files lift out. The count is
-                 written by renderExport from state.serialised.length, so it
-                 cannot claim a number of files the zip does not contain. -->
-            <label class="folder">
-              <input type="checkbox" class="folder__toggle" aria-label="Show what is in the folder">
-              <span class="folder__shape" aria-hidden="true">
-                <span class="folder__back"></span>
-                <span class="folder__papers">
-                  <span class="folder__paper folder__paper--1"></span>
-                  <span class="folder__paper folder__paper--2"></span>
-                  <span class="folder__paper folder__paper--3"></span>
+          <!-- Open, because it is the only one of these that is a next step
+               rather than a reference. -->
+          <details class="card exportfold" open>
+            <summary><span>Install it</span></summary>
+            <div class="seg seg-wide" id="os-tabs" role="group" aria-label="Operating system"></div>
+            <ol class="install-steps" id="install-steps"></ol>
+          </details>
+
+          <details class="card exportfold dl-separate">
+            <summary><span>Take the styles one at a time</span></summary>
+            <div class="dl-separate__inner">
+              <!-- Hover it and the style files lift out. The count is written by
+                   renderExport from state.serialised.length, so it cannot claim
+                   a number of files the zip does not contain. -->
+              <label class="folder">
+                <input type="checkbox" class="folder__toggle" aria-label="Show what is in the folder">
+                <span class="folder__shape" aria-hidden="true">
+                  <span class="folder__back"></span>
+                  <span class="folder__papers">
+                    <span class="folder__paper folder__paper--1"></span>
+                    <span class="folder__paper folder__paper--2"></span>
+                    <span class="folder__paper folder__paper--3"></span>
+                  </span>
+                  <span class="folder__front"></span>
                 </span>
-                <span class="folder__front"></span>
-              </span>
-            </label>
-            <div class="dl-separate__copy">
-              <h3>Or take them one at a time</h3>
+              </label>
               <p class="muted" id="dl-separate-count">The styles, as separate files.</p>
             </div>
             <div class="dl-row" id="dl-individual"><!-- populated --></div>
-          </div>
+          </details>
 
-          <div class="card">
-            <h3>Install it</h3>
-            <div class="seg seg-wide" id="os-tabs" role="group" aria-label="Operating system"></div>
-            <ol class="install-steps" id="install-steps"></ol>
-          </div>
-        </div>
-
-        <aside class="export-aside">
-          <div class="card summary" id="font-summary"><!-- populated --></div>
-          <div class="card">
-            <h3>Use it on a website</h3>
+          <details class="card exportfold">
+            <summary><span>Use it on a website</span></summary>
             <p class="muted">Paste this into your stylesheet. The <code>woff</code> folder in the zip has the files.</p>
             <div class="code-wrap">
               <pre class="code" id="css-snippet"></pre>
@@ -810,10 +817,15 @@
               </button>
               <span class="sr-only" id="copy-css-live" role="status" aria-live="polite"></span>
             </div>
-          </div>
+          </details>
 
-          <div class="card">
-            <h3>Tell someone about it</h3>
+          <details class="card exportfold">
+            <summary><span>What is in it</span></summary>
+            <div class="summary" id="font-summary"><!-- populated --></div>
+          </details>
+
+          <details class="card exportfold">
+            <summary><span>Tell someone about it</span></summary>
             <p class="muted">There is no link to <em>your</em> font — it was never uploaded
               anywhere, so there is nothing to link to. This copies a link to the app.</p>
             <div class="applink-wrap">
@@ -839,8 +851,7 @@
                      aria-label="Link to this app" spellcheck="false">
             </div>
             <span class="sr-only" id="copy-applink-live" role="status" aria-live="polite"></span>
-          </div>
-        </aside>
+          </details>
       </div>
 
       <div class="step-actions">
