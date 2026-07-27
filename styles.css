@@ -3333,3 +3333,108 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
   .sharebtn { transition: none; }
   .sharebtn[data-state='working'] .sharebtn__ico { animation: none; opacity: 1; }
 }
+
+/* ── Expanding remove ───────────────────────────────────────────────────
+   Adapted from a Uiverse.io expanding delete button by boryanakrasteva (MIT).
+
+   Four things changed and one did not.
+
+   Changed: the `.bnt:hover > .icon-wrapper .icon path` typo, so the icon
+   actually recolours; the label's `visibility: hidden`, which takes the only
+   word on the control out of the accessibility tree; the `width` transition,
+   which animates the layout of a wrapping flex row; and the hard-coded #000,
+   which this palette rules out and which is invisible on the dark theme anyway.
+
+   Not changed: the idea. A destructive control that stays small until you go
+   near it is worth having in a row where the safe action — Replace — should be
+   what your eye lands on first.
+
+   What makes it safe is that "small" is a visual state only. The word Remove
+   and the name of the sheet are real text inside the element at every moment,
+   and a device that cannot hover never collapses it at all.
+
+   Measured against :root, light / dark:
+     rest   icon --danger on --surface-2         4.78 / 4.96
+     hover  fill --danger-quiet, label --text   13.63 / 12.64
+            icon and border --danger on it       4.51 / 5.03
+     focus  the sheet's global 2px --accent ring, landing on the .drop card's
+            --surface                            4.94 / 6.59
+   Text floor 4.5:1 and non-text floor 3:1 are clear in every state.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.xdel {
+  display: inline-flex;
+  align-items: center;
+  /* A floor, not a height: 2.6rem is 46.8px at the default scale and 52px at
+     data-textsize='large', so a 44px touch target is clear in both. */
+  min-block-size: 2.6rem;
+  padding-inline: .55rem;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--danger);
+  font-size: .95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .18s var(--ease), border-color .18s var(--ease);
+}
+
+.xdel__icon { flex: none; display: grid; place-items: center; inline-size: 1.6rem; }
+.xdel__icon svg { width: 1.35rem; height: 1.35rem; }
+
+/* Collapsed by clipping — never by `visibility` or `display`, either of which
+   would take the word out of the accessibility tree, the one thing this
+   control cannot afford to lose. */
+.xdel__label {
+  overflow: hidden;
+  max-inline-size: 0;
+  padding-inline: 0;
+  opacity: 0;
+  white-space: nowrap;
+  color: var(--text);
+  transition:
+    max-inline-size .2s var(--ease),
+    padding-inline .2s var(--ease),
+    opacity .16s var(--ease);
+}
+
+.xdel:hover,
+.xdel:focus-visible { background: var(--danger-quiet); border-color: var(--danger); }
+
+/* :focus-visible sits alongside :hover deliberately. The original expands on
+   hover only, which no keyboard can reach — the reader would tab onto an icon
+   whose label they can hear but not see. */
+.xdel:hover .xdel__label,
+.xdel:focus-visible .xdel__label {
+  max-inline-size: 12ch;
+  padding-inline: .35rem .15rem;
+  opacity: 1;
+}
+
+.xdel:active { transform: translateY(1px); }
+
+/* Touch: there is no hover to reveal it with, so it never hides. Tap-to-expand
+   then tap-to-confirm would put a second meaning on the first tap of a
+   destructive control, which is worse than a wider button. (hover: none)
+   rather than (pointer: coarse), because the question is literally whether the
+   device can hover — a touchscreen laptop reports hover and keeps the effect. */
+@media (hover: none) {
+  .xdel__label { max-inline-size: 12ch; padding-inline: .35rem .15rem; opacity: 1; }
+}
+
+/* Both switches stop it collapsing rather than collapsing it instantly.
+   Cutting the duration to nothing does not make it calmer, it makes a button
+   snap sideways inside a wrapping row — the same objection the lite block
+   already records about the continue arrow. `transition: none` sets
+   transition-property, which is what lets it beat the blanket
+   `transition-duration: .01ms !important`: that caps a duration but cannot
+   reinstate a property that has been removed. */
+@media (prefers-reduced-motion: reduce) {
+  .xdel, .xdel__label { transition: none; }
+  .xdel__label { max-inline-size: 12ch; padding-inline: .35rem .15rem; opacity: 1; }
+}
+:root[data-lite='on'] .xdel,
+:root[data-lite='on'] .xdel__label { transition: none; }
+:root[data-lite='on'] .xdel__label {
+  max-inline-size: 12ch; padding-inline: .35rem .15rem; opacity: 1;
+}

@@ -434,6 +434,7 @@ function renderCaptureList() {
       const capture = state.captures.get(sheet.id);
       const row = document.createElement('div');
       row.className = 'drop';
+      row.dataset.sheet = sheet.id;
       if (capture) row.classList.add('is-done');
       if (sheet.optional) row.classList.add('is-optional');
 
@@ -472,20 +473,53 @@ function renderCaptureList() {
       const pick = document.createElement('button');
       pick.type = 'button';
       pick.className = capture ? 'btn' : 'btn btn-primary';
+      pick.classList.add('drop-pick');
       pick.textContent = capture ? 'Replace' : 'Choose photo';
       pick.addEventListener('click', () => input.click());
       actions.append(pick, input);
 
       if (capture) {
-        const clear = document.createElement('button');
-        clear.type = 'button';
-        clear.className = 'btn btn-ghost';
-        clear.textContent = 'Remove';
-        clear.addEventListener('click', () => {
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'xdel';
+
+        const label = document.createElement('span');
+        label.className = 'xdel__label';
+        label.textContent = 'Remove';
+
+        // The accessible name is assembled from real text inside the element
+        // rather than from an aria-label, so it is complete at every moment and
+        // cannot disagree with what is on screen. This span is a sibling of the
+        // collapsing one, never a child, so no clip can reach it.
+        const which = document.createElement('span');
+        which.className = 'sr-only';
+        which.textContent = ` the ${sheet.title} photograph`;
+
+        const icon = document.createElement('span');
+        icon.className = 'xdel__icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.innerHTML = '<svg viewBox="0 0 24 24"><use href="#i-trash"/></svg>';
+
+        del.append(label, which, icon);
+
+        del.addEventListener('click', () => {
           state.captures.delete(sheet.id);
           refreshCaptureState();
+
+          // This button destroys itself: refreshCaptureState re-renders the
+          // list with replaceChildren, so the element holding focus is gone and
+          // focus falls to <body> — a keyboard user is silently returned to the
+          // top of the document. Hand it to the control that took this one's
+          // place in the same row, which always exists because the list maps
+          // over every sheet unconditionally.
+          $(`#capture-list .drop[data-sheet="${sheet.id}"] .drop-pick`)?.focus();
+
+          // Removal was silent. Now that the row has been rebuilt underneath
+          // them, this is the only thing that reaches a screen reader.
+          toast(`Removed the ${sheet.title} photograph.`);
         });
-        actions.append(clear);
+
+        actions.append(del);
       }
 
       row.addEventListener('dragover', (e) => {
