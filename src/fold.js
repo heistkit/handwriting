@@ -89,8 +89,10 @@ function wire(details) {
     // The perspective is written into the transform rather than onto an
     // ancestor, because these live inside a dozen containers that know nothing
     // about this and should not have to.
-    const shut = { height: '0px', opacity: 0, transform: 'perspective(800px) rotateX(-18deg)' };
-    const full = { height: `${height}px`, opacity: 1, transform: 'perspective(800px) rotateX(0deg)' };
+    // 18 degrees was enough to read as tipping rather than opening once several
+    // of these were on screen at once. Halved.
+    const shut = { height: '0px', opacity: 0, transform: 'perspective(900px) rotateX(-9deg)' };
+    const full = { height: `${height}px`, opacity: 1, transform: 'perspective(900px) rotateX(0deg)' };
 
     let anim;
     try {

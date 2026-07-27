@@ -39,6 +39,7 @@ import { enhance as enhanceFolds } from './fold.js';
 import { token as paletteToken, onPaletteChange } from './paint.js';
 import { init as initFlourish, bindToggle as bindFlourish } from './flourish.js';
 import { loop as loopSpecimen } from './specimen.js';
+import { mount as mountStepshow } from './stepshow.js';
 import { read as readRoute, write as writeRoute, base as routeBase } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
@@ -2122,6 +2123,9 @@ function init() {
   // tab. With this line removed the sheet still draws once and stays drawn.
   loopSpecimen($('.spec'));
 
+  // The deck already swipes and arrow-keys without this; it adds the buttons.
+  mountStepshow($('#stepshow'));
+
   // Every <details> in the document, plus anything rendered later — renderFAQ,
   // the guide and the health report each call this again for their own subtree.
   enhanceFolds();
@@ -2130,12 +2134,7 @@ function init() {
   // inside it would pile up a listener per visit to the screen.
   onPaletteChange(() => { if (state.step === 'review') renderReview(); });
 
-  // The brand writes a line under itself, and rubs it out on the next press.
-  // Bound before the navigation handler below so a press does both.
-  const brand = $('#brand-home');
-  brand.addEventListener('click', () => {
-    brand.dataset.writing = brand.dataset.writing === 'on' ? 'off' : 'on';
-  });
+
 
   // Called straight out rather than from requestAnimationFrame. reveal.js reads
   // getBoundingClientRect, which forces layout itself, so there is nothing to

@@ -321,8 +321,8 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 .brand-name { font-size: 1.05rem; }
 
 /* ── The trace under the brand ──────────────────────────────────────────
-   Press the brand and the pen writes a line under the word; press it again
-   and the line un-writes itself the way it came.
+   Go near the brand and the pen writes a line under the word; leave, and the
+   line un-writes itself the way it came.
 
    It is one transition on stroke-dashoffset, which with pathLength="1" and a
    dasharray of 1 is a clean wipe in both directions: from 1 to 0 the visible
@@ -330,17 +330,30 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
    No second keyframe set for the reverse, and interrupting it mid-write simply
    turns it around from wherever it got to.
 
-   The brand button still goes back to the start — this is a flourish laid over
-   an existing control, and it reports nothing. The trace is aria-hidden and the
-   attribute driving it is not aria-pressed, because "is the squiggle showing"
-   is not a state anybody needs announced.
+   Hover and focus, with no script at all. It was a click toggle first, which
+   put a second meaning on a button whose job is to go back to the start, and
+   left a mark on screen that outlasted the gesture. Nothing here reports state:
+   the trace is aria-hidden, because "is the squiggle showing" is not something
+   anybody needs announced.
    ─────────────────────────────────────────────────────────────────────── */
 
 .brand-word { position: relative; display: inline-block; }
 .brand-trace {
   position: absolute;
-  left: -.15em; right: -.15em; top: 100%;
-  height: .42em;
+  /* Starts under the nib and runs past the last letter. It began at the left
+     edge of the word, which read as a line appearing from nowhere — the pen is
+     right there, and it is the thing supposedly drawing this.
+
+     The left inset reaches back over the mark (26px) and the flex gap (.55rem)
+     that separate it from the word.
+
+     `width: auto` is load-bearing. The sheet has a global `svg { width: 1.25em }`,
+     which pinned this to 24px regardless of the left/right pair — the trace was
+     a quarter of the width of the word it underlines. With both insets set, auto
+     resolves to fill the space between them. */
+  left: calc(-26px - .55rem); right: -.9em; top: 100%;
+  width: auto;
+  height: .5em;
   overflow: visible;
   pointer-events: none;
 }
@@ -353,7 +366,8 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   stroke-dashoffset: 1;
   transition: stroke-dashoffset .8s var(--ease);
 }
-.brand[data-writing='on'] .brand-trace path { stroke-dashoffset: 0; }
+.brand:hover .brand-trace path,
+.brand:focus-visible .brand-trace path { stroke-dashoffset: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .brand-trace path { transition: none; }
@@ -447,10 +461,11 @@ main { flex: 1; }
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
 }
-/* A screen change is the largest fold in the app, so it gets the hinge too —
-   the whole page swinging down off the header. Kept as a separate rule rather
-   than folded into `rise` so the fold switch can drop back to a plain slide. */
-:root:not([data-fold='off']) .step.is-active { animation-name: unfold; animation-duration: .42s; }
+/* Deliberately left as `rise`. An entire screen hinging off the header was the
+   single biggest contributor to the page feeling unsteady — it moved everything
+   the reader was about to look at, all at once, on the axis that reads as
+   tipping. A screen change is already the largest visual event in the app and
+   does not need help being noticed. */
 @media (prefers-reduced-motion: reduce) {
   .step.is-active { animation: none; }
   * { transition-duration: .01ms !important; }
@@ -481,7 +496,8 @@ main { flex: 1; }
   display: flex; align-items: center; gap: .55rem;
   margin-top: 2rem; font-size: .9rem; color: var(--text-3); max-width: 52ch;
 }
-.privacy svg { flex: none; width: 1.6em; height: 1.6em; color: var(--accent); }
+.privacy svg { flex: none; width: 2.1em; height: 2.1em; color: var(--accent); }
+.feature-grid .locklock { width: 34px; height: 34px; }
 
 .feature-grid {
   list-style: none; padding: 0; margin-top: clamp(3rem, 7vw, 5.5rem);
@@ -622,8 +638,27 @@ main { flex: 1; }
   transform-origin: 50% 50%;
 }
 .spec--play .spec__node {
-  animation: spec-node .4s var(--ease) backwards;
-  animation-delay: calc(3.7s + var(--i) * .028s);
+  /* Two animations: the pop as it lands, then a slow blink that never stops.
+     `backwards` fill applies to the first only, which is what is wanted — the
+     second must not hold the node hidden before its turn.
+
+     The blink delays are spread by a much larger step than the pops, so the
+     twenty-eight nodes drift out of phase almost immediately and only one or
+     two are ever dipping at once. A synchronised blink would read as the whole
+     drawing flickering. */
+  animation:
+    spec-node .4s var(--ease) backwards,
+    spec-blink 9s var(--ease) infinite;
+  animation-delay:
+    calc(3.7s + var(--i) * .028s),
+    calc(5.6s + var(--i) * .41s);
+}
+
+/* Almost all of the cycle is spent doing nothing. */
+@keyframes spec-blink {
+  0%, 86%, 100% { opacity: 1; }
+  90% { opacity: .18; }
+  94% { opacity: 1; }
 }
 @keyframes spec-node {
   from { opacity: 0; transform: scale(.2); }
@@ -1613,7 +1648,7 @@ main { flex: 1; }
    to read as weight — and the icon itself is half again as large, because no
    amount of choreography rescues a motion too small to see. */
 .reveal-ready [data-reveal] .locklock__shackle {
-  transform: translateY(-3.6px) rotate(-68deg);
+  transform: translateY(-5px) rotate(-92deg);
 }
 
 .reveal-ready [data-reveal='in'] .locklock__shackle {
@@ -1624,21 +1659,23 @@ main { flex: 1; }
 }
 
 @keyframes lock-shut {
-  from, 22% { transform: translateY(-3.6px) rotate(-68deg); }
-  38%  { transform: translateY(-4.2px) rotate(-76deg); }  /* winds back first */
-  70%  { transform: rotate(9deg); }
-  84%  { transform: rotate(-4deg); }
-  93%  { transform: rotate(1.5deg); }
+  from, 20% { transform: translateY(-5px) rotate(-92deg); }
+  36%  { transform: translateY(-5.6px) rotate(-104deg); }  /* winds back first */
+  66%  { transform: rotate(14deg); }
+  78%  { transform: rotate(-7deg); }
+  88%  { transform: rotate(3.5deg); }
+  95%  { transform: rotate(-1.5deg); }
   to   { transform: none; }
 }
 
 /* Scaled about the bottom edge so the body settles onto the line of text
    rather than growing symmetrically out of it. */
 @keyframes lock-seat {
-  from, 66% { transform: none; }
-  76% { transform: scale(1.16, .84); }
-  88% { transform: scale(.95, 1.07); }
-  95% { transform: scale(1.02, .98); }
+  from, 62% { transform: none; }
+  72% { transform: scale(1.24, .78); }
+  84% { transform: scale(.92, 1.11); }
+  92% { transform: scale(1.05, .96); }
+  97% { transform: scale(.99, 1.01); }
   to  { transform: none; }
 }
 .locklock__body { transform-box: fill-box; transform-origin: 50% 100%; }
@@ -1666,13 +1703,22 @@ main { flex: 1; }
    and does not compete with the main thread while a font is compiling.
    ─────────────────────────────────────────────────────────────────────── */
 
+/*
+ * One transition, many arrivals.
+ *
+ * The first version hinged every revealed element on its own top edge — the
+ * same rotateX on cards, headings, list rows, paragraphs and dialogs. Eighty
+ * elements all pivoting the same way down one page is dizzying, and it also
+ * says nothing: a rotation on a heading is decoration, but on a panel that
+ * genuinely opens it is a description of what happened.
+ *
+ * So the hinge is now reserved for things that actually fold, and everything
+ * else declares its own arrival through `--reveal-from`. One rule reads it, so
+ * the timing stays consistent by construction while the movement does not.
+ */
 .reveal-ready [data-reveal] {
   opacity: 0;
-  /* Hinged along its own top edge rather than slid up the page. The
-     perspective is inside the transform so no ancestor has to carry one —
-     which matters because these elements are scattered across a dozen
-     containers that know nothing about each other. */
-  transform: perspective(1100px) rotateX(-16deg) translateY(1.1rem);
+  transform: var(--reveal-from, translateY(1.1rem));
   transform-origin: top center;
   /* Slightly slower out than in, and eased so it decelerates into place rather
      than arriving and stopping. The delay staggers a row without needing a
@@ -1696,9 +1742,29 @@ main { flex: 1; }
   .reveal-ready [data-reveal] { opacity: 1; transform: none; transition: none; }
 }
 :root[data-lite='on'] [data-reveal] { opacity: 1; transform: none; transition: none; }
-/* The fold switch takes the hinge out but leaves the arrival, so the page
-   still has some sequence to it without anything rotating. */
-:root[data-fold='off'] .reveal-ready [data-reveal] { transform: translateY(1.1rem); }
+/*
+ * Chosen per family, so what arrives tells you something about what it is.
+ *
+ *   hero, band heads   settle down from just above, like text landing
+ *   the four claims    lift and grow a little, like cards being dealt
+ *   detail articles    come in from the side they sit on
+ *   questions          the hinge, because they are the things that fold
+ *   closing call       grows from the middle, because it is one object
+ *   demo               rises without scaling, so the canvas never resamples
+ */
+.reveal-ready .hero > *,
+.reveal-ready .band-head > * { --reveal-from: translateY(-.7rem); }
+.reveal-ready .feature-grid li { --reveal-from: translateY(1.5rem) scale(.965); }
+.reveal-ready .detail-grid article { --reveal-from: translateX(-1.6rem); }
+.reveal-ready .detail-grid article:nth-child(2n) { --reveal-from: translateX(1.6rem); }
+.reveal-ready .how-list li { --reveal-from: translateX(-1.2rem); }
+.reveal-ready .faq-item { --reveal-from: perspective(900px) rotateX(-14deg); }
+.reveal-ready .cta > * { --reveal-from: scale(.94); }
+.reveal-ready .demo-mount { --reveal-from: translateY(1.2rem); }
+
+/* The fold switch flattens all of it to one plain rise, which is the calmest
+   thing that still has sequence in it. */
+:root[data-fold='off'] .reveal-ready [data-reveal] { --reveal-from: translateY(1.1rem); }
 
 /* ── Folding ────────────────────────────────────────────────────────────
    Everything that opens, opens like paper.
@@ -1783,16 +1849,45 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
   .faq-item,
   .setgroup
 ):not([data-reveal]) {
-  animation: unfold .42s var(--ease) backwards;
+  animation: var(--enter, unfold) .42s var(--ease) backwards;
   animation-delay: calc(var(--fold-i, 0) * 34ms);
   transform-origin: top center;
 }
 
+/* A grid of 120 small squares all hinging backwards is the worst case for the
+   effect — it reads as the whole grid tipping over. They pop instead, which is
+   what a grid of tiles wants anyway. */
+.glyph { --enter: pop-in; }
+/* Rows in a list come from the side, so the eye reads down the column rather
+   than watching each row rotate in place. */
+.dl-item, .finding, .doc-result { --enter: slide-in; }
+.lesson { --enter: settle; }
+/* The hinge stays where the metaphor is literal. */
+.faq-item, .setgroup { --enter: unfold; }
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(.86); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-1.1rem); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes settle {
+  from { opacity: 0; transform: translateY(-.6rem); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes lift {
+  from { opacity: 0; transform: translateY(1rem) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+
 /* A dialog unfolds from its own top edge, which is where it visually hangs
    from — the header stays put and the body drops out of it. */
+/* Lifts rather than hinges. A dialog is one object arriving in front of the
+   page; rotating it made a 3,400-word document look like it was falling over. */
 :root:not([data-fold='off']) .sheet-modal:not([hidden]) .sheet-modal-panel {
-  animation: unfold .34s var(--ease) backwards;
-  transform-origin: top center;
+  animation: lift .34s var(--ease) backwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3596,3 +3691,145 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
   .fb-split { grid-template-columns: 1fr; }
   .fb-split__aside { border-inline-start: 0; border-block-start: 1px solid var(--border); }
 }
+
+/* ── The step deck ──────────────────────────────────────────────────────
+   Four instruction cards, one at a time, with a mascot that does the thing
+   the card describes.
+
+   Built on scroll-snap rather than on a transform and an index, which is what
+   makes it work with no script: the cards are laid out in order in a scroll
+   container, so a phone swipes it, a trackpad drags it, and the arrow keys
+   move it because the track is focusable and the browser already knows how to
+   scroll one. src/stepshow.js adds the buttons and the dots on top.
+
+   It never advances by itself. A carousel that moves while you are reading is
+   taking the page away from you, and these are instructions — the reader is
+   mid-sentence by definition.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.stepshow { position: relative; }
+
+.stepshow__track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100%;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-radius: var(--r-lg);
+}
+.stepshow__track::-webkit-scrollbar { display: none; }
+.stepshow__track:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+.stepcard {
+  scroll-snap-align: center;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(1rem, 4vw, 2.5rem);
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  background: linear-gradient(135deg, var(--accent-quiet), var(--surface) 62%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  min-height: 15rem;
+}
+@media (max-width: 640px) {
+  .stepcard { grid-template-columns: minmax(0, 1fr); justify-items: start; }
+}
+
+.stepcard__art { display: grid; place-items: center; }
+.stepcard__meta {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem;
+  margin-bottom: .5rem;
+}
+.stepcard__num {
+  font-family: 'Geist Mono', monospace; font-size: .82rem; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--accent);
+  background: var(--accent-quiet); padding: .25rem .6rem; border-radius: 999px;
+}
+.stepcard__time { font-size: .85rem; color: var(--text-3); }
+.stepcard h3 { font-size: clamp(1.25rem, 3vw, 1.6rem); margin-bottom: .5rem; }
+.stepcard__text p:last-child { color: var(--text-2); font-size: 1rem; max-width: 52ch; line-height: 1.6; }
+
+/* ── The mascot ──
+   An ink drop, which is the one character this app could honestly have: it is
+   what comes off the pen. It bobs, it blinks, and it holds whatever the step
+   is about. Decoration throughout — aria-hidden, and every card's text says
+   the same thing without it. */
+
+.mascot { width: clamp(150px, 26vw, 210px); height: auto; overflow: visible; }
+.mascot__shadow { fill: var(--ink); opacity: .16; }
+.mascot__drop { fill: var(--accent); stroke: none; }
+.mascot__blush { fill: var(--accent-fg); opacity: .28; stroke: none; }
+.mascot__eyes circle { fill: var(--accent-fg); stroke: none; }
+.mascot__smile { fill: none; stroke: var(--accent-fg); stroke-width: 2.4; stroke-linecap: round; }
+.mascot__prop {
+  fill: none; stroke: var(--text-2); stroke-width: 2.6;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Only the card you are looking at is alive. Four mascots bobbing in a row —
+   three of them off screen — is work nobody sees. */
+.stepcard.is-current .mascot__body { animation: mascot-bob 3.4s ease-in-out infinite; }
+.stepcard.is-current .mascot__shadow { animation: mascot-shadow 3.4s ease-in-out infinite; }
+.stepcard.is-current .mascot__eyes { animation: mascot-blink 5.2s steps(1, end) infinite; }
+.stepcard.is-current .mascot__prop { animation: mascot-prop 3.4s ease-in-out infinite; }
+
+@keyframes mascot-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(-1.5deg); }
+}
+/* The shadow tightens as it lifts, which is what sells the lift. */
+@keyframes mascot-shadow {
+  0%, 100% { transform: scaleX(1); opacity: .16; }
+  50% { transform: scaleX(.82); opacity: .1; }
+}
+@keyframes mascot-blink {
+  0%, 92% { transform: scaleY(1); }
+  94%, 97% { transform: scaleY(.1); }
+  98%, 100% { transform: scaleY(1); }
+}
+@keyframes mascot-prop {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-3px) rotate(4deg); }
+}
+.mascot__body, .mascot__prop { transform-box: fill-box; transform-origin: 50% 100%; }
+.mascot__shadow { transform-box: fill-box; transform-origin: 50% 50%; }
+.mascot__eyes { transform-box: fill-box; transform-origin: 50% 50%; }
+
+/* ── Deck controls ── */
+.stepshow__nav {
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  margin-top: 1.25rem;
+}
+.stepshow__arrow {
+  display: grid; place-items: center;
+  width: 2.6rem; height: 2.6rem; flex: none;
+  border-radius: 50%;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text); cursor: pointer;
+  transition: background .16s var(--ease), border-color .16s var(--ease);
+}
+.stepshow__arrow:hover:not(:disabled) { background: var(--surface-3); border-color: var(--border-strong); }
+.stepshow__arrow:disabled { opacity: .4; cursor: default; }
+.stepshow__arrow svg { width: 1.2rem; height: 1.2rem; }
+
+.stepshow__dots { display: flex; align-items: center; gap: .5rem; }
+.stepshow__dot {
+  width: .6rem; height: .6rem; padding: 0; border: 0; border-radius: 50%;
+  background: var(--border-strong); cursor: pointer;
+  transition: background .2s var(--ease), width .2s var(--ease);
+}
+.stepshow__dot[aria-current='step'] { background: var(--accent); width: 1.6rem; border-radius: 999px; }
+.stepshow__dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot__body, .mascot__shadow, .mascot__eyes, .mascot__prop { animation: none; }
+  .stepshow__dot { transition: none; }
+}
+:root[data-lite='on'] :is(.mascot__body, .mascot__shadow, .mascot__eyes, .mascot__prop),
+:root[data-decor='off'] :is(.mascot__body, .mascot__shadow, .mascot__eyes, .mascot__prop) { animation: none; }

@@ -141,6 +141,27 @@ function stampDisc(cov, width, height, cx, cy, r) {
 // ---------------------------------------------------------------------------
 
 /**
+ * The width actually available inside `mount`, in CSS pixels.
+ *
+ * Falls back to the viewport rather than a constant, because the pad is built
+ * inside a dialogue that is still `display: none` at that moment, so every
+ * measurement on it reads 0.
+ */
+function availableWidth(mount) {
+  let box = 0;
+  try {
+    const cs = getComputedStyle(mount);
+    box = mount.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+  } catch {
+    box = 0;
+  }
+  if (box > 0) return box;
+  // 2.5rem of dialogue padding either side, and a little clearance.
+  const viewport = (typeof innerWidth === 'number' ? innerWidth : 380) - 88;
+  return Math.max(260, viewport);
+}
+
+/**
  * @param {HTMLElement} mount
  * @param {object} opts
  * @param {string} opts.ch                 the character being drawn
@@ -157,7 +178,12 @@ export function createDrawPad(mount, opts = {}) {
     // demo is asking the tracer to run. One label cannot be honest for both.
     commitLabel = 'Save character' } = opts;
 
-  const W = Math.min(Math.max(mount.clientWidth || 360, 260), 440);
+  // clientWidth includes the mount's own padding, so the canvas came out wider
+  // than the box it sits in and the guide rules ran off the right-hand edge of
+  // the card. And when the pad is built inside a dialogue that is still
+  // display:none, every measurement is 0 — the old fallback was a flat 360px,
+  // which overflows a 375px phone once the card's padding is counted.
+  const W = Math.min(Math.max(availableWidth(mount), 260), 440);
   const H = Math.round(W * 1.15);
   const dpr = window.devicePixelRatio || 1;
 

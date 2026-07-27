@@ -83,11 +83,11 @@
       <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pen"/></svg>
       <span class="brand-word">
         <span class="brand-name">Handwrite</span>
-        <!-- The pen draws this and rubs it out again, one per press. Purely a
-             flourish: the button's job is still to go back to the start, and
-             nothing here reports state. -->
+        <!-- Drawn on hover and focus, rubbed out on leave, entirely in CSS.
+             Purely a flourish: the button's job is still to go back to the
+             start, and nothing here reports state. -->
         <svg class="brand-trace" viewBox="0 0 120 10" preserveAspectRatio="none" aria-hidden="true">
-          <path pathLength="1" d="M2 6.5C17 2.6 32 8.6 47 5.2 62 1.8 77 7.8 93 4.4c9-1.9 18 1.4 25 .6"/>
+          <path pathLength="1" d="M2 7C16 2.4 30 8.8 44 5.4 58 2 72 8.4 86 5 97 2.4 108 7.6 119 5.2c8-1.7 14 .6 17 1.4"/>
         </svg>
       </span>
     </button>
@@ -312,36 +312,123 @@
           <p class="eyebrow">The process</p>
           <h2>Four steps, about ten minutes</h2>
         </header>
-        <ol class="how-list">
-          <li>
-            <span class="how-num"><svg class="how-ring" viewBox="0 0 44 44" aria-hidden="true"><path pathLength="1" d="M34 10.5C28.5 5 17.5 3.6 10.6 9.8 3.7 16 4 28 11.2 34.2c7.2 6.2 19.2 5 24.2-2.6 4.6-7 2.8-16.6-4.4-21.2"/></svg><b>1</b></span>
-            <div>
-              <h3>Copy the sheet</h3>
-              <p>The app shows you roughly 120 characters. Write them on any blank paper with any dark pen, leaving a gap between each one. No printer and no special paper needed.</p>
-            </div>
-          </li>
-          <li>
-            <span class="how-num"><svg class="how-ring" viewBox="0 0 44 44" aria-hidden="true"><path pathLength="1" d="M34 10.5C28.5 5 17.5 3.6 10.6 9.8 3.7 16 4 28 11.2 34.2c7.2 6.2 19.2 5 24.2-2.6 4.6-7 2.8-16.6-4.4-21.2"/></svg><b>2</b></span>
-            <div>
-              <h3>Photograph it</h3>
-              <p>Shoot straight down in ordinary light. Page rotation and uneven lighting are corrected automatically, so it does not need to be neat — only readable.</p>
-            </div>
-          </li>
-          <li>
-            <span class="how-num"><svg class="how-ring" viewBox="0 0 44 44" aria-hidden="true"><path pathLength="1" d="M34 10.5C28.5 5 17.5 3.6 10.6 9.8 3.7 16 4 28 11.2 34.2c7.2 6.2 19.2 5 24.2-2.6 4.6-7 2.8-16.6-4.4-21.2"/></svg><b>3</b></span>
-            <div>
-              <h3>Check and adjust</h3>
-              <p>Every character it found is shown back to you. Redraw any that came out wrong, then type a sentence and move the sliders until the spacing feels like your hand.</p>
-            </div>
-          </li>
-          <li>
-            <span class="how-num"><svg class="how-ring" viewBox="0 0 44 44" aria-hidden="true"><path pathLength="1" d="M34 10.5C28.5 5 17.5 3.6 10.6 9.8 3.7 16 4 28 11.2 34.2c7.2 6.2 19.2 5 24.2-2.6 4.6-7 2.8-16.6-4.4-21.2"/></svg><b>4</b></span>
-            <div>
-              <h3>Install it</h3>
-              <p>Download all four styles as one zip and install them like any other font. They share a family name, so Bold and Italic work normally in every app.</p>
-            </div>
-          </li>
+<div class="stepshow" id="stepshow">
+        <!-- A scroll-snap track, so it works with no script at all: every card
+             is in the DOM in order, it swipes on a phone, drags on a trackpad,
+             and the arrow keys move it because a focusable scroll container is
+             something the browser already knows how to drive. The buttons below
+             are `hidden` until src/stepshow.js reveals them, so a reader with no
+             script never sees controls that cannot do anything. -->
+        <ol class="stepshow__track" tabindex="0" aria-label="The four steps, side by side">
+        <li class="stepcard" id="stepcard-1">
+          <div class="stepcard__art">
+            <svg class="mascot" viewBox="0 0 128 84" aria-hidden="true" focusable="false">
+              <ellipse class="mascot__shadow" cx="44" cy="76" rx="22" ry="4"/>
+              <g class="mascot__body">
+                <path class="mascot__drop" d="M44 8c9 14 20 23 20 35a20 20 0 0 1-40 0C24 31 35 22 44 8Z"/>
+                <ellipse class="mascot__blush" cx="30" cy="50" rx="4" ry="2.6"/>
+                <ellipse class="mascot__blush" cx="58" cy="50" rx="4" ry="2.6"/>
+                <g class="mascot__eyes">
+                  <circle cx="37" cy="44" r="3.4"/>
+                  <circle cx="51" cy="44" r="3.4"/>
+                </g>
+                <path class="mascot__smile" d="M38 54c3.4 3.6 8.6 3.6 12 0"/>
+              </g>
+              <g class="mascot__prop"><path d="M92 22 106 36 88 54l-9 3 3-9Z"/><path d="m86 28 14 14"/></g>
+            </svg>
+          </div>
+          <div class="stepcard__text">
+            <p class="stepcard__meta"><span class="stepcard__num">Step 1</span> <span class="stepcard__time">about 5 minutes</span></p>
+            <h3>Copy the sheet</h3>
+            <p>The app shows you roughly 120 characters. Write them on any blank paper with any dark pen, leaving a gap between each one. No printer and no special paper needed.</p>
+          </div>
+        </li>
+        <li class="stepcard" id="stepcard-2">
+          <div class="stepcard__art">
+            <svg class="mascot" viewBox="0 0 128 84" aria-hidden="true" focusable="false">
+              <ellipse class="mascot__shadow" cx="44" cy="76" rx="22" ry="4"/>
+              <g class="mascot__body">
+                <path class="mascot__drop" d="M44 8c9 14 20 23 20 35a20 20 0 0 1-40 0C24 31 35 22 44 8Z"/>
+                <ellipse class="mascot__blush" cx="30" cy="50" rx="4" ry="2.6"/>
+                <ellipse class="mascot__blush" cx="58" cy="50" rx="4" ry="2.6"/>
+                <g class="mascot__eyes">
+                  <circle cx="37" cy="44" r="3.4"/>
+                  <circle cx="51" cy="44" r="3.4"/>
+                </g>
+                <path class="mascot__smile" d="M38 54c3.4 3.6 8.6 3.6 12 0"/>
+              </g>
+              <g class="mascot__prop"><path d="M78 32a4 4 0 0 1 4-4h4l3-4h10l3 4h4a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H82a4 4 0 0 1-4-4Z"/><circle cx="94" cy="41" r="7"/></g>
+            </svg>
+          </div>
+          <div class="stepcard__text">
+            <p class="stepcard__meta"><span class="stepcard__num">Step 2</span> <span class="stepcard__time">about 1 minute</span></p>
+            <h3>Photograph it</h3>
+            <p>Shoot straight down in ordinary light. Page rotation and uneven lighting are corrected automatically, so it does not need to be neat — only readable.</p>
+          </div>
+        </li>
+        <li class="stepcard" id="stepcard-3">
+          <div class="stepcard__art">
+            <svg class="mascot" viewBox="0 0 128 84" aria-hidden="true" focusable="false">
+              <ellipse class="mascot__shadow" cx="44" cy="76" rx="22" ry="4"/>
+              <g class="mascot__body">
+                <path class="mascot__drop" d="M44 8c9 14 20 23 20 35a20 20 0 0 1-40 0C24 31 35 22 44 8Z"/>
+                <ellipse class="mascot__blush" cx="30" cy="50" rx="4" ry="2.6"/>
+                <ellipse class="mascot__blush" cx="58" cy="50" rx="4" ry="2.6"/>
+                <g class="mascot__eyes">
+                  <circle cx="37" cy="44" r="3.4"/>
+                  <circle cx="51" cy="44" r="3.4"/>
+                </g>
+                <path class="mascot__smile" d="M38 54c3.4 3.6 8.6 3.6 12 0"/>
+              </g>
+              <g class="mascot__prop"><circle cx="92" cy="34" r="13"/><path d="m102 44 10 11"/></g>
+            </svg>
+          </div>
+          <div class="stepcard__text">
+            <p class="stepcard__meta"><span class="stepcard__num">Step 3</span> <span class="stepcard__time">about 3 minutes</span></p>
+            <h3>Check and adjust</h3>
+            <p>Every character it found is shown back to you. Redraw any that came out wrong, then type a sentence and move the sliders until the spacing feels like your hand.</p>
+          </div>
+        </li>
+        <li class="stepcard" id="stepcard-4">
+          <div class="stepcard__art">
+            <svg class="mascot" viewBox="0 0 128 84" aria-hidden="true" focusable="false">
+              <ellipse class="mascot__shadow" cx="44" cy="76" rx="22" ry="4"/>
+              <g class="mascot__body">
+                <path class="mascot__drop" d="M44 8c9 14 20 23 20 35a20 20 0 0 1-40 0C24 31 35 22 44 8Z"/>
+                <ellipse class="mascot__blush" cx="30" cy="50" rx="4" ry="2.6"/>
+                <ellipse class="mascot__blush" cx="58" cy="50" rx="4" ry="2.6"/>
+                <g class="mascot__eyes">
+                  <circle cx="37" cy="44" r="3.4"/>
+                  <circle cx="51" cy="44" r="3.4"/>
+                </g>
+                <path class="mascot__smile" d="M38 54c3.4 3.6 8.6 3.6 12 0"/>
+              </g>
+              <g class="mascot__prop"><path d="M94 22v22"/><path d="m85 36 9 9 9-9"/><path d="M78 52h32"/></g>
+            </svg>
+          </div>
+          <div class="stepcard__text">
+            <p class="stepcard__meta"><span class="stepcard__num">Step 4</span> <span class="stepcard__time">about 1 minute</span></p>
+            <h3>Install it</h3>
+            <p>Download all four styles as one zip and install them like any other font. They share a family name, so Bold and Italic work normally in every app.</p>
+          </div>
+        </li>
         </ol>
+
+        <div class="stepshow__nav" hidden>
+          <button class="stepshow__arrow" type="button" data-step-nav="prev" aria-label="Previous step">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+          </button>
+          <div class="stepshow__dots">
+          <button class="stepshow__dot" type="button" data-step-dot aria-label="Step 1: Copy the sheet" aria-current="step"></button>
+          <button class="stepshow__dot" type="button" data-step-dot aria-label="Step 2: Photograph it" aria-current="false"></button>
+          <button class="stepshow__dot" type="button" data-step-dot aria-label="Step 3: Check and adjust" aria-current="false"></button>
+          <button class="stepshow__dot" type="button" data-step-dot aria-label="Step 4: Install it" aria-current="false"></button>
+          </div>
+          <button class="stepshow__arrow" type="button" data-step-nav="next" aria-label="Next step">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+          </button>
+        </div>
+      </div>
       </section>
 
       <section class="band" id="detail">
