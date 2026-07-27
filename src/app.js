@@ -504,6 +504,13 @@ async function runCompile(previewOnly = false) {
   if (!state.glyphs.length) return;
   // Preview recompiles are exempt — see allowHeavyOp for why.
   if (!previewOnly && !allowHeavyOp()) return;
+
+  topload(true);
+  // Hand the browser a frame before starting. compile() is synchronous and
+  // holds the main thread, so without this the bar would not be painted until
+  // after the work it exists to cover had already finished.
+  await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
   try {
     const styles = previewOnly
       ? STYLES.filter((s) => s.name === state.previewStyle)
@@ -537,6 +544,8 @@ async function runCompile(previewOnly = false) {
   } catch (err) {
     console.error(err);
     toast(`Could not build the font: ${err.message}`, true);
+  } finally {
+    topload(false);
   }
 }
 
@@ -1122,13 +1131,28 @@ function closeModal(sel) {
   $(sel).hidden = true;
 }
 
+/**
+ * The indeterminate top bar, reference-counted.
+ *
+ * Two overlapping operations must not have the first one to finish hide the
+ * bar out from under the second, which is what a plain boolean would do.
+ */
+let loadDepth = 0;
+function topload(on) {
+  loadDepth = Math.max(0, loadDepth + (on ? 1 : -1));
+  $('#topload').hidden = loadDepth === 0;
+}
+
 /** Load an optional module once, tolerating its absence. */
 async function loadModule(key, path) {
   if (state.modules[key] !== null) return state.modules[key];
+  topload(true);
   try {
     state.modules[key] = await import(path);
   } catch {
     state.modules[key] = undefined;
+  } finally {
+    topload(false);
   }
   return state.modules[key];
 }

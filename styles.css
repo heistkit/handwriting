@@ -1207,6 +1207,70 @@ main { flex: 1; }
 .field-inline > span { font-size: .85rem; }
 .field-inline input { width: 130px; }
 
+/* ── Indeterminate top bar ──────────────────────────────────────────────
+   Adapted from a Uiverse.io loader by satyamchaudharydev (MIT). Used only
+   where the duration genuinely is not knowable — lazy module loads, and the
+   preview recompile behind the tuning sliders. Anywhere the app can measure
+   progress it shows a real bar instead, because a determinate bar beats an
+   indeterminate one every time.
+
+   Reimplemented on transform rather than width, for two reasons.
+
+   The original's keyframes end with `width: 0; right: 0; left: unset`.
+   `left: 0` to `left: auto` is not an interpolable pair, so that final step is
+   a discrete jump the browser resolves however it likes rather than the
+   right-edge collapse it reads as. Switching transform-origin at an instant
+   expresses the same intent deterministically.
+
+   More importantly, width animations run on the main thread. This bar's whole
+   job is to cover moments when the main thread is busy compiling a font — so
+   a width animation would freeze during precisely the work it is reporting,
+   which is worse than showing nothing. Transform and opacity animate on the
+   compositor and keep moving while the main thread is blocked.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.topload {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 100;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.topload[hidden] { display: none; }
+
+.topload::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform-origin: left;
+  animation: topload 1.05s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes topload {
+  0% { transform: scaleX(0); transform-origin: left center; }
+  48% { transform: scaleX(1); transform-origin: left center; }
+  /* Flip the anchor at an instant: origin does not interpolate meaningfully,
+     and this is the collapse-to-the-right the original was reaching for. */
+  49% { transform: scaleX(1); transform-origin: right center; }
+  100% { transform: scaleX(0); transform-origin: right center; }
+}
+
+/* In lite mode the bar still appears — it carries information — it simply
+   stops moving, and reads as a filled rule instead. */
+:root[data-lite='on'] .topload::before,
+.topload[data-static]::before { animation: none; transform: scaleX(1); opacity: .55; }
+
+@media (prefers-reduced-motion: reduce) {
+  .topload::before { animation: none; transform: scaleX(1); opacity: .55; }
+}
+
 /* ── Copy button ────────────────────────────────────────────────────────
    Adapted from a Uiverse.io copy button by Galahhad (MIT), sitting in the
    corner of the stylesheet snippet.
