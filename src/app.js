@@ -37,6 +37,8 @@ import { bindToggle as bindTextSize } from './textsize.js';
 import { observe as observeReveal, showAll as revealAll } from './reveal.js';
 import { enhance as enhanceFolds } from './fold.js';
 import { token as paletteToken, onPaletteChange } from './paint.js';
+import { classify as classifyFile, sniff as sniffFile, explain as explainFile } from './filetype.js';
+import { salvage as salvageImage } from './salvage.js';
 import { init as initFlourish, bindToggle as bindFlourish } from './flourish.js';
 import { loop as loopSpecimen } from './specimen.js';
 import { mount as mountStepshow } from './stepshow.js';
@@ -693,9 +695,33 @@ function renderCaptureList() {
   );
 }
 
-async function handleFile(file, sheetId) {
-  if (!file.type.startsWith('image/')) {
-    toast('That does not look like an image.', true);
+/**
+ * The first bytes of a file, for filetype.sniff.
+ *
+ * Never throws: this runs on the failure path, and an error here would replace
+ * a useful message with a worse one.
+ */
+async function sniffHead(file) {
+  try {
+    return sniffFile(await file.slice(0, 16).arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {boolean} [retried] true when this is the salvaged image being run
+ *   through a second time, which stops a rescue attempting its own rescue.
+ */
+async function handleFile(file, sheetId, retried = false) {
+  // A blocklist, not an allowlist. `file.type` is a label the operating system
+  // guesses from the extension rather than a fact about the bytes, so the old
+  // `startsWith('image/')` test refused a real JPEG that happened to have no
+  // extension and waved a zip renamed to .png straight through. Anything that
+  // is not obviously the wrong kind of thing gets in, and the decoder decides.
+  const verdict = classifyFile(file);
+  if (!verdict.ok) {
+    toast(verdict.message, true);
     return;
   }
   if (!allowHeavyOp()) return;
@@ -738,11 +764,26 @@ async function handleFile(file, sheetId) {
       return;
     }
     console.error(err);
-    // The exception text stays in the console, where a property path is
-      // useful to someone who can act on it. What reaches the reader has to be
-      // something they can do about it — and an iPhone photo is often HEIC,
-      // which is the commonest reason a picture will not decode in a browser.
-      toast('Could not read that photo. If it came from an iPhone it may be HEIC — export it as JPEG, or take the shot again.', true);
+    // Before giving up: a great many files a browser cannot decode still have
+    // an ordinary JPEG inside them — camera raw carries a full-size preview, a
+    // scanned PDF page is a JPEG with a wrapper, HEIC often has a JPEG
+    // thumbnail. src/salvage.js scans the bytes for one. It is expensive and
+    // only ever runs here, after the cheap path has already failed, so nothing
+    // pays for it unless the alternative was refusing the file outright.
+    if (!retried) {
+      const rescued = await salvageImage(file);
+      if (rescued) {
+        toast('That format could not be read directly, so the image inside it was used instead.');
+        return handleFile(rescued, sheetId, true);
+      }
+    }
+
+    // The exception stays in the console, where a property path is useful to
+    // someone who can act on it. What reaches the reader is read from the
+    // file's own first bytes, so it names what the file actually is instead of
+    // guessing — this used to blame HEIC for every failure, including the ones
+    // that had nothing to do with HEIC.
+    toast(explainFile(await sniffHead(file)), true);
   } finally {
     busy(false);
   }

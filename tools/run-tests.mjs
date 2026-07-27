@@ -17,6 +17,8 @@ const suites = [
   './browsergate.test.mjs',
   './timings.test.mjs',
   './export.test.mjs',
+  './filetype.test.mjs',
+  './salvage.test.mjs',
 ];
 
 let total = 0;
