@@ -158,6 +158,50 @@ export async function run() {
       labelled(seg).join('') === 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', labelled(seg).join(''));
   }
 
+  // --- a neighbour's ink stays out of this character's bitmap --------------
+  {
+    // extractGlyph promises to copy only ink belonging to this character's own
+    // components, so that a 'p' whose tail curls right, under the baseline and
+    // into the next character's box, does not get traced into that character as
+    // a floating blob. The filter that did it collected its ids by scanning the
+    // cell's own rectangle — which by construction picks up the neighbour's
+    // label too — so it rejected nothing, and the promise was decorative.
+    const { extractGlyph } = await import('../src/segment.js');
+    const { labelComponents } = await import('../src/imageproc.js');
+
+    const bin = new Uint8Array(W * H);
+    // The character being cut out: a plain block.
+    box(bin, 400, 200, 500, 300);
+    // A neighbour's tail, unconnected, reaching into the same rectangle.
+    box(bin, 460, 310, 540, 322);
+
+    const { labels, boxes } = labelComponents(bin, W, H);
+    const mine = boxes.find((b) => b.x0 === 400 && b.y0 === 200);
+    const tail = boxes.find((b) => b.y0 === 310);
+    check('the fixture really is two separate components',
+      Boolean(mine && tail && mine.id !== tail.id),
+      JSON.stringify(boxes.map((b) => [b.x0, b.y0])));
+
+    // A cell whose box is deliberately generous — as a descender's cell is —
+    // so that the neighbour's tail falls inside it.
+    const cell = {
+      ch: 'q', row: 0, col: 0, missing: false,
+      box: { x0: 395, y0: 195, x1: 545, y1: 330 },
+      parts: 1,
+      partIds: [mine.id],
+    };
+
+    const g = extractGlyph(bin, labels, W, H, cell);
+    const ink = g.bitmap.reduce((n, v) => n + v, 0);
+    check('only the character\'s own ink is copied', ink === 100 * 100, `${ink} px`);
+
+    // And the fallback still copies everything, so a caller that does not track
+    // ids gets a glyph rather than a blank.
+    const noIds = extractGlyph(bin, labels, W, H, { ...cell, partIds: [] });
+    const inkAll = noIds.bitmap.reduce((n, v) => n + v, 0);
+    check('a cell with no ids still yields a glyph', inkAll > 100 * 100, `${inkAll} px`);
+  }
+
   return results;
 }
 

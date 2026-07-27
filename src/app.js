@@ -819,9 +819,32 @@ function refreshCaptureState() {
 // Review step
 // ---------------------------------------------------------------------------
 
+/**
+ * Throw away the export build, because its inputs have changed.
+ *
+ * goto('export') treats a non-empty state.serialised as proof that the export
+ * screen is current: it skips prepareExport, skips renderExport, and shows
+ * whatever was rendered last time. That is the right optimisation as long as
+ * exactly one rule holds — nothing may change a compile() input without saying
+ * so here.
+ *
+ * scheduleRecompile already reasons this out for settings. state.glyphs is the
+ * other input, and it had no such guard, so: capture sheets, build, press
+ * Download, go back to Review, redraw a character, then press the Download step
+ * chip. The chip is enabled, serialised is non-empty, and the export screen
+ * comes up still describing the previous build — the old character count, and
+ * download buttons still closed over the old ArrayBuffers. The font that
+ * arrives is the one from before the repair, and the repair is visible on the
+ * Review screen the whole time.
+ */
+function invalidateBuild() {
+  state.serialised = null;
+}
+
 function buildGlyphSet() {
   const captures = [...state.captures.values()];
   state.glyphs = mergeCaptures(captures);
+  invalidateBuild();
   const slants = captures.map((c) => c.slant).filter(Number.isFinite);
   state.naturalSlant = slants.length
     ? slants.sort((a, b) => a - b)[slants.length >> 1]
@@ -945,7 +968,12 @@ async function openDrawPad(ch) {
         // A redrawn glyph replaces any captured one and joins its own row, so
         // it is solved against its own baseline rather than a scanned row's.
         state.glyphs = state.glyphs.filter((g) => g.ch !== ch);
-        state.glyphs.push({ ...glyph, ch, row: 9000, col: 0, contours });
+        // Its own row, so it is solved against the pad's own rules rather than
+        // a scanned row's — and a row per character, not one shared row 9000
+        // for all of them, because two characters redrawn at different moments
+        // are two separate pieces of paper as far as the solver is concerned.
+        state.glyphs.push({ ...glyph, ch, row: `drawn:${ch}`, col: 0, contours });
+        invalidateBuild();
         closeModal('#draw-modal');
         renderReview();
         toast(`Updated “${ch}”.`);

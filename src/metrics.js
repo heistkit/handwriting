@@ -72,6 +72,31 @@ const median = (xs) => {
 export function solveRowMetrics(glyphsInRow) {
   const zoneOf = (gl) => BY_CHAR.get(gl.ch)?.zone ?? ZONES.x;
 
+  // A glyph that already knows where its own rules are does not need solving.
+  //
+  // Everything below triangulates a baseline from the *zones* of a row of
+  // characters, which needs a row to triangulate from. The drawing pad produces
+  // one character at a time, against rules it drew itself at known positions —
+  // so it reports them, and the answer is read rather than inferred. See the
+  // note beside `glyph.guides` in draw.js for what the inference did instead.
+  const stated = glyphsInRow.find((gl) => gl.guides && gl.guides.xHeight > 0);
+  if (stated) {
+    const { baseline, xHeight, ascHeight, descDepth } = stated.guides;
+    return {
+      baseline,
+      xLine: baseline - xHeight,
+      ascLine: baseline - ascHeight,
+      descLine: baseline + descDepth,
+      xHeight,
+      ascHeight: ascHeight > 0 ? ascHeight : null,
+      descDepth: descDepth > 0 ? descDepth : null,
+      // Stated, not sampled. `confident` below is about how many characters
+      // agreed on a baseline; a declared one needs no agreement, so it is
+      // reported as fully confident rather than as zero samples.
+      samples: { baseline: Infinity, xHeight: Infinity, ascender: Infinity, descender: Infinity },
+    };
+  }
+
   const bottomsOnBaseline = [];
   const topsAtXHeight = [];
   const topsAtAscender = [];
@@ -127,6 +152,34 @@ export function solveAllRows(glyphs, { targetXHeight = TARGET_X_HEIGHT } = {}) {
   for (const [row, list] of byRow) raw.set(row, solveRowMetrics(list));
 
   // Global fallbacks from the rows that did resolve.
+  //
+  // Kept per source, because a pixel is not a fixed unit here. Every sheet is a
+  // separate photograph taken at whatever distance the writer happened to hold
+  // the camera, and nothing rectifies them to a common size — so an x-height of
+  // 130 px on the letters sheet and 190 px on the symbols sheet can be the same
+  // handwriting. Borrowing across them scales one sheet by the ratio of two
+  // framings.
+  //
+  // The symbols sheet is the one this bites: its rows are almost entirely
+  // ZONES.mid, so none of them can pin an x-height from their own geometry and
+  // every one of them reaches for a fallback. Shoot that sheet closer than the
+  // letters and every maths sign and arrow came out proportionally oversize,
+  // with nothing to show for it — health.js skips `mid` in its size check
+  // precisely because those glyphs have no expected height.
+  //
+  // So: prefer a global from the same sheet, then any global, then the row's
+  // own ink. The last is crude but it is at least measured in the row's own
+  // units, which is the property that matters.
+  const sourceOf = (list) => list[0]?.sheetId ?? null;
+  const bySource = new Map();
+  for (const [row, m] of raw) {
+    if (!(m.xHeight > 0)) continue;
+    const src = sourceOf(byRow.get(row));
+    if (!bySource.has(src)) bySource.set(src, []);
+    bySource.get(src).push(m.xHeight);
+  }
+  const sourceX = new Map([...bySource].map(([src, xs]) => [src, median(xs)]));
+
   const solvedX = [...raw.values()].map((m) => m.xHeight).filter((v) => v > 0);
   const solvedAsc = [...raw.values()].map((m) => m.ascHeight).filter((v) => v > 0);
   const globalX = median(solvedX);
@@ -139,7 +192,9 @@ export function solveAllRows(glyphs, { targetXHeight = TARGET_X_HEIGHT } = {}) {
 
     // Recover x-height from ascender height when the row has no short letters.
     if (!(xHeight > 0)) {
+      const ownSource = sourceX.get(sourceOf(list));
       if (m.ascHeight > 0) xHeight = m.ascHeight * TYPICAL.xOverAsc;
+      else if (ownSource > 0) xHeight = ownSource;
       else if (globalX > 0) xHeight = globalX;
       else xHeight = median(list.map((g) => g.page.y1 - g.page.y0)) * 0.6;
     }

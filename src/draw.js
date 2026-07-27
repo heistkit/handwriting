@@ -415,7 +415,32 @@ export function createDrawPad(mount, opts = {}) {
       })),
     }));
     const glyph = rasterizeGlyph(backing, { width: W * SCALE, height: H * SCALE, ch });
-    if (glyph) onCommit(glyph);
+    if (!glyph) return;
+
+    // Where the rules actually are, in the same backing pixels the bitmap and
+    // `page` are measured in.
+    //
+    // The metrics solver recovers a baseline from the *zones* of the characters
+    // in a row: an 'x' sits between baseline and x-height, a 'k' rises to the
+    // ascender. That works on a photographed sheet with thirteen characters to
+    // triangulate from. It cannot work here, where a row is one character —
+    // and for a descender, a full-height character or a maths sign it pins
+    // nothing at all, so the solver fell through to a page-median x-height
+    // measured on a *photograph*, in page pixels, and applied it to a glyph
+    // measured in pad pixels. Two unrelated coordinate systems, one division,
+    // and the character came out several times the size of everything else,
+    // with no error anywhere.
+    //
+    // There is nothing to infer. This pad drew those rules itself, at known
+    // positions, and told the writer to sit the letter on them. Saying so is
+    // both exact and shorter than any inference.
+    glyph.guides = {
+      baseline: yBase * SCALE,
+      xHeight: (yBase - yX) * SCALE,
+      ascHeight: (yBase - yAsc) * SCALE,
+      descDepth: (yDesc - yBase) * SCALE,
+    };
+    onCommit(glyph);
   }
 
   function updateButtons() {

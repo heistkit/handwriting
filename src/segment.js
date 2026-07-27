@@ -495,6 +495,10 @@ export function segmentSheet(bin, w, h, expectedRows) {
         col: i,
         box: g ? { x0: g.x0, y0: g.y0, x1: g.x1, y1: g.y1 } : null,
         parts: g ? g.parts.length : 0,
+        // The component ids this character is actually made of. extractGlyph
+        // needs them to keep a neighbour's ink out, and cannot work them out
+        // for itself — see the note there.
+        partIds: g ? g.parts.map((p) => p.id).filter((id) => id != null) : [],
         missing: !g,
       });
     }
@@ -509,7 +513,7 @@ export function segmentSheet(bin, w, h, expectedRows) {
       index: r,
       band: null,
       cells: expectedRows[r].map((ch, i) => ({
-        ch, row: r, col: i, box: null, parts: 0, missing: true,
+        ch, row: r, col: i, box: null, parts: 0, partIds: [], missing: true,
       })),
     });
   }
@@ -538,6 +542,18 @@ export function segmentSheet(bin, w, h, expectedRows) {
  * filter, a 'y' tail from the previous character would be traced into this
  * glyph's outline as a floating blob.
  *
+ * The ids come from the cell, and that is the whole point. They used to be
+ * gathered here, by scanning the cell's own rectangle for whatever labels it
+ * contained — which collects, by construction, the label of every inked pixel
+ * inside it, including the neighbour's. `labels` is non-zero wherever `bin` is
+ * set, so `bin[i] && ids.has(labels[i])` reduced to `bin[i]` and the filter
+ * rejected nothing at all. Every word above this line described a defence that
+ * was not there.
+ *
+ * The real ids were always available: segmentSheet knows which components it
+ * merged into each character, because merging them is what it did. It now says
+ * so, in `cell.partIds`.
+ *
  * A one-pixel transparent border is always added so the contour tracer can walk
  * fully around the shape without special-casing the image edge.
  */
@@ -548,19 +564,15 @@ export function extractGlyph(bin, labels, w, h, cell, { pad = 2 } = {}) {
   const gh = y1 - y0 + pad * 2;
   const out = new Uint8Array(gw * gh);
 
-  // Collect the label ids that make up this cell by sampling its own box.
-  const ids = new Set();
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
-      const l = labels[y * w + x];
-      if (l) ids.add(l);
-    }
-  }
+  // No ids means an older caller, or a cell built by some path that does not
+  // track them. Copy everything, as before — a glyph with a neighbour's tail in
+  // it is a poor glyph, but an empty one is not a glyph at all.
+  const ids = cell.partIds?.length ? new Set(cell.partIds) : null;
 
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
       const i = y * w + x;
-      if (bin[i] && ids.has(labels[i])) {
+      if (bin[i] && (!ids || ids.has(labels[i]))) {
         out[(y - y0 + pad) * gw + (x - x0 + pad)] = 1;
       }
     }

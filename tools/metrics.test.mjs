@@ -78,7 +78,7 @@ const triangleDown = (y, w) => {
   return [(w / 2) * t, w - (w / 2) * t];
 };
 
-export function run() {
+export async function run() {
   console.log('\nmetrics.js');
 
   // -- 1. Baseline recovery from zone knowledge -----------------------------
@@ -244,6 +244,93 @@ export function run() {
     const w1 = deriveSpaceWidth(tight, s1);
     const w2 = deriveSpaceWidth(wide, s2);
     check('space scales with letter width', w2 > w1 * 1.5, `${w1} vs ${w2}`);
+  }
+
+  // -- 8. A pixel is not a fixed unit --------------------------------------
+  //
+  // Every sheet is a separate photograph at whatever distance the writer held
+  // the camera, and the drawing pad measures in its own backing pixels, which
+  // are neither. Nothing rectifies them to a common size. So an x-height
+  // borrowed from one source and applied to another scales a glyph by the ratio
+  // of two unrelated framings — silently, because a scale factor cannot be
+  // wrong in a way that throws.
+  {
+    const { solveAllRows } = await import('../src/metrics.js');
+
+    // Three photographed rows: baseline 1000/1300/1600, x-height 130px.
+    const page = [];
+    let row = 0;
+    for (const base of [1000, 1300, 1600]) {
+      for (const ch of ['a', 'c', 'e', 'o', 'x']) {
+        page.push({ ch, row, sheetId: 'everyday', page: { x0: 0, y0: base - 130, x1: 60, y1: base } });
+      }
+      for (const ch of ['b', 'd', 'h', 'k', 'l']) {
+        page.push({ ch, row, sheetId: 'everyday', page: { x0: 0, y0: base - 240, x1: 60, y1: base } });
+      }
+      row++;
+    }
+
+    // One character redrawn on the pad. W=440, H=506, SCALE=3, so the pad's
+    // rules sit at yAsc 81, yX 228, yBase 374, yDesc 466 in CSS pixels.
+    const S = 3;
+    const drawn = {
+      ch: 'f', row: 9000, sheetId: 'redraw',
+      page: { x0: 100, y0: 243, x1: 300, y1: 1398 },
+    };
+    const guides = {
+      baseline: 374 * S,
+      xHeight: (374 - 228) * S,
+      ascHeight: (374 - 81) * S,
+      descDepth: (466 - 374) * S,
+    };
+
+    const spanOf = (solved, glyph) => {
+      const m = solved.get(glyph.row);
+      return {
+        scale: m.scale,
+        top: (m.baseline - glyph.page.y0) * m.scale,
+        bottom: (m.baseline - glyph.page.y1) * m.scale,
+      };
+    };
+
+    // 'f' is ZONES.full: alone in a row it pins neither a baseline nor an
+    // x-height, so every inference below it has nothing to work from.
+    const without = spanOf(solveAllRows([...page, drawn]), drawn);
+    const withGuides = spanOf(solveAllRows([...page, { ...drawn, guides }]), drawn);
+
+    check('a redrawn character is scaled by its own pad, not by a photograph',
+      Math.abs(withGuides.scale - 500 / guides.xHeight) < 0.01,
+      `scale=${withGuides.scale.toFixed(3)}, expected ${(500 / guides.xHeight).toFixed(3)}`);
+
+    // The number that matters: on a 1000-unit em this used to reach 4327,
+    // which fontbuild then took as the family's ascender for all four styles.
+    check('and therefore fits the em rather than overflowing it',
+      withGuides.top < 1100, `top=${Math.round(withGuides.top)} units`);
+    check('and the unguided path is what it was rescued from',
+      without.top > 3000, `top=${Math.round(without.top)} units`);
+
+    // The same mismatch across two photographs. A row of maths signs is all
+    // ZONES.mid, so it can never solve its own x-height, and the symbols sheet
+    // is routinely shot at a different distance from the letters sheet.
+    {
+      const letters = [];
+      for (const ch of ['a', 'c', 'e', 'o', 'x']) {
+        letters.push({ ch, row: 0, sheetId: 'everyday', page: { x0: 0, y0: 870, x1: 60, y1: 1000 } });
+      }
+      // Symbols shot closer: same hand, 190px x-height. Row 1 has letters to
+      // measure from, row 2 is pure `mid` and must borrow.
+      const symbols = [];
+      for (const ch of ['a', 'c', 'e', 'o', 'x']) {
+        symbols.push({ ch, row: 1, sheetId: 'symbols', page: { x0: 0, y0: 810, x1: 90, y1: 1000 } });
+      }
+      for (const ch of ['+', '=', '<', '>', '×']) {
+        symbols.push({ ch, row: 2, sheetId: 'symbols', page: { x0: 0, y0: 900, x1: 90, y1: 1000 } });
+      }
+      const solved = solveAllRows([...letters, ...symbols]);
+      check('a maths row borrows its x-height from its own sheet',
+        Math.abs(solved.get(2).xHeight - 190) < 1,
+        `xHeight=${solved.get(2).xHeight}, wanted 190 (its own sheet) not 130`);
+    }
   }
 
   return results;
