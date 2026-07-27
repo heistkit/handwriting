@@ -379,12 +379,43 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
    horizontal scrollers means a drag has to guess which one you meant. */
 .steps { display: flex; gap: .15rem; margin-inline: auto; }
 
+/*
+ * The rail carries six chips and the bar's content box is 1180px, which after
+ * the logo, the theme switch and the two actions leaves about 560px. Six full
+ * labels need 726px, so the last one was being sliced through the middle of a
+ * word — "Refin" — which is what a broken interface looks like.
+ *
+ * So the label is shown for the step you are on and hidden on the rest, where
+ * the numbered disc already says which step it is. It is hidden by clipping
+ * rather than by `display: none`, so every chip keeps its full accessible name
+ * and a screen reader still reads "Photograph, step 3 of 6". Hovering or
+ * focusing a chip brings its label back, so a pointer can still read ahead.
+ *
+ * 44px minimum, because these are the app's primary navigation and they were
+ * 41px — under every touch-target guideline there is, and the first thing
+ * anyone notices when they try to hit one.
+ */
 .step-chip {
   display: flex; align-items: center; gap: .5rem;
-  padding: .4rem .75rem; border-radius: 999px;
+  padding: .4rem .7rem; border-radius: 999px;
+  min-height: 44px;
   background: none; border: 0; cursor: pointer;
   color: var(--text-3); font-size: .87rem; font-weight: 500;
   white-space: nowrap; transition: color .18s var(--ease), background .18s var(--ease);
+}
+
+.step-chip__label {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-width .22s var(--ease), opacity .18s var(--ease), margin .22s var(--ease);
+}
+.step-chip[aria-current='step'] .step-chip__label,
+.step-chip:hover:not(:disabled) .step-chip__label,
+.step-chip:focus-visible .step-chip__label { max-width: 12ch; opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .step-chip__label { transition: none; }
 }
 @media (max-width: 660px) { .topbar-inner { gap: .8rem; } }
 
@@ -4015,22 +4046,77 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
   78% { border-radius: 50% 50% 46% 54% / 62% 38% 62% 38%; }
 }
 
+/*
+ * Looking at the pointer. src/mascot.js writes --look-x and --look-y, each
+ * clamped to -1..1, and everything below is derived from those two numbers —
+ * the module measures and does not style.
+ *
+ * The eyes travel further than the body leans, which is what makes it read as
+ * looking rather than tilting: a face turns its eyes first.
+ */
+.mascot__blob {
+  translate: calc(var(--look-x, 0) * 5%) calc(var(--look-y, 0) * 4%);
+  transition: translate .3s var(--ease);
+}
+
 .mascot__eye {
   position: absolute; top: 40%;
   width: 13%; aspect-ratio: 1; border-radius: 50%;
   background: var(--accent-fg);
+  translate: calc(var(--look-x, 0) * 26%) calc(var(--look-y, 0) * 22%);
+  transition: translate .22s var(--ease);
   animation: mascot-blink 5.2s steps(1, end) infinite;
 }
 .mascot__eye:nth-of-type(1) { left: 27%; }
 .mascot__eye:nth-of-type(2) { right: 27%; }
 
-/* A mouth drawn as the bottom edge of a box, so it curves with one radius. */
+/*
+ * The mouth.
+ *
+ * Drawn as the edge of a box rather than as a path, so its shape is three
+ * numbers — which border it uses, how wide it is, and how the corners round —
+ * and each card can have a different one without a second asset.
+ *
+ * Four cards, four expressions, in the order the steps happen: ready, then
+ * concentrating while it lines up the shot, then a small pleased one for the
+ * checking step, then an open grin when the font is finished.
+ */
 .mascot__mouth {
   position: absolute; left: 50%; top: 56%;
   width: 26%; height: 13%;
   transform: translateX(-50%);
   border-bottom: .18rem solid var(--accent-fg);
   border-radius: 0 0 60% 60% / 0 0 100% 100%;
+  transition: width .25s var(--ease), height .25s var(--ease),
+              border-radius .25s var(--ease), border-width .25s var(--ease);
+}
+
+/* 2 — a flat line: it is holding still to take the photograph. */
+#stepcard-2 .mascot__mouth {
+  width: 20%; height: 0;
+  border-radius: 999px;
+}
+/* 3 — small and to one side, the way a face goes when it is checking. */
+#stepcard-3 .mascot__mouth {
+  width: 15%; height: 9%;
+  left: 46%;
+  border-radius: 0 0 90% 40% / 0 0 100% 100%;
+}
+/* 4 — open, because the font exists now. */
+#stepcard-4 .mascot__mouth {
+  width: 30%; height: 22%;
+  background: var(--accent-fg);
+  border: 0;
+  border-radius: 18% 18% 52% 52% / 12% 12% 100% 100%;
+}
+
+/* Poked, it opens whatever it was doing. */
+.mascot__stage.is-poked .mascot__mouth,
+.mascot__stage.is-delighted .mascot__mouth {
+  width: 34%; height: 24%;
+  background: var(--accent-fg);
+  border: 0;
+  border-radius: 18% 18% 52% 52% / 12% 12% 100% 100%;
 }
 
 .mascot__shadow {
@@ -4074,11 +4160,15 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 
 @media (prefers-reduced-motion: reduce) {
   .mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop { animation: none; }
+  .mascot__blob, .mascot__eye { translate: none; transition: none; }
+  .mascot__mouth { transition: none; }
   .mascot__blob { border-radius: 52% 48% 46% 54% / 54% 50% 50% 46%; }
   .stepshow__dot { transition: none; }
 }
 :root[data-lite='on'] :is(.mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop),
 :root[data-decor='off'] :is(.mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop) { animation: none; }
+:root[data-lite='on'] :is(.mascot__blob, .mascot__eye),
+:root[data-decor='off'] :is(.mascot__blob, .mascot__eye) { translate: none; transition: none; }
 :root[data-lite='on'] .mascot__blob,
 :root[data-decor='off'] .mascot__blob { border-radius: 52% 48% 46% 54% / 54% 50% 50% 46%; }
 

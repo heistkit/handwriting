@@ -45,14 +45,26 @@ export function mount(root) {
   // no script never sees buttons that cannot do anything.
   root.querySelector('.stepshow__nav')?.removeAttribute('hidden');
 
+  /**
+   * Card centres, in track coordinates.
+   *
+   * Cached because reading offsetLeft forces layout, and the alternative was
+   * doing that four times on every scroll event. They only move when the track
+   * is resized, which is the one thing that invalidates them.
+   */
+  let centres = [];
+  const measure = () => {
+    centres = cards.map((card) => card.offsetLeft + card.offsetWidth / 2);
+  };
+
   const current = () => {
     // Nearest card centre to the track's centre. Robust against a partial
     // swipe, an odd gap, and the last card never reaching the left edge.
+    if (!centres.length) measure();
     const mid = track.scrollLeft + track.clientWidth / 2;
     let best = 0;
     let bestGap = Infinity;
-    cards.forEach((card, i) => {
-      const centre = card.offsetLeft + card.offsetWidth / 2;
+    centres.forEach((centre, i) => {
       const gap = Math.abs(centre - mid);
       if (gap < bestGap) { bestGap = gap; best = i; }
     });
@@ -82,11 +94,21 @@ export function mount(root) {
     if (next) next.disabled = i === cards.length - 1;
   };
 
-  let frame = null;
-  const onScroll = () => {
-    if (frame !== null) return;
-    frame = requestAnimationFrame(() => { frame = null; sync(); });
-  };
+  /*
+   * Synchronous, deliberately.
+   *
+   * This used to throttle through requestAnimationFrame, which meant the dots
+   * and the arrows only updated if rAF ran — and rAF does not run in a
+   * background tab, or in any context that has stopped painting. The scroll
+   * position would move and nothing would follow it, leaving the last dot lit
+   * with the next arrow still enabled, as though there were another card.
+   *
+   * There is nothing left to throttle: the card centres are cached, so this is
+   * four subtractions and a class toggle.
+   */
+  const onScroll = () => sync();
+
+  const onResize = () => { measure(); sync(); };
 
   const onKey = (event) => {
     const i = current();
@@ -98,15 +120,17 @@ export function mount(root) {
 
   track.addEventListener('scroll', onScroll, { passive: true });
   track.addEventListener('keydown', onKey);
+  addEventListener('resize', onResize);
   prev?.addEventListener('click', () => goTo(current() - 1));
   next?.addEventListener('click', () => goTo(current() + 1));
   dots.forEach((dot, n) => dot.addEventListener('click', () => goTo(n)));
 
+  measure();
   sync();
 
   return () => {
     track.removeEventListener('scroll', onScroll);
     track.removeEventListener('keydown', onKey);
-    if (frame !== null) cancelAnimationFrame(frame);
+    removeEventListener('resize', onResize);
   };
 }

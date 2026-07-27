@@ -42,6 +42,7 @@ import { loop as loopSpecimen } from './specimen.js';
 import { mount as mountStepshow } from './stepshow.js';
 import { mount as mountEggs } from './eggs.js';
 import { mount as mountSliders } from './slider.js';
+import { mount as mountMascot } from './mascot.js';
 import { read as readRoute, write as writeRoute, base as routeBase, overlayPath } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
@@ -193,6 +194,7 @@ function renderSteps() {
         : String(i + 1);
 
       const label = document.createElement('span');
+      label.className = 'step-chip__label';
       label.textContent = s.label;
 
       btn.append(dot, label);
@@ -2401,6 +2403,10 @@ function init() {
 
   // Nothing here carries meaning, and the interface is identical without it.
   mountEggs({ specimen });
+
+  // The ink drop watches the pointer. Fine pointers only, and only the card
+  // actually on screen.
+  mountMascot();
 
   // Every <details> in the document, plus anything rendered later — renderFAQ,
   // the guide and the health report each call this again for their own subtree.
