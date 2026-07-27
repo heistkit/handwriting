@@ -28,13 +28,17 @@
  *
  * Cost
  * ----
- * Tracing one small glyph is single-digit milliseconds — this is not the
- * few-hundred-millisecond full-family compile, which is why the demo can run
- * inline while the real build gets a progress bar. The modules are imported on
- * first interaction, so a visitor who never touches the pad pays nothing for it.
+ * Tracing one small glyph is far cheaper than the full-family compile, which is
+ * why the demo can run inline while the real build gets a progress bar.
+ *
+ * The whole module — and, through its static import of fontbuild.js, the metrics
+ * and charset tables with it — loads when the band comes within 200px of the
+ * viewport, not on first interaction. Scrolling past is enough. That is still
+ * nothing for a visitor who never reaches it, which is the case worth
+ * protecting, but it is not the same claim.
  */
 
-import { VARIANT_ROTATION, VARIANT_SCALE, VARIANT_SHIFT, TARGET_X_HEIGHT_UNITS } from './fontbuild.js';
+import { VARIANT_ROTATION, VARIANT_SCALE, VARIANT_SHIFT, TARGET_X_HEIGHT_UNITS, jitter } from './fontbuild.js';
 
 /** How many variants the real font builds per character. Kept in step by hand
  *  with the default in app.js state.settings.variantCount. */
@@ -161,13 +165,10 @@ export async function mountDemo(mount, { ch = 'a' } = {}) {
 
   let draw;
   let trace;
-  let build;
   try {
-    [draw, trace, build] = await Promise.all([
-      import('./draw.js'),
-      import('./trace.js'),
-      import('./fontbuild.js'),
-    ]);
+    // fontbuild is already a static import at the top of this file, for the
+    // variant constants — importing it again here bought nothing.
+    [draw, trace] = await Promise.all([import('./draw.js'), import('./trace.js')]);
   } catch {
     // The band keeps whatever static content it had. A demo that fails to load
     // should leave the page as it was, not leave a hole where it would have been.
@@ -210,7 +211,7 @@ export async function mountDemo(mount, { ch = 'a' } = {}) {
     }
 
     const nodes = countNodes(contours);
-    const takes = variantsOf(contours, bounds, build.jitter);
+    const takes = variantsOf(contours, bounds, jitter);
 
     const outlineBox = el('figure', 'demo-panel');
     outlineBox.append(renderOutline(contours, bounds, { nodes: true, label: 'Your letter as cubic Bézier outlines' }));

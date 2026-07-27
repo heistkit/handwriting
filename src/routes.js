@@ -34,8 +34,11 @@ const STEP_PATHS = {
 };
 
 /**
- * Overlays sit *on top of* a step rather than replacing it, so their entry
- * records which step was underneath. Closing one returns you there.
+ * Overlays sit on top of a step visually, but their address replaces it — the
+ * path says `/settings`, not `/write/settings`, and nothing about the step
+ * underneath is recorded. Closing one therefore has to be told which step to
+ * return the address to; app.js passes `state.step`, which is the step still on
+ * screen behind the dialogue.
  */
 const OVERLAY_PATHS = {
   guide: '/guide',
@@ -53,19 +56,12 @@ function invert(map) {
 }
 
 /**
- * Strip the directory the app is served from, so this works at a subpath —
- * GitHub Pages serves projects from `/repo-name/`, and hard-coding a leading
- * slash would break every route there.
- */
-/**
  * The pathname with the noise taken off, so everything downstream sees one
  * spelling of a given screen.
  *
  * The trailing slash is not a nicety. `/write/` and `/write` are the same
- * screen to a reader, and a link shared with the slash on the end is a link
- * someone typed or a CMS mangled. Left alone it defeated base(), which then
- * treated `/write` as the directory and the empty remainder as the root — so a
- * deep link with a slash landed on the start page instead of the one it named.
+ * screen to a reader, and a link shared with the slash on the end is one
+ * someone typed or a CMS tidied.
  */
 function normalisedPath() {
   let path = location.pathname.replace(/index\.html$/, '');
@@ -73,14 +69,38 @@ function normalisedPath() {
   return path || '/';
 }
 
-export function base() {
-  const path = normalisedPath();
-  // Anything the router knows about is a route, so whatever precedes it is the
-  // base. Otherwise the current directory is.
-  for (const p of [...Object.values(STEP_PATHS), ...Object.values(OVERLAY_PATHS)]) {
-    if (p !== '/' && (path === p || path.endsWith(p))) return path.slice(0, -p.length) || '/';
+/**
+ * Where the app is served from.
+ *
+ * Taken from this module's own URL, not guessed from the current path. The
+ * guess — walk the path looking for a segment that happens to be a known route
+ * — cannot tell `/repo/` (the app's root, in a subdirectory) from `/repo` (a
+ * route called repo at the domain root), and it got that exact case wrong:
+ * served from `user.github.io/repo/`, the first navigation pushed
+ * `user.github.io/write`, which looked right until a reload or a shared link
+ * 404'd.
+ *
+ * `import.meta.url` has no such ambiguity — the module is at `<base>/src/
+ * routes.js`, whatever the base is. It is trusted only when it is an http(s)
+ * URL: under Node, or a bundler that rewrites it, it is a filesystem path and
+ * would produce a base that has nothing to do with the served one.
+ */
+function detectBase() {
+  try {
+    const here = new URL('../', import.meta.url);
+    if (here.protocol === 'http:' || here.protocol === 'https:') {
+      return here.pathname.length > 1 ? here.pathname.replace(/\/+$/, '') : '/';
+    }
+  } catch {
+    /* no import.meta in this environment */
   }
-  return path.replace(/\/[^/]*$/, '') || '/';
+  return '/';
+}
+
+const BASE = detectBase();
+
+export function base() {
+  return BASE;
 }
 
 const join = (b, p) => (b === '/' ? p : p === '/' ? `${b}/` : b + p);

@@ -504,10 +504,23 @@ function stat(value, label, cls = '') {
   return el;
 }
 
+/**
+ * The repair pad currently on screen, so it can be torn down.
+ *
+ * createDrawPad registers a keydown listener on `document` to catch Ctrl+Z,
+ * removed only by destroy(). Clearing the modal with replaceChildren() takes
+ * the canvases away and leaves the listener — so every character repaired added
+ * another one, each holding its whole pad closure alive, and each swallowing
+ * undo in the feedback box and the preview from then on.
+ */
+let repairPad = null;
+
 async function openDrawPad(ch) {
   const mod = await loadModule('draw', './draw.js');
   const body = $('#draw-body');
   $('#draw-title').textContent = `Draw “${ch}”`;
+  repairPad?.destroy?.();
+  repairPad = null;
   body.replaceChildren();
 
   if (!mod?.createDrawPad) {
@@ -517,7 +530,7 @@ async function openDrawPad(ch) {
       'The drawing pad is not available in this build. You can re-photograph the sheet instead.';
     body.append(p);
   } else {
-    mod.createDrawPad(body, {
+    repairPad = mod.createDrawPad(body, {
       ch,
       onCommit: (glyph) => {
         // The pad returns ink, not outlines. This used to read
@@ -1091,6 +1104,11 @@ function openFeedback(prefill = null) {
  */
 function feedbackFromGuide(failedQuery = '') {
   closeModal('#guide');
+  // The guide owns an address and feedback does not, so the address has to come
+  // back to the step. Without this the reader ends on their own step with
+  // `/guide` in the bar, and a reload restores the guide and silently discards
+  // the half-written report.
+  writeRoute({ step: state.step });
   openFeedback(
     failedQuery.trim()
       ? `I searched the guide for "${failedQuery.trim()}" and did not find an answer.\n\nWhat I was trying to do:\n`
@@ -1283,6 +1301,13 @@ function closeModal(sel) {
   if (!el || el.hidden) return;
   el.hidden = true;
 
+  // The repair pad holds a document-level keydown listener; hiding the dialogue
+  // is not what releases it.
+  if (sel === '#draw-modal') {
+    repairPad?.destroy?.();
+    repairPad = null;
+  }
+
   const at = modalStack.indexOf(el);
   if (at >= 0) modalStack.splice(at, 1);
   applyInert();
@@ -1313,7 +1338,13 @@ function closeModal(sel) {
 const ROUTED_OVERLAYS = ['guide', 'settings', ...LEGAL_IDS];
 
 function closeRoutedOverlays() {
-  for (const sel of ['#guide', '#settings', '#legal']) $(sel).hidden = true;
+  // Through closeModal, never by writing `.hidden`. Hiding a dialogue behind
+  // the stack's back leaves its entry on the stack, so applyInert() is never
+  // re-run and `main` keeps the `inert` attribute — which removes pointer
+  // input as well as focus. The page goes dead with nothing on screen to
+  // explain it, and no route out from inside the app, because closeModal
+  // early-returns on an already-hidden element so the entry can never drain.
+  for (const sel of ['#guide', '#settings', '#legal']) closeModal(sel);
 }
 
 /**
@@ -1338,13 +1369,17 @@ async function applyRoute() {
     return;
   }
 
+  // Compared against `step`, not against a defaulted copy of it: `/nonsense`
+  // reads as step null, and defaulting first made `landed !== wanted` false, so
+  // the Start screen rendered under an address that names nothing.
   const wanted = step ?? 'start';
+  const named = step !== null;
   // Nothing about a session is stored, so /refine on a cold load has no font to
   // show. Landing on the furthest screen that does work is honest; rendering an
   // empty Refine and letting the reader wonder what broke is not.
   const landed = reachable(wanted) ? wanted : furthestReachable();
   applyStep(landed);
-  if (landed !== wanted || fromHash) writeRoute({ step: landed, replace: true });
+  if (landed !== wanted || !named || fromHash) writeRoute({ step: landed, replace: true });
 }
 
 /** Closing an overlay returns the address to the step underneath it. */
@@ -1491,7 +1526,14 @@ function init() {
   // On a device that looks like it will struggle, lite mode is turned on for
   // them — but only if they have not already expressed a preference, and they
   // are told it happened rather than finding the interface quietly different.
-  requestIdleCallback?.(() => {
+  // `requestIdleCallback?.()` throws ReferenceError when the global is absent —
+  // optional call syntax guards a null value, not an undeclared binding. It sat
+  // above every line of routing, link and keyboard wiring in init(), so on
+  // Safari 16.3 and earlier the page rendered and nothing worked.
+  const idle = typeof requestIdleCallback === 'function'
+    ? requestIdleCallback
+    : (fn) => setTimeout(fn, 1200);
+  idle(() => {
     const note = slowDeviceNote(profile());
     if (note && !liteChosen()) {
       applyLite('on');
@@ -1523,7 +1565,10 @@ function init() {
   $$('[data-legal]').forEach((a) =>
     a.addEventListener('click', (e) => {
       e.preventDefault();
-      history.replaceState(null, '', `#${a.dataset.legal}`);
+      // No replaceState here. It was left over from the fragment design and
+      // stamped `#privacy` onto the entry the reader came *from*, so Back read
+      // the hash, re-opened the document, and overwrote that entry — the page
+      // they started on stopped being reachable by Back at all.
       openLegal(a.dataset.legal);
     })
   );
@@ -1591,6 +1636,7 @@ function init() {
   // The landing demo pulls in three modules, so it is mounted the first time the
   // band comes into view rather than on load. A visitor who never scrolls to it
   // — or who arrives already past it, on a step route — pays nothing.
+  let demoPad = null;
   const demoBand = $('#demo-mount');
   if (demoBand && typeof IntersectionObserver === 'function') {
     const demoIO = new IntersectionObserver(
@@ -1599,6 +1645,11 @@ function init() {
         self.disconnect();
         import('./demo.js')
           .then((m) => m.mountDemo(demoBand))
+          // Held, not dropped. createDrawPad registers a document-level keydown
+          // listener that swallows Ctrl+Z, and only destroy() removes it —
+          // otherwise undo in the feedback box or the preview would be applied
+          // to a canvas on a screen the reader is not looking at.
+          .then((handle) => { demoPad = handle; })
           // The band keeps its fallback text. A demo that fails to load should
           // leave the page as it was, not leave a hole where it would have been.
           .catch(() => {});
@@ -1703,16 +1754,23 @@ function init() {
     closeModal(`#${top.id}`);
     // The address follows only if the thing just closed owned one, and only
     // once nothing routed is left underneath it.
-    if (['guide', 'legal', 'settings'].includes(top.id) && !topRoutedModal()) {
-      writeRoute({ step: state.step });
-    }
+    if (!['guide', 'legal', 'settings'].includes(top.id)) return;
+    const beneath = topRoutedModal();
+    // Peeling the legal sheet off Settings leaves Settings on screen, so the
+    // address has to name Settings — not stay at /privacy, which a reload would
+    // then take literally.
+    if (beneath) writeRoute({ overlay: beneath.id, replace: true });
+    else writeRoute({ step: state.step });
   });
 
   $$('.sheet-modal').forEach((m) =>
     m.addEventListener('click', (e) => {
+      // Only a click on the backdrop itself, not one that bubbled from inside.
       if (e.target !== m) return;
-      m.hidden = true;
-      if (['guide', 'legal', 'settings'].includes(m.id)) writeRoute({ step: state.step });
+      closeModal(`#${m.id}`);
+      if (['guide', 'legal', 'settings'].includes(m.id) && !topRoutedModal()) {
+        writeRoute({ step: state.step });
+      }
     })
   );
 }

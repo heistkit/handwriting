@@ -106,8 +106,13 @@ function observer() {
 
 /**
  * @param {ParentNode} [root] limit to a subtree — used when a step becomes
- *   active or a list re-renders, so the new content animates in rather than
- *   appearing already finished.
+ *   active, so its content animates in rather than appearing already finished.
+ *
+ *   Not called after a list re-renders, which is why `.lesson`, `.doc-result`,
+ *   `.dl-item` and `.finding` are in TARGETS but never actually animate: they
+ *   are built after observe() has run, so they are never tagged, and an
+ *   untagged element is simply visible. Harmless, and worth knowing before
+ *   someone wonders why the download list arrives without the others.
  */
 export function observe(root = document) {
   if (typeof IntersectionObserver !== 'function') return null;

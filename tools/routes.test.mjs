@@ -76,14 +76,20 @@ export async function run() {
   }
 
   // --- serving from a subdirectory -----------------------------------------
+  //
+  // base() is derived from this module's own URL rather than guessed from the
+  // current path, because the guess could not tell `/repo/` — the app's root,
+  // in a subdirectory — from `/repo`, a route called repo at the domain root,
+  // and got that case wrong in the direction that 404s on reload. Under Node
+  // the module URL is a file: path, which the detector deliberately refuses, so
+  // what is testable here is that it declines rather than inventing a base.
   {
-    at('/handwriting/write');
-    check('base() finds the subdirectory', base() === '/handwriting', base());
-    check('and the step still reads through it', read().step === 'write');
+    at('/write');
+    check('base() declines a non-http module URL', base() === '/', base());
 
-    const calls = at('/handwriting/write');
+    const calls = at('/write');
     write({ step: 'review' });
-    check('writes stay inside the subdirectory', calls[0]?.url === '/handwriting/review', calls[0]?.url);
+    check('and writes are rooted', calls[0]?.url === '/review', calls[0]?.url);
   }
 
   // --- writing -------------------------------------------------------------
