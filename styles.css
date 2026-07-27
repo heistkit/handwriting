@@ -4839,3 +4839,37 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 @media (prefers-reduced-motion: reduce) {
   .exportfold > summary, .exportfold > summary::after { transition: none; }
 }
+
+/* ── The shield ─────────────────────────────────────────────────────────
+   Taken from a Uiverse.io verification form by Praashoo7 (MIT) — only the
+   mark. The form itself is a four-digit code entry, and this app has no
+   accounts, no codes and nothing to verify, so there was nothing else in it to
+   use honestly.
+
+   The original ships the shield as a 60px base64 PNG inside an <image> tag:
+   about 1.8KB of markup that cannot scale, cannot take currentColor, and
+   cannot follow the theme. Redrawn as two paths — one for the shield, one for
+   the tick — which is roughly 200 bytes and does all three.
+
+   Two paths rather than one so the tick can be drawn on its own as the card
+   arrives. The shield is simply there; the tick is the claim being made.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.shield__tick {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+/* Held back until the card arrives, then drawn. Resting state is drawn, so a
+   browser that never runs the reveal shows a complete shield. */
+.reveal-ready [data-reveal] .shield__tick { stroke-dashoffset: 1; }
+.reveal-ready [data-reveal='in'] .shield__tick {
+  animation: shield-tick .5s cubic-bezier(.5, .05, .55, .95) .3s both;
+}
+@keyframes shield-tick { from { stroke-dashoffset: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-ready [data-reveal] .shield__tick { stroke-dashoffset: 0; }
+  .reveal-ready [data-reveal='in'] .shield__tick { animation: none; }
+}
+:root[data-lite='on'] .shield__tick,
+:root[data-decor='off'] .shield__tick { stroke-dashoffset: 0; animation: none; }
