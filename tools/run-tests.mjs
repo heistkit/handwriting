@@ -11,6 +11,7 @@ const suites = [
   './ratelimit.test.mjs',
   './middleware.test.mjs',
   './docsearch.test.mjs',
+  './eta.test.mjs',
 ];
 
 let total = 0;

@@ -18,6 +18,11 @@
   try {
     var t = localStorage.getItem('inkwell.theme');
     if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+
+    var l = localStorage.getItem('inkwell.lite');
+    if (l === 'on' || l === 'off') document.documentElement.dataset.lite = l;
+    else if (matchMedia('(prefers-reduced-motion: reduce)').matches)
+      document.documentElement.dataset.lite = 'on';
   } catch (e) { /* private mode: fall back to the system preference */ }
 </script>
 <link rel="stylesheet" href="styles.css">
@@ -528,9 +533,23 @@
 
 <div class="busy" id="busy" hidden>
   <div class="busy-panel">
-    <div class="spinner" aria-hidden="true"><i></i><i></i><i></i></div>
-    <p class="busy-stage" id="busy-stage">Working</p>
+    <div class="arcloader" aria-hidden="true">
+      <svg class="outer" viewBox="0 0 86 86">
+        <circle class="back" cx="43" cy="43" r="40"></circle>
+        <circle class="front" cx="43" cy="43" r="40"></circle>
+      </svg>
+      <svg class="middle" viewBox="0 0 60 60">
+        <circle class="back" cx="30" cy="30" r="27"></circle>
+        <circle class="front" cx="30" cy="30" r="27"></circle>
+      </svg>
+      <svg class="inner" viewBox="0 0 34 34">
+        <circle class="back" cx="17" cy="17" r="14"></circle>
+        <circle class="front" cx="17" cy="17" r="14"></circle>
+      </svg>
+    </div>
+    <p class="busy-stage" id="busy-stage" role="status" aria-live="polite">Working</p>
     <div class="bar"><div class="bar-fill" id="busy-bar"></div></div>
+    <p class="busy-eta" id="busy-eta" aria-live="polite"></p>
     <p class="busy-note">Everything is happening on your device.</p>
   </div>
 </div>
@@ -602,6 +621,7 @@
         <a href="#terms" data-legal="terms">Terms</a>
         <a href="#licenses" data-legal="licenses">Licences</a>
         <a href="https://github.com/heistkit/handwriting" target="_blank" rel="noopener">Source</a>
+        <button class="lite-toggle" id="lite-toggle" type="button" aria-pressed="false">Lite mode</button>
       </nav>
     </div>
     <button class="btn btn-ghost" id="open-feedback" type="button">

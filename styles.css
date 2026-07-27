@@ -1435,16 +1435,155 @@ input[type=range]::-moz-range-thumb {
 .busy[hidden] { display: none; }
 .busy-panel { text-align: center; width: min(340px, 84vw); }
 .busy-stage { font-size: 1.06rem; font-weight: 500; margin-bottom: 1rem; }
-.busy-note { font-size: .83rem; color: var(--text-3); margin-top: .8rem; }
+.busy-eta {
+  font-size: .85rem; color: var(--text-2); margin-top: .7rem;
+  min-height: 1.3em; /* reserved, so the panel does not jump when it appears */
+}
+.busy-note { font-size: .83rem; color: var(--text-3); margin-top: .5rem; }
 
 .bar { height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
 .bar-fill { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .25s var(--ease); }
 
-.spinner { display: flex; gap: 6px; justify-content: center; margin-bottom: 1.25rem; }
-.spinner i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: bounce 1.05s var(--ease) infinite; }
-.spinner i:nth-child(2) { animation-delay: .14s; }
-.spinner i:nth-child(3) { animation-delay: .28s; }
-@keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .45 } 30% { transform: translateY(-8px); opacity: 1 } }
+/* ── Arc loader ─────────────────────────────────────────────────────────
+   Concentric arcs adapted from a Uiverse.io loader by mobinkakei (MIT); the
+   per-letter text wave from a loader by joao-canais (MIT).
+
+   Changes worth naming:
+
+   - The original hangs everything off `#wifi-loader`, an ID. A loader is a
+     component and may legitimately appear more than once, so it is a class.
+   - Its markup carries a third `<circle class="new">` that no rule ever
+     styles — it inherits `fill: none` with no stroke and paints nothing.
+     Removed.
+   - `svg circle { position: absolute }` does nothing; `position` does not
+     apply to SVG geometry elements. Dropped.
+   - The label was driven by `content: attr(data-text)` on two pseudo-elements
+     with a clip-path sweep. That cannot work here: the stage text changes as
+     the pipeline advances, and pseudo-element content is unreachable to screen
+     readers. Rebuilt as real spans.
+   - The reference wave hard-codes thirteen `nth-child` delays, which caps it
+     at thirteen characters. Each span carries its index in --i instead, so it
+     fits any label.
+   - Letters are aria-hidden with the plain string exposed alongside them.
+     Without that a screen reader announces "R, e, a, d, i, n, g" one letter
+     at a time.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.arcloader {
+  position: relative;
+  width: 86px;
+  height: 86px;
+  margin: 0 auto 1.6rem;
+  display: grid;
+  place-items: center;
+}
+
+.arcloader svg {
+  position: absolute;
+  overflow: visible;
+}
+
+.arcloader circle {
+  fill: none;
+  stroke-width: 6px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: rotate(-100deg);
+  transform-origin: center;
+}
+
+.arcloader .back { stroke: var(--surface-3); }
+.arcloader .front { stroke: var(--accent); }
+
+.arcloader .outer { width: 86px; height: 86px; }
+.arcloader .outer circle { stroke-dasharray: 62.75 188.25; }
+.arcloader .outer .back { animation: arc-outer 1.8s ease infinite .3s; }
+.arcloader .outer .front { animation: arc-outer 1.8s ease infinite .15s; }
+
+.arcloader .middle { width: 60px; height: 60px; }
+.arcloader .middle circle { stroke-dasharray: 42.5 127.5; }
+.arcloader .middle .back { animation: arc-middle 1.8s ease infinite .25s; }
+.arcloader .middle .front { animation: arc-middle 1.8s ease infinite .1s; }
+
+.arcloader .inner { width: 34px; height: 34px; }
+.arcloader .inner circle { stroke-dasharray: 22 66; }
+.arcloader .inner .back { animation: arc-inner 1.8s ease infinite .2s; }
+.arcloader .inner .front { animation: arc-inner 1.8s ease infinite .05s; }
+
+@keyframes arc-outer {
+  0% { stroke-dashoffset: 25; }
+  25% { stroke-dashoffset: 0; }
+  65% { stroke-dashoffset: 301; }
+  80%, 100% { stroke-dashoffset: 276; }
+}
+@keyframes arc-middle {
+  0% { stroke-dashoffset: 17; }
+  25% { stroke-dashoffset: 0; }
+  65% { stroke-dashoffset: 204; }
+  80%, 100% { stroke-dashoffset: 187; }
+}
+@keyframes arc-inner {
+  0% { stroke-dashoffset: 9; }
+  25% { stroke-dashoffset: 0; }
+  65% { stroke-dashoffset: 106; }
+  80%, 100% { stroke-dashoffset: 97; }
+}
+
+/* The label wave. Delay comes from --i, set per character in JS. */
+.shimmer { display: inline-block; }
+.shimmer__ch {
+  display: inline-block;
+  opacity: .38;
+  animation: shimmer-wave 2.1s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 55ms);
+}
+
+@keyframes shimmer-wave {
+  0%, 100% { opacity: .38; }
+  18% { opacity: 1; text-shadow: 0 0 9px color-mix(in srgb, var(--accent) 55%, transparent); }
+  42% { opacity: .68; text-shadow: none; }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arcloader circle { animation: none; }
+  .arcloader .front { stroke-dashoffset: 0; }
+  .shimmer__ch { animation: none; opacity: 1; }
+}
+
+/* ── Lite mode ──────────────────────────────────────────────────────────
+   One switch that strips the decoration: the rotating conic gradients, the
+   blurred glows, the backdrop filters, the loader arcs, the letter wave.
+   Everything here is ornament — nothing it removes carries meaning.
+
+   Deliberately scoped to presentation. It does not touch tracing precision,
+   variant count or kerning, because a setting called "lite" quietly producing
+   a worse font would be a trap: the user cannot see the difference until after
+   they have installed it.
+   ─────────────────────────────────────────────────────────────────────── */
+
+:root[data-lite='on'] *,
+:root[data-lite='on'] *::before,
+:root[data-lite='on'] *::after {
+  animation-duration: .01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .01ms !important;
+}
+
+/* Blur is the expensive part on weak GPUs, so it goes rather than freezes. */
+:root[data-lite='on'] .docsearch__glow { display: none; }
+:root[data-lite='on'] .busy { backdrop-filter: none; }
+:root[data-lite='on'] .topbar { backdrop-filter: none; background: var(--bg); }
+:root[data-lite='on'] .shimmer__ch { opacity: 1; }
+:root[data-lite='on'] .arcloader .front { stroke-dashoffset: 0; }
+
+.lite-toggle[aria-pressed='true'] { color: var(--accent); }
 
 .toasts { position: fixed; right: 1rem; bottom: 1rem; z-index: 90; display: grid; gap: .5rem; }
 .toast {

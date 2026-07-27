@@ -27,6 +27,8 @@ import { FALLBACK_LESSONS, FALLBACK_INSTALL, FALLBACK_FAQ } from './content.js';
 import { DOCUMENTS, documentById, LEGAL_VERSION, LEGAL_UPDATED } from './legal.js';
 import { limiter, describeWait } from './ratelimit.js';
 import { bindToggle } from './theme.js';
+import { bindToggle as bindLite, apply as applyLite, chosen as liteChosen } from './lite.js';
+import { profile, createEstimator, describeEta, slowDeviceNote } from './eta.js';
 import { buildIndex, search as searchDocs, terms as searchTerms, highlight } from './docsearch.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -119,13 +121,58 @@ function renderSteps() {
 // Busy overlay and toasts
 // ---------------------------------------------------------------------------
 
+/**
+ * Render the stage label as individual characters so the wave can run across
+ * it, with the plain string alongside for assistive tech.
+ *
+ * Splitting text into spans is a well-known way to make a screen reader spell
+ * a word out one letter at a time. The spans are hidden from the accessibility
+ * tree and the whole string exposed once, which keeps the live region
+ * announcing "Reading image" rather than "R, e, a, d…".
+ */
+function setStage(text) {
+  const el = $('#busy-stage');
+  if (el.dataset.text === text) return; // don't restart the wave on every tick
+  el.dataset.text = text;
+
+  const wave = document.createElement('span');
+  wave.className = 'shimmer';
+  wave.setAttribute('aria-hidden', 'true');
+  [...text].forEach((ch, i) => {
+    const s = document.createElement('span');
+    s.className = 'shimmer__ch';
+    s.style.setProperty('--i', i);
+    // A collapsed space would break the rhythm of the wave.
+    s.textContent = ch === ' ' ? ' ' : ch;
+    wave.append(s);
+  });
+
+  const plain = document.createElement('span');
+  plain.className = 'sr-only';
+  plain.textContent = text;
+
+  el.replaceChildren(wave, plain);
+}
+
+const estimator = createEstimator();
+
 function busy(on, stage = '', pct = 0) {
   const el = $('#busy');
   el.hidden = !on;
-  if (on) {
-    $('#busy-stage').textContent = stage;
-    $('#busy-bar').style.width = `${Math.round(pct * 100)}%`;
+
+  if (!on) {
+    estimator.reset();
+    $('#busy-eta').textContent = '';
+    return;
   }
+
+  setStage(stage);
+  $('#busy-bar').style.width = `${Math.round(pct * 100)}%`;
+
+  const { remainingMs, confident } = estimator.update(pct);
+  // Left blank until there is enough signal — an estimate drawn from the first
+  // 2% of a job is a guess wearing a number.
+  $('#busy-eta').textContent = confident ? describeEta(remainingMs) : '';
 }
 
 function toast(message, bad = false) {
@@ -1164,6 +1211,20 @@ function init() {
   bindControls();
 
   bindToggle($('#theme-toggle'));
+  const lite = bindLite($('#lite-toggle'));
+
+  // Benchmark once, after first paint, so it never delays the page appearing.
+  // On a device that looks like it will struggle, lite mode is turned on for
+  // them — but only if they have not already expressed a preference, and they
+  // are told it happened rather than finding the interface quietly different.
+  requestIdleCallback?.(() => {
+    const note = slowDeviceNote(profile());
+    if (note && !liteChosen()) {
+      applyLite('on');
+      lite?.sync();
+      toast(note, true);
+    }
+  }, { timeout: 2500 });
 
   $('#guide-search').addEventListener('input', runDocSearch);
   $('#guide-search').addEventListener('keydown', (e) => {

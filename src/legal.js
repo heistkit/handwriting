@@ -88,11 +88,19 @@ export const PRIVACY = {
     {
       heading: 'What is stored on your device',
       body: [
-        'Two things, both in your browser\'s local storage, and nothing else. No session storage, no IndexedDB, no cookies.',
+        'Three things, all in your browser\'s local storage, and nothing else. No session storage, no IndexedDB, no cookies.',
         `First, the rate limit described in the Terms. The app keeps a short random string and a list of recent timestamps, so it can tell how many fonts have been built in the last minute and hold you to ${LIMITS.perDevicePerMinute} per minute.`,
         'That random string is generated on your device by your browser\'s cryptographic random number generator. It is not derived from your hardware, your browser configuration, your network, or anything else about you — two people on identical machines get different values, and the same person gets a new one in a fresh browser profile. It cannot be used to recognise you on any other site, and it is never transmitted anywhere.',
-        'Second, your choice of light or dark theme, if you make one. Until you touch the switch nothing is stored and the app simply follows your system setting.',
-        'You can erase both at any time by clearing site data for this domain. Doing so resets the counter and returns the theme to following your system; there is no other effect.',
+        'Second, your choice of light or dark theme, and third, whether you have turned lite mode on or off — each only once you have actually chosen. Until then nothing is stored for either, and the app follows your system settings.',
+        'You can erase all three at any time by clearing site data for this domain. Doing so resets the counter and returns both display settings to following your system; there is no other effect.',
+      ],
+    },
+    {
+      heading: 'Reading your device\'s capabilities',
+      body: [
+        'To estimate how long processing will take, and to decide whether to switch lite mode on by default, the app reads three things about the machine it is running on: the number of processor cores your browser reports, the rough amount of memory it reports, and how long a short calculation takes to run.',
+        'These are read at the moment they are needed, used to produce a time estimate on screen, and discarded. None of the three is stored, combined into an identifier, or transmitted — there is no server to transmit to, and you can confirm the network stays silent.',
+        'This is worth being precise about, because reading capability signals is also the raw material of device fingerprinting. The difference is what happens next: fingerprinting requires keeping the values and using them to recognise you again. These are neither kept nor associated with anything, and the app has no notion of a returning visitor to attach them to.',
       ],
     },
     {
