@@ -1227,8 +1227,109 @@ input[type=range]::-moz-range-thumb {
 }
 .input:focus { border-color: var(--accent); outline: none; }
 
-.check { display: flex; align-items: center; gap: .6rem; margin-top: 1rem; font-size: .9rem; color: var(--text-2); cursor: pointer; }
-.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+/* ── Morphing checkbox ──────────────────────────────────────────────────
+   Adapted from a Uiverse.io checkbox by SelfMadeSystem (MIT).
+
+   One path draws either an envelope outline or a tick, depending on which
+   stretch of it the dash pattern exposes. The numbers are not arbitrary and
+   must not be rounded: pathLength normalises the path to 575.05 units, the
+   rest state shows the first 241 of them, and the checked state shows a 70.51
+   unit window starting 262.27 units in — which is exactly the V of the flap.
+   Change any one of them and the tick stops being a tick.
+
+   Easing, per request: a true exponential rather than `ease`.
+
+     f(t) = 1 − 2⁻¹⁰ᵗ
+
+   sampled into linear(). cubic-bezier(.16, 1, .3, 1) is the usual stand-in for
+   this curve, but it only approximates it — linear() can express the real
+   function. Half the distance is covered in the first tenth of the duration,
+   which is what makes it read as immediate rather than as something being
+   played back at you.
+
+   The two directions are not symmetrical. Ticking is a decision and gets the
+   full exponential at 320ms; unticking is a correction and gets a calmer curve
+   with a little longer to settle. Identical timing both ways is what makes a
+   toggle feel like a slideshow.
+
+   Fixed from the original: `input { display: none }` — the fourth component in
+   this app to ship that — which removes the control from the accessibility
+   tree and makes it unreachable by keyboard. Hidden but focusable now, with a
+   focus ring. Stroke was hard-coded white; it takes the palette.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.check {
+  --ease-expo: linear(
+    0, 0.2929 5%, 0.5 10%, 0.6464 15%, 0.75 20%, 0.8232 25%, 0.875 30%,
+    0.9375 40%, 0.9688 50%, 0.9844 60%, 0.9922 70%, 0.9972 85%, 1
+  );
+
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  margin-top: 1rem;
+  font-size: .9rem;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+/* Hidden from view, still in the accessibility tree and still tabbable. */
+.check input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.check svg {
+  flex: none;
+  width: 1.35em;
+  height: 1.35em;
+  overflow: visible;
+  border-radius: 5px;
+}
+
+.check .path {
+  fill: none;
+  stroke: var(--text-3);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 241 9999999;
+  stroke-dashoffset: 0;
+  /* Unticking: calmer, and given longer to settle. */
+  transition:
+    stroke-dasharray .42s cubic-bezier(.33, 1, .68, 1),
+    stroke-dashoffset .42s cubic-bezier(.33, 1, .68, 1),
+    stroke .25s var(--ease);
+}
+
+.check input:checked ~ svg .path {
+  stroke: var(--accent);
+  stroke-dasharray: 70.5096664428711 9999999;
+  stroke-dashoffset: -262.2723388671875;
+  /* Ticking: the exponential, and faster. */
+  transition:
+    stroke-dasharray .32s var(--ease-expo),
+    stroke-dashoffset .32s var(--ease-expo),
+    stroke .18s var(--ease);
+}
+
+.check:hover .path { stroke: var(--text-2); }
+.check:hover input:checked ~ svg .path { stroke: var(--accent-hover); }
+
+.check input:focus-visible ~ svg {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .check .path,
+  .check input:checked ~ svg .path { transition: stroke .15s linear; }
+}
 
 /* Health report */
 .score { display: flex; align-items: center; gap: .9rem; margin-bottom: 1rem; }
