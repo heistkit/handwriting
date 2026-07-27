@@ -53,7 +53,15 @@
 
   --text: light-dark(#1c2128, #e4e9ef);
   --text-2: light-dark(#57606a, #a5adb8);
-  --text-3: light-dark(#848d97, #757d88);
+  /*
+   * The quiet tier still has to be readable. At #848d97 / #757d88 it measured
+   * 3.07:1 in light and 4.36:1 in dark against --bg — below the 4.5:1 floor in
+   * both, on the privacy assurances, the footer, the legal version line and the
+   * file-size labels. "Quiet" is a tone, not permission to be faint, and this is
+   * the tier the instruction to make everything readable at a glance was aimed
+   * at. Now 4.80:1 and 4.89:1.
+   */
+  --text-3: light-dark(#656d76, #7d858f);
 
   /*
    * The light green is darker than the dark-theme one. At #2da44e the primary
@@ -274,7 +282,12 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 @media (max-width: 660px) { .topbar-inner { gap: .8rem; } }
 
 .step-chip:hover:not(:disabled) { color: var(--text-2); background: var(--surface-2); }
-.step-chip:disabled { cursor: default; opacity: .5; }
+/* Quieter by colour, not by opacity. Fading text over a light background
+   lightens it, so `opacity: .5` on an already-quiet grey took the step labels
+   to about 2.4:1 — and these are the app's primary navigation, not an inert
+   control. The colour alone reads as unavailable; the disc beside it carries
+   the state as well. */
+.step-chip:disabled { cursor: default; color: var(--text-3); }
 .step-chip[aria-current="step"] { color: var(--text); background: var(--surface-2); }
 /*
  * Filled, not outlined.
@@ -2420,7 +2433,17 @@ input[type=range]:focus-visible {
 :root[data-lite='on'] .contbtn:hover:not(:disabled) svg,
 :root[data-lite='on'] .contbtn:focus-visible:not(:disabled) svg { transform: none; }
 
+/* It sits in the footer nav beside the legal links and had no rules of its own,
+   so it fell through to the browser's default button styling — 4.37:1 in dark,
+   and a different size and weight from the links it is sitting in a row with.
+   Matched to them. */
+.lite-toggle {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--text-2); font-size: .85rem;
+}
+.lite-toggle:hover { color: var(--text); }
 .lite-toggle[aria-pressed='true'] { color: var(--accent); }
+.lite-toggle[aria-pressed='true']:hover { color: var(--accent-hover); }
 
 .toasts { position: fixed; right: 1rem; bottom: 1rem; z-index: 90; display: grid; gap: .5rem; }
 .toast {
