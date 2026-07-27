@@ -87,10 +87,21 @@ export function loop(el) {
 
   schedule();
 
-  return () => {
+  const stop = () => {
     clearTimeout(timer);
     clearTimeout(eraseTimer);
     observer?.disconnect();
     el.classList.remove('spec--erasing');
   };
+
+  // Let something else ask for a redraw — a double-click on the sheet, or the
+  // keyboard egg. It restarts the idle clock, so an on-demand replay does not
+  // leave the automatic one about to fire a second later.
+  stop.replay = () => {
+    if (suppressed()) return;
+    replay();
+    schedule();
+  };
+
+  return stop;
 }

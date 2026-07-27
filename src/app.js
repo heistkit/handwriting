@@ -40,6 +40,7 @@ import { token as paletteToken, onPaletteChange } from './paint.js';
 import { init as initFlourish, bindToggle as bindFlourish } from './flourish.js';
 import { loop as loopSpecimen } from './specimen.js';
 import { mount as mountStepshow } from './stepshow.js';
+import { mount as mountEggs } from './eggs.js';
 import { read as readRoute, write as writeRoute, base as routeBase } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
@@ -2183,10 +2184,13 @@ function init() {
   // The specimen draws itself once from CSS alone; this only replays it after
   // it has been still for a while, and only while it is on screen in a visible
   // tab. With this line removed the sheet still draws once and stays drawn.
-  loopSpecimen($('.spec'));
+  const specimen = loopSpecimen($('.spec'));
 
   // The deck already swipes and arrow-keys without this; it adds the buttons.
   mountStepshow($('#stepshow'));
+
+  // Nothing here carries meaning, and the interface is identical without it.
+  mountEggs({ specimen });
 
   // Every <details> in the document, plus anything rendered later — renderFAQ,
   // the guide and the health report each call this again for their own subtree.
