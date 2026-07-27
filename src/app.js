@@ -35,6 +35,8 @@ import {
 } from './lite.js';
 import { bindToggle as bindTextSize } from './textsize.js';
 import { observe as observeReveal, showAll as revealAll } from './reveal.js';
+import { read as readRoute, write as writeRoute } from './routes.js';
+import { intercept as interceptExternal, describe as describeUrl } from './leaving.js';
 import { profile, createEstimator, describeEta, slowDeviceNote } from './eta.js';
 import { buildIndex, search as searchDocs, terms as searchTerms, highlight } from './docsearch.js';
 
@@ -87,18 +89,47 @@ function reachable(stepId) {
   return state.glyphs.length > 0 && !!state.family;
 }
 
-function goto(stepId) {
-  if (!reachable(stepId)) return;
+/**
+ * Put a step on screen. Deliberately does not touch history — restoring an
+ * address and navigating to one need the same DOM work but opposite history
+ * behaviour, and a single function doing both is how a router ends up pushing
+ * an entry for the entry it is currently restoring.
+ */
+function applyStep(stepId) {
   state.step = stepId;
   $$('.step').forEach((s) => s.classList.toggle('is-active', s.dataset.step === stepId));
   renderSteps();
-  window.scrollTo({ top: 0, behavior: 'instant' });
 
   // Until this moment the step was `display: none`, so everything inside it
   // measured as zero and could not be staggered or judged on-screen. Now that
   // it has a position, measure it again.
   const step = $(`.step[data-step="${stepId}"]`);
   if (step) observeReveal(step);
+}
+
+function goto(stepId) {
+  if (!reachable(stepId)) return;
+  // An overlay left open here would leave the address naming a step while the
+  // screen shows a document — the two must not be able to disagree.
+  closeRoutedOverlays();
+  applyStep(stepId);
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  writeRoute({ step: stepId });
+}
+
+/**
+ * Where to land when an address names a step this session cannot show.
+ *
+ * Not simply "the last step that passes reachable()": Write and Photograph pass
+ * unconditionally, so that would drop a cold visitor who opened /refine onto an
+ * empty Photograph screen — technically reachable, and useless. This returns the
+ * furthest step that has actual work behind it, which on a cold load is the
+ * start.
+ */
+function furthestReachable() {
+  if (state.family && state.glyphs.length) return 'refine';
+  if (state.captures.size) return 'review';
+  return 'start';
 }
 
 function renderSteps() {
@@ -931,12 +962,13 @@ function runDocSearch() {
   else renderResults(q);
 }
 
-async function openGuide() {
+async function openGuide({ route = true } = {}) {
   await loadDocs();
   const input = $('#guide-search');
   input.value = '';
   runDocSearch();
   openModal('#guide');
+  if (route) writeRoute({ overlay: 'guide' });
   // The search box is the reason someone opened this; give it the caret.
   input.focus();
 }
@@ -1095,8 +1127,8 @@ function renderLegal(id) {
       b.textContent = d.title;
       if (d.id === doc.id) b.classList.add('is-on');
       b.addEventListener('click', () => {
-        history.replaceState(null, '', `#${d.id}`);
         renderLegal(d.id);
+        writeRoute({ overlay: d.id, replace: true });
       });
       return b;
     })
@@ -1118,7 +1150,21 @@ function renderLegal(id) {
     sec.append(h);
     for (const para of section.body) {
       const p = document.createElement('p');
-      p.textContent = para;
+      // A numbered clause gets its number pulled out into its own column, so
+      // the prose aligns down the left edge and "11.2" can be found by eye
+      // rather than by reading. Anything unnumbered renders as a plain
+      // paragraph — the Privacy and Licences documents are not numbered.
+      const clause = /^(\d+\.\d+)\s+([\s\S]+)$/.exec(para);
+      if (clause) {
+        p.className = 'clause';
+        const n = document.createElement('b');
+        n.textContent = clause[1];
+        const t = document.createElement('span');
+        t.textContent = clause[2];
+        p.append(n, t);
+      } else {
+        p.textContent = para;
+      }
       sec.append(p);
     }
     body.append(sec);
@@ -1133,14 +1179,10 @@ function renderLegal(id) {
 function openLegal(id) {
   renderLegal(id);
   openModal('#legal');
+  writeRoute({ overlay: id });
 }
 
 const LEGAL_IDS = DOCUMENTS.map((d) => d.id);
-
-function handleHash() {
-  const id = location.hash.replace('#', '');
-  if (LEGAL_IDS.includes(id)) openLegal(id);
-}
 
 function openModal(sel) {
   const el = $(sel);
@@ -1149,6 +1191,59 @@ function openModal(sel) {
 }
 function closeModal(sel) {
   $(sel).hidden = true;
+}
+
+// ---------------------------------------------------------------------------
+// Routing
+// ---------------------------------------------------------------------------
+
+/**
+ * Overlays that own an address. Feedback and the redraw canvas deliberately do
+ * not: both hold unsaved input, and a link that reopens one would either
+ * restore an empty version of something the reader had already written, or
+ * promise to restore a draft that was never stored.
+ */
+const ROUTED_OVERLAYS = ['guide', 'settings', ...LEGAL_IDS];
+
+function closeRoutedOverlays() {
+  for (const sel of ['#guide', '#settings', '#legal']) $(sel).hidden = true;
+}
+
+/**
+ * Put the screen where the address says. Never pushes history — the address is
+ * already correct, except where it names something unreachable, in which case
+ * it is *replaced* so Back does not bounce off the rejected entry forever.
+ */
+async function applyRoute() {
+  const { step, overlay, fromHash } = readRoute();
+
+  closeRoutedOverlays();
+
+  if (overlay && ROUTED_OVERLAYS.includes(overlay)) {
+    if (overlay === 'guide') await openGuide({ route: false });
+    else if (overlay === 'settings') openModal('#settings');
+    else {
+      renderLegal(overlay);
+      openModal('#legal');
+    }
+    // Upgrade a shared #privacy link to /privacy in place.
+    if (fromHash) writeRoute({ overlay, replace: true });
+    return;
+  }
+
+  const wanted = step ?? 'start';
+  // Nothing about a session is stored, so /refine on a cold load has no font to
+  // show. Landing on the furthest screen that does work is honest; rendering an
+  // empty Refine and letting the reader wonder what broke is not.
+  const landed = reachable(wanted) ? wanted : furthestReachable();
+  applyStep(landed);
+  if (landed !== wanted || fromHash) writeRoute({ step: landed, replace: true });
+}
+
+/** Closing an overlay returns the address to the step underneath it. */
+function closeOverlay(sel) {
+  closeModal(sel);
+  writeRoute({ step: state.step });
 }
 
 /**
@@ -1325,14 +1420,12 @@ function init() {
       openLegal(a.dataset.legal);
     })
   );
-  $('#close-legal').addEventListener('click', () => {
-    closeModal('#legal');
-    if (LEGAL_IDS.includes(location.hash.replace('#', ''))) {
-      history.replaceState(null, '', location.pathname);
-    }
-  });
-  window.addEventListener('hashchange', handleHash);
-  handleHash();
+  $('#close-legal').addEventListener('click', () => closeOverlay('#legal'));
+
+  // Back and Forward mean what they mean everywhere else.
+  window.addEventListener('popstate', () => { applyRoute(); });
+  window.addEventListener('hashchange', () => { applyRoute(); });
+  applyRoute();
 
   const preview = $('#preview-text');
   preview.dataset.placeholder = 'Type something…';
@@ -1361,11 +1454,41 @@ function init() {
     }
   });
 
-  $('#open-guide').addEventListener('click', openGuide);
-  $('#open-settings').addEventListener('click', () => openModal('#settings'));
-  $('#close-settings').addEventListener('click', () => closeModal('#settings'));
+  // Every link that leaves names its destination first. See src/leaving.js.
+  let leavingUrl = null;
+  interceptExternal({
+    onLeave: (url) => {
+      leavingUrl = url;
+      const d = describeUrl(url);
+      $('#leaving-host').textContent = d.host;
+      $('#leaving-rest').textContent = d.rest;
+      // A plain http destination is worth flagging: the padlock is not
+      // decoration, and showing a closed one over an unencrypted link would be
+      // the single most misleading thing this dialogue could do.
+      $('#leaving-scheme use').setAttribute('href', d.secure ? '#i-lock-plain' : '#i-unlock');
+      $('#leaving-scheme').classList.toggle('is-insecure', !d.secure);
+      openModal('#leaving');
+      $('#leaving-go').focus();
+    },
+  });
+  $('#leaving-cancel').addEventListener('click', () => closeModal('#leaving'));
+  $('#close-leaving').addEventListener('click', () => closeModal('#leaving'));
+  $('#leaving-go').addEventListener('click', () => {
+    if (!leavingUrl) return;
+    closeModal('#leaving');
+    // noopener is the point: without it the opened page gets a handle on this
+    // one through window.opener and can navigate it somewhere else.
+    window.open(leavingUrl.href, '_blank', 'noopener,noreferrer');
+  });
+
+  $('#open-guide').addEventListener('click', () => openGuide());
+  $('#open-settings').addEventListener('click', () => {
+    openModal('#settings');
+    writeRoute({ overlay: 'settings' });
+  });
+  $('#close-settings').addEventListener('click', () => closeOverlay('#settings'));
   $('#start-guide').addEventListener('click', openGuide);
-  $('#close-guide').addEventListener('click', () => closeModal('#guide'));
+  $('#close-guide').addEventListener('click', () => closeOverlay('#guide'));
   $('#close-draw').addEventListener('click', () => closeModal('#draw-modal'));
   $('#dl-zip').addEventListener('click', downloadZip);
   $('#start-over').addEventListener('click', () => location.reload());
@@ -1444,18 +1567,21 @@ function init() {
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      closeModal('#guide');
-      closeModal('#draw-modal');
-      closeModal('#legal');
-      closeModal('#feedback');
-      closeModal('#settings');
-    }
+    if (e.key !== 'Escape') return;
+    // The two unrouted ones first: they hold unsaved input and own no address.
+    closeModal('#draw-modal');
+    closeModal('#feedback');
+    closeModal('#leaving');
+    const routed = ['#guide', '#legal', '#settings'].filter((s) => !$(s).hidden);
+    routed.forEach(closeModal);
+    if (routed.length) writeRoute({ step: state.step });
   });
 
   $$('.sheet-modal').forEach((m) =>
     m.addEventListener('click', (e) => {
-      if (e.target === m) m.hidden = true;
+      if (e.target !== m) return;
+      m.hidden = true;
+      if (['guide', 'legal', 'settings'].includes(m.id)) writeRoute({ step: state.step });
     })
   );
 }

@@ -876,6 +876,29 @@ main { flex: 1; }
   .contbtn:active:not(:disabled) { transform: none; }
 }
 
+/* ── Leaving the site ───────────────────────────────────────────────── */
+
+.sheet-modal-panel.is-narrow { max-width: 34rem; }
+
+.leaving-lead { font-size: 1.05rem; margin-bottom: 1.1rem; }
+
+.leaving-url {
+  display: flex; align-items: flex-start; gap: .7rem;
+  padding: .95rem 1.1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  /* The address can be long and must not be allowed to widen the dialogue —
+     it is the one thing here the reader is meant to inspect closely. */
+  overflow-wrap: anywhere;
+}
+.leaving-url svg { flex: none; margin-top: .18rem; color: var(--accent); }
+.leaving-url svg.is-insecure { color: var(--warn); }
+.leaving-url b { font-weight: 600; font-size: 1.02rem; }
+.leaving-url .mono { color: var(--text-2); font-size: .92rem; }
+
+.leaving-note { font-size: .92rem; margin-top: 1rem; line-height: 1.55; }
+
 /* ── The lock shutting itself ───────────────────────────────────────────
    Every line in this app that promises your handwriting stays on your device
    carries a padlock. It arrives open and closes itself as you reach it, which
@@ -1369,6 +1392,24 @@ main { flex: 1; }
 .legal-section h3 { margin-bottom: .55rem; }
 .legal-section p { font-size: .94rem; color: var(--text-2); }
 .legal-section p + p { margin-top: .6rem; }
+
+/* Numbered clauses. The number sits in its own column so the prose keeps one
+   left edge all the way down and a citation can be found by scanning rather
+   than by reading. `ch` rather than `rem` because the column has to fit the
+   widest number, and numbers are what it is measuring. */
+.legal-section p.clause {
+  display: grid;
+  grid-template-columns: 3.4ch 1fr;
+  gap: .9rem;
+  align-items: baseline;
+}
+.legal-section p.clause > b {
+  font-weight: 600;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  font-size: .88rem;
+}
+.legal-section p.clause + p.clause { margin-top: .5rem; }
 .legal-meta { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .87rem; color: var(--text-3); }
 
 /* ── Cards ──────────────────────────────────────────────────────────── */

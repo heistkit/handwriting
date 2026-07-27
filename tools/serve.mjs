@@ -43,6 +43,15 @@ createServer(async (req, res) => {
       path = join(path, 'index.html');
       info = await stat(path).catch(() => null);
     }
+    // Every screen has its own address — /write, /guide, /terms — and none of
+    // them is a file. Anything without an extension that does not exist on disk
+    // is a route, so it gets index.html and the router sorts it out. Requests
+    // that do name a file (a missing .js, a typo'd .woff2) still 404, because
+    // answering those with HTML turns a broken asset into a silent mystery.
+    if (!info && !extname(url)) {
+      path = join(ROOT, 'index.html');
+      info = await stat(path).catch(() => null);
+    }
     if (!info) {
       res.writeHead(404, { 'content-type': 'text/plain' });
       res.end('Not found');

@@ -96,9 +96,27 @@ export async function run() {
   // --- scope ---------------------------------------------------------------
   {
     const m = config.matcher;
-    check('matcher is document-only', Array.isArray(m) && m.includes('/') && m.length <= 2,
-      JSON.stringify(m));
-    check('matcher excludes assets', !JSON.stringify(m).includes('assets'));
+    check('matcher covers the root', Array.isArray(m) && m.includes('/'));
+
+    // Every screen has its own address now, so the matcher has to cover them
+    // all or the limit is sidestepped by asking for /write instead of /. What
+    // matters is that it still counts *documents* only: one page load is one
+    // hit, and the 19 sub-resources behind it are the CDN's problem.
+    const pattern = m.find((entry) => entry.includes('(?!'));
+    const re = new RegExp(`^${pattern}$`);
+
+    const documents = ['/write', '/capture', '/review', '/refine', '/download', '/guide', '/settings', '/privacy', '/terms', '/licences'];
+    check('matcher covers every routed screen',
+      documents.every((p) => re.test(p)),
+      documents.filter((p) => !re.test(p)).join(', '));
+
+    const assets = [
+      '/styles.css', '/src/app.js', '/src/routes.js', '/vendor/opentype.min.js',
+      '/assets/fonts/Geist-Variable.woff2', '/index.html', '/favicon.ico',
+    ];
+    check('matcher excludes every asset',
+      assets.every((p) => !re.test(p)),
+      assets.filter((p) => re.test(p)).join(', '));
   }
 
   return results;

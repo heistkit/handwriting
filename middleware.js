@@ -10,11 +10,18 @@
  *
  * Scope
  * -----
- * The matcher below restricts this to document requests: `/` and `/index.html`.
- * That makes the unit a *page load*, not an HTTP request, which is both what
- * the limit is meant to express and what keeps it cheap — a single visit pulls
- * 19 files, so counting all of them would make 500/min mean 26 visits/min and
- * would break shared office and campus networks behind one NAT address.
+ * The matcher below restricts this to document requests. That makes the unit a
+ * *page load*, not an HTTP request, which is both what the limit is meant to
+ * express and what keeps it cheap — a single visit pulls 19 files, so counting
+ * all of them would make 500/min mean 26 visits/min and would break shared
+ * office and campus networks behind one NAT address.
+ *
+ * Every screen has its own address now (`/write`, `/guide`, `/terms`), and each
+ * of those is rewritten to index.html by vercel.json — so each is a document
+ * request and has to be matched, or a client could sidestep the limit entirely
+ * by asking for `/write` instead of `/`. The negative lookahead excludes
+ * anything with a file extension, which is exactly the set the rewrite leaves
+ * alone.
  *
  * Sub-resources are left to the CDN, which is the right layer for them: they
  * are immutable, edge-cached, and mostly never reach an origin at all.
@@ -53,7 +60,7 @@
 import { next } from '@vercel/functions';
 
 export const config = {
-  matcher: ['/', '/index.html'],
+  matcher: ['/', '/index.html', '/((?!_next|_vercel|assets|src|vendor|.*\\.).*)'],
 };
 
 const LIMIT = 500;
