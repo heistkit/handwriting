@@ -213,22 +213,31 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   border-bottom: 1px solid var(--border);
 }
 /*
- * The bar wraps rather than scrolling as one piece.
+ * One row for as long as one row is possible.
  *
- * Scrolling the whole bar kept every label — which is why it beat collapsing
- * them to icons — but it pushed the last control, Settings, off the right edge
- * with no visible scrollbar to say so. A control you cannot see and cannot
- * discover is worse than one whose label is abbreviated.
+ * The first version scrolled the whole bar, which kept every label but pushed
+ * Settings off the right edge with no scrollbar to say so. The second let the
+ * bar wrap, which kept Settings reachable but cost a whole second row — and
+ * once the root scale went up, that second row appeared on a 1200px desktop,
+ * where there was no shortage of space at all. The bar was simply refusing to
+ * use it: `flex: none` on every child meant nothing could give.
  *
- * So the parts that must always be reachable — the logo and the three actions —
- * stay on the first row, and the step rail drops to a row of its own when the
- * space runs out. It is the only thing here that is genuinely a list, so it is
- * the only thing that should scroll, and on its own row it can do that without
- * a second scroller nested inside a first.
+ * The rail is the thing that should give. It is the only genuine list here,
+ * everything else is a single control, and it is now the only shrinkable item:
+ * it takes whatever is left after the logo and the three actions and scrolls
+ * inside it. The two objections that produced the earlier versions are both
+ * answered — no control is ever pushed out of reach, and the rail's own scroll
+ * is discoverable, because renderSteps() scrolls the current step into view on
+ * every change and the edges are faded so there is visibly more.
  */
 .topbar-inner {
-  display: flex; align-items: center; gap: 1.5rem; min-height: 3.8rem;
-  flex-wrap: wrap;
+  display: flex; align-items: center; gap: 1.25rem; min-height: 3.4rem;
+  /* nowrap is what makes the rail shrink. With wrapping on, flexbox moves an
+     item to a new line rather than compressing the line it is on, so
+     `flex: 0 1 auto` on the rail never got the chance to do anything and the
+     two actions dropped to a second row on a 1440px desktop. Wrapping comes
+     back below the breakpoint, where the rail genuinely does need its own row. */
+  flex-wrap: nowrap;
   row-gap: 0;
 }
 .topbar-inner > * { flex: none; }
@@ -242,23 +251,40 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
  * that `overflow-x` do anything at all, since a flex item defaults to
  * `min-width: auto` and refuses to shrink past its content.
  */
-.steps { order: 2; }
+/*
+ * `min-width: 0` is the load-bearing declaration: a flex item defaults to
+ * `min-width: auto` and refuses to shrink below its content, which is what made
+ * the rail push the actions onto a second row instead of scrolling.
+ *
+ * The mask fades both edges, so a rail with more in it than fits looks like it
+ * — the affordance the earlier hidden scrollbar took away. `mask-image` does
+ * not paint, so it costs nothing when the rail fits and there is nothing under
+ * the fade.
+ */
+.steps {
+  order: 2;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 1.25rem, #000 calc(100% - 1.25rem), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 1.25rem, #000 calc(100% - 1.25rem), transparent 100%);
+}
+.steps::-webkit-scrollbar { display: none; }
 .topbar-inner .theme-switch,
 .topbar-inner .btn-ghost { order: 3; }
 
+/* Below this the logo, the two actions and the theme switch already fill the
+   width on their own, so the rail genuinely needs a row of its own. */
 @media (max-width: 860px) {
-  .topbar-inner { gap: .8rem; padding-bottom: .5rem; }
+  .topbar-inner { gap: .7rem; padding-bottom: .4rem; flex-wrap: wrap; }
   .steps {
     order: 4;
     flex-basis: 100%;
-    min-width: 0;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
     margin-inline: 0;
     padding-bottom: .15rem;
   }
-  .steps::-webkit-scrollbar { display: none; }
 }
 
 /*
@@ -533,8 +559,20 @@ main { flex: 1; }
   box-shadow: 0 0 0 1px var(--spec-edge), var(--shadow-3);
   /* A sheet set down on a desk, not a diagram. */
   transform: rotate(-1.15deg);
-  animation: spec-sheet .8s var(--ease) backwards;
 }
+
+/*
+ * Everything below is scoped to .spec--play, which src/specimen.js removes and
+ * re-adds to replay the drawing after it has been still for a while. The class
+ * is in the markup, so the first pass runs with no script at all — the module
+ * only re-triggers what the sheet already does by itself.
+ */
+.spec--play .spec__sheet { animation: spec-sheet .8s var(--ease) backwards; }
+
+/* The fade before a replay. Without it the second pass writes letters on top of
+   letters that are already finished. */
+.spec__page { transition: opacity var(--spec-erase, .62s) var(--ease); }
+.spec--erasing .spec__page { opacity: 0; }
 
 .spec__page { display: block; width: 100%; height: auto; }
 
@@ -546,7 +584,7 @@ main { flex: 1; }
 .spec__rule { fill: none; stroke-dasharray: 1; stroke-dashoffset: 0; stroke-linecap: round; }
 .spec__rule--faint { stroke: var(--spec-rule); stroke-width: 1.6; stroke-dasharray: .006 .01; }
 .spec__rule--base { stroke: var(--spec-base); stroke-width: 2.2; }
-.spec__rules path {
+.spec--play .spec__rules path {
   animation: spec-rule .5s var(--ease) backwards;
   animation-delay: calc(.3s + var(--i) * .09s);
 }
@@ -568,6 +606,8 @@ main { flex: 1; }
   stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 0;
+}
+.spec--play .spec__stroke {
   animation: spec-write .6s cubic-bezier(.5, .05, .55, .95) backwards;
   animation-delay: calc(.95s + var(--i) * .17s);
 }
@@ -580,6 +620,8 @@ main { flex: 1; }
   stroke-width: 2.4;
   transform-box: fill-box;
   transform-origin: 50% 50%;
+}
+.spec--play .spec__node {
   animation: spec-node .4s var(--ease) backwards;
   animation-delay: calc(3.7s + var(--i) * .028s);
 }
@@ -597,6 +639,8 @@ main { flex: 1; }
   stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 0;
+}
+.spec--play .spec__frame path {
   animation: spec-write .45s var(--ease) backwards;
   animation-delay: calc(3.15s + var(--i) * .09s);
 }
@@ -611,8 +655,8 @@ main { flex: 1; }
   pointer-events: none;
   background: linear-gradient(90deg, transparent, rgb(23 114 47 / .16) 55%, rgb(23 114 47 / .5));
   border-right: 2px solid rgb(23 114 47 / .55);
-  animation: spec-scan 1.1s cubic-bezier(.4, 0, .5, 1) 3.35s;
 }
+.spec--play .spec__scan { animation: spec-scan 1.1s cubic-bezier(.4, 0, .5, 1) 3.35s; }
 @keyframes spec-scan {
   from { transform: translateX(-100%); opacity: 0; }
   18%, 82% { opacity: 1; }
@@ -625,21 +669,24 @@ main { flex: 1; }
   line-height: 1.55;
   color: var(--text-3);
   max-width: 44ch;
-  animation: spec-cap .6s var(--ease) 4.2s backwards;
 }
+.spec--play .spec__cap { animation: spec-cap .6s var(--ease) 4.2s backwards; }
 @keyframes spec-cap { from { opacity: 0; transform: translateY(.5rem); } }
 
 /* Both switches leave the finished drawing, because that is the base state —
    there is no "final" rule to keep in step here, which is the point. */
 @media (prefers-reduced-motion: reduce) {
-  .spec__sheet, .spec__rules path, .spec__stroke,
-  .spec__node, .spec__frame path, .spec__cap { animation: none; }
+  .spec--play :is(.spec__sheet, .spec__rules path, .spec__stroke,
+    .spec__node, .spec__frame path, .spec__cap) { animation: none; }
+  .spec__page { transition: none; }
   .spec__scan { display: none; }
 }
-:root[data-lite='on'] :is(.spec__sheet, .spec__rules path, .spec__stroke, .spec__node,
-  .spec__frame path, .spec__cap),
-:root[data-decor='off'] :is(.spec__sheet, .spec__rules path, .spec__stroke, .spec__node,
-  .spec__frame path, .spec__cap) { animation: none; }
+:root[data-lite='on'] .spec--play :is(.spec__sheet, .spec__rules path, .spec__stroke,
+  .spec__node, .spec__frame path, .spec__cap),
+:root[data-decor='off'] .spec--play :is(.spec__sheet, .spec__rules path, .spec__stroke,
+  .spec__node, .spec__frame path, .spec__cap) { animation: none; }
+:root[data-lite='on'] .spec__page,
+:root[data-decor='off'] .spec__page { transition: none; }
 :root[data-lite='on'] .spec__scan,
 :root[data-decor='off'] .spec__scan { display: none; }
 .feature-grid h3 { margin-bottom: .45rem; }

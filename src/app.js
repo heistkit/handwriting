@@ -38,6 +38,7 @@ import { observe as observeReveal, showAll as revealAll } from './reveal.js';
 import { enhance as enhanceFolds } from './fold.js';
 import { token as paletteToken, onPaletteChange } from './paint.js';
 import { init as initFlourish, bindToggle as bindFlourish } from './flourish.js';
+import { loop as loopSpecimen } from './specimen.js';
 import { read as readRoute, write as writeRoute, base as routeBase } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
@@ -2115,6 +2116,11 @@ function init() {
   initFlourish();
   bindFlourish('fold', $('#set-fold'));
   bindFlourish('decor', $('#set-decor'));
+
+  // The specimen draws itself once from CSS alone; this only replays it after
+  // it has been still for a while, and only while it is on screen in a visible
+  // tab. With this line removed the sheet still draws once and stays drawn.
+  loopSpecimen($('.spec'));
 
   // Every <details> in the document, plus anything rendered later — renderFAQ,
   // the guide and the health report each call this again for their own subtree.
