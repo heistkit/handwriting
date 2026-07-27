@@ -2925,21 +2925,67 @@ input[type=range]:focus-visible {
 .score.is-ok .fill { stroke: var(--warn); }
 .score.is-bad .fill { stroke: var(--danger); }
 
-.findings { list-style: none; padding: 0; display: grid; gap: .7rem; }
-.finding { display: flex; gap: .65rem; padding: .7rem .8rem; border-radius: var(--r-md); background: var(--surface-2); }
-.finding svg { flex: none; width: 16px; height: 16px; margin-top: .18rem; }
+/* ââ Findings âââââââââââââââââââââââââââââââââââââââ
+   A restyle of what was already here, not a second notification channel.
+
+   The component this came from is a loading-spinner button, with the note
+   "notification ish". Only its proportions are borrowed: a leading indicator,
+   then a line of text, at a size you can read without leaning in.
+
+   The spin is not borrowed. A spinner is a claim that something is happening,
+   and every statement this element carries is about a measurement that already
+   finished.
+
+   The class names are deliberately unchanged. `.finding` is also named in the
+   unfold entrance, its stagger delay, the reduced-motion list and the lite
+   list in this sheet, and in TARGETS in src/reveal.js. Renaming it would have
+   silently dropped the entrance animation and left four stale selectors
+   behind. It is the same element in three more places instead.
+
+   Measured against :root; every home paints var(--surface).
+     is-info   --surface-2   : --text 14.43 light / 12.47 dark,
+                               --text-2 5.70 / 6.72, icon --text-3 4.68 / 4.84
+     is-warn   --warn-quiet  : --text 14.36 / 11.85,
+                               --text-2 5.67 / 6.39, icon --warn 4.32 / 6.43
+     is-error  --danger-quiet: --text 13.63 / 12.64,
+                               --text-2 5.38 / 6.81, icon --danger 4.51 / 5.03
+   The body tier is --text-2 and never --text-3, because --text-3 on
+   --danger-quiet is 4.42:1 â under the floor on exactly the tone that
+   carries the worst news.
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+
+.findings { list-style: none; padding: 0; margin: 0; display: grid; gap: .7rem; }
+
+.finding {
+  display: flex; gap: .7rem;
+  padding: .8rem .9rem;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+/* rem rather than the fixed 16px it was, so --ui-scale still governs: 1.25rem
+   is 22.5px at the default scale and 25px at large. A child combinator, so an
+   icon inside .chars one day cannot inherit this. */
+.finding > svg { flex: none; width: 1.25rem; height: 1.25rem; margin-top: .14rem; }
+
 .finding.is-error { background: var(--danger-quiet); }
-.finding.is-error svg { color: var(--danger); }
+.finding.is-error > svg { color: var(--danger); }
 .finding.is-warn { background: var(--warn-quiet); }
-.finding.is-warn svg { color: var(--warn); }
-.finding.is-info svg { color: var(--text-3); }
-.finding b { display: block; font-size: .88rem; font-weight: 600; }
-.finding p { font-size: .88rem; color: var(--text-2); margin-top: .15rem; }
+.finding.is-warn > svg { color: var(--warn); }
+.finding.is-info > svg { color: var(--text-3); }
+
+.finding b { display: block; font-size: 1rem; font-weight: 600; line-height: 1.3; }
+.finding p { font-size: .95rem; color: var(--text-2); margin-top: .2rem; line-height: 1.5; }
+
 .finding .chars {
-  display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .45rem;
-  font-family: 'Geist Mono', monospace; font-size: .87rem;
+  display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .5rem;
+  font-family: 'Geist Mono', monospace; font-size: .9rem;
 }
 .finding .chars span { padding: .05rem .35rem; border-radius: 4px; background: rgb(128 128 128 / .18); }
+
+/* The capture row is a three-column grid collapsing to two, so without this the
+   list would land inside the 64px thumbnail column. 1 / -1 spans both shapes. */
+.drop .findings { grid-column: 1 / -1; margin-top: .25rem; }
 
 /* ── Export step ────────────────────────────────────────────────────── */
 

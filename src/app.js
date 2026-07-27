@@ -261,6 +261,55 @@ let busyReturnFocus = null;
  * reached, including "Start over", whose handler reloads the page and throws
  * the build away. So the overlay now feeds applyInert() like a dialogue does.
  */
+
+/**
+ * A persistent, levelled statement.
+ *
+ * The counterpart to toast(). A toast is for something that just happened and
+ * then stops being true; a finding is for something that stays true until the
+ * state behind it changes. Both exist because they answer different questions,
+ * and neither should be doing the other's job.
+ *
+ * Every caller derives its text from a value the app computed. Nothing here
+ * infers anything about the photograph: the working image is downscaled before
+ * anything measures it, and capturePage returns no ink ratio or source
+ * resolution, so there is no honest sentence to be written about focus or
+ * lighting and none is written.
+ *
+ * @param {{level?: 'error'|'warn'|'info', title: string, detail?: string, chars?: string[]}} n
+ */
+function finding({ level = 'info', title, detail = '', chars = [] }) {
+  const li = document.createElement('li');
+  li.className = `finding is-${level}`;
+  const icon = level === 'info' ? 'info' : 'alert';
+  li.innerHTML =
+    `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${icon}"/></svg><div><b></b><p></p></div>`;
+  $('b', li).textContent = title;
+  const p = $('p', li);
+  if (detail) p.textContent = detail;
+  else p.remove();
+
+  if (chars.length) {
+    const box = document.createElement('div');
+    box.className = 'chars';
+    for (const ch of chars.slice(0, 14)) {
+      const s = document.createElement('span');
+      s.textContent = ch;
+      box.append(s);
+    }
+    $('div', li).append(box);
+  }
+  return li;
+}
+
+function findingList(items) {
+  const ul = document.createElement('ul');
+  ul.className = 'findings';
+  ul.append(...items.map(finding));
+  stagger(ul);
+  return ul;
+}
+
 function busy(on, stage = '', pct = 0, op = null) {
   const el = $('#busy');
   el.hidden = !on;
@@ -535,6 +584,46 @@ function renderCaptureList() {
       });
 
       row.append(thumb, body, actions);
+
+      // Two things may be said here and no others, both counted from what this
+      // sheet's own capture returned.
+      if (capture) {
+        const notes = [];
+
+        // Cells the segmenter located but the tracer could not turn into an
+        // outline. capturePage filters on the same predicate segment.js counts
+        // as stats.found, then skips any cell that produced no contours — so
+        // this difference is exactly the characters that made it onto the page
+        // and off the font. It is reported nowhere else in the app.
+        const untraced = capture.stats.found - capture.glyphs.length;
+        if (untraced > 0) {
+          notes.push({
+            level: 'warn',
+            title: `${untraced} character${untraced === 1 ? '' : 's'} could not be traced`,
+            detail:
+              'They were found on the page but produced no usable outline, which usually means a very light stroke. Draw them by hand on the Review screen, or photograph this sheet again.',
+          });
+        }
+
+        // segment.js wrote these sentences against counts it made, so they are
+        // passed through rather than reworded — the wording cannot then drift
+        // away from the check that produced it.
+        for (const issue of capture.issues) {
+          if (issue.level !== 'warn') continue;
+          notes.push({
+            level: 'warn',
+            title:
+              issue.code === 'row-count'
+                ? 'The rows found do not match this sheet'
+                : issue.code === 'cell-count'
+                  ? 'A row does not match this sheet'
+                  : 'Check this sheet',
+            detail: issue.message,
+          });
+        }
+
+        if (notes.length) row.append(findingList(notes));
+      }
       return row;
     })
   );
@@ -849,29 +938,16 @@ function renderHealth() {
     return;
   }
 
-  const list = document.createElement('ul');
-  list.className = 'findings';
-  for (const f of findings) {
-    const li = document.createElement('li');
-    li.className = `finding is-${f.level}`;
-    const icon = f.level === 'error' ? 'alert' : f.level === 'warn' ? 'alert' : 'info';
-    li.innerHTML = `<svg viewBox="0 0 24 24"><use href="#i-${icon}"/></svg><div><b></b><p></p></div>`;
-    $('b', li).textContent = f.title;
-    $('p', li).textContent = f.detail;
-    if (f.chars?.length) {
-      const chars = document.createElement('div');
-      chars.className = 'chars';
-      for (const ch of f.chars.slice(0, 14)) {
-        const s = document.createElement('span');
-        s.textContent = ch;
-        chars.append(s);
-      }
-      $('div', li).append(chars);
-    }
-    list.append(li);
-  }
-  stagger(list);
-  card.append(list);
+  card.append(
+    findingList(
+      findings.map((f) => ({
+        level: f.level,
+        title: f.title,
+        detail: f.detail,
+        chars: f.chars ?? [],
+      }))
+    )
+  );
 }
 
 function renderSamples() {
