@@ -14,7 +14,7 @@ export const FALLBACK_LESSONS = [
     title: 'What you are about to do',
     body: [
       'You will copy about 120 characters onto blank paper, photograph the page, and get back a font of your own handwriting that you can install and type with.',
-      'The whole thing runs inside this browser tab. Nothing is uploaded, there is no account, and once this page has loaded it works with the network switched off.',
+      'The whole thing runs inside this browser tab. Your photograph is read here, the letters are traced here, and the font file is written here. Nothing is uploaded and there is no account.',
     ],
   },
   {

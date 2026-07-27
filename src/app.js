@@ -797,7 +797,7 @@ async function openDrawPad(ch) {
     const p = document.createElement('p');
     p.className = 'muted';
     p.textContent =
-      'The drawing pad is not available in this build. You can re-photograph the sheet instead.';
+      'The drawing pad did not load. Check your connection and try again, or re-photograph the sheet instead.';
     body.append(p);
   } else {
     repairPad = mod.createDrawPad(body, {
@@ -1538,8 +1538,31 @@ function recordError(what) {
   errorLog.push(String(what).slice(0, 240));
   if (errorLog.length > 6) errorLog.shift();
 }
-window.addEventListener('error', (e) => recordError(e.message));
-window.addEventListener('unhandledrejection', (e) => recordError(e.reason?.message ?? e.reason));
+/**
+ * Say once, per session, that something broke.
+ *
+ * These two listeners existed and only wrote to an array that nothing read
+ * unless the user happened to open the feedback panel. So a failure part-way
+ * through a build was invisible: the interface simply stopped, with no
+ * statement that anything had gone wrong at all.
+ *
+ * Once per session, because a single fault often fires the handler repeatedly
+ * and six identical bars would be worse than none. The message says the two
+ * things that are true and useful — something stopped, and nothing left the
+ * device — and offers the panel where the detail already lives.
+ */
+let toldAboutError = false;
+function announceError() {
+  if (toldAboutError) return;
+  toldAboutError = true;
+  toast('Something stopped part-way through. Nothing was sent anywhere. If it keeps happening, Send feedback has the details.', true);
+}
+
+window.addEventListener('error', (e) => { recordError(e.message); announceError(); });
+window.addEventListener('unhandledrejection', (e) => {
+  recordError(e.reason?.message ?? e.reason);
+  announceError();
+});
 
 /**
  * Assemble the diagnostic block.
@@ -2012,13 +2035,31 @@ function topload(on) {
 }
 
 /** Load an optional module once, tolerating its absence. */
+/**
+ * Load an optional module once.
+ *
+ * The failure used to be cached alongside the success: a single dropped
+ * request — one flaky moment on a train — marked the module `undefined` for the
+ * rest of the session, and every later attempt returned that immediately
+ * without ever trying again. The slot is now left untouched on failure, so the
+ * next call is a real retry.
+ *
+ * The distinction between "this build does not have it" and "this request did
+ * not arrive" is worth keeping, because only one of them is worth retrying and
+ * the interface was telling everyone it was the first.
+ */
 async function loadModule(key, path) {
-  if (state.modules[key] !== null) return state.modules[key];
+  if (state.modules[key] !== null && state.modules[key] !== undefined) return state.modules[key];
   topload(true);
   try {
     state.modules[key] = await import(path);
-  } catch {
-    state.modules[key] = undefined;
+  } catch (err) {
+    console.error(`Could not load ${path}`, err);
+    recordError(`module ${key} failed to load`);
+    // Deliberately left null rather than undefined: null is this map's "not
+    // asked for yet", which is exactly what a failed attempt should leave
+    // behind if the next press is to try again.
+    state.modules[key] = null;
   } finally {
     topload(false);
   }

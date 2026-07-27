@@ -27,6 +27,15 @@
  */
 export const MAX_WORKING_DIM = 4200;
 
+/**
+ * The largest skew estimateSkew will report, in radians.
+ *
+ * Kept beside the cap above because the two interact: the page is straightened
+ * after it is loaded, and a rotation grows the buffer. Change the `maxDeg`
+ * default in estimateSkew and this has to move with it.
+ */
+const MAX_SKEW_RAD = (8 * Math.PI) / 180;
+
 /** Downscaled edge used for the cheap analysis passes (skew estimation). */
 const ANALYSIS_DIM = 1200;
 
@@ -551,7 +560,17 @@ export async function preprocess(source, opts = {}) {
   const { dropBlue = false, onProgress = () => {} } = opts;
 
   onProgress('Reading image', 0.05);
-  const imageData = await loadImageData(source);
+  // Reserve the rotation's headroom up front.
+  //
+  // loadImageData clamps the longest edge to MAX_WORKING_DIM, and then
+  // rotateGray below expands it again — a rotation by θ turns a w×h box into
+  // one (cos θ + sin θ) larger on each axis. At the 8° estimateSkew searches to
+  // that is about 13%, so every buffer downstream of the straightening step was
+  // sized past the cap the constant exists to set. Loading slightly smaller
+  // makes the post-rotate buffer the thing that actually honours it, which is
+  // what the constant was always meant to bound.
+  const rotationHeadroom = Math.cos(MAX_SKEW_RAD) + Math.sin(MAX_SKEW_RAD);
+  const imageData = await loadImageData(source, Math.floor(MAX_WORKING_DIM / rotationHeadroom));
 
   onProgress('Converting to grayscale', 0.2);
   let { gray, w, h } = toGrayscale(imageData, { dropBlue });

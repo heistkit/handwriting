@@ -22,7 +22,7 @@ export const LESSONS = [
     title: 'What you are about to do',
     body: [
       'You copy about 120 characters onto blank paper, photograph the page, and get back a font of your own handwriting that you can install and type with.',
-      'Everything runs inside this browser tab. Nothing is uploaded, there is no account, and once the page has loaded it works with the network switched off.',
+      'Everything runs inside this browser tab. Nothing is uploaded and there is no account. The one thing the page still needs the network for is fetching its own code — parts of the app load on demand the first time you reach them.',
     ],
   },
   {
@@ -160,7 +160,7 @@ export const INSTALL = [
 export const FAQ = [
   {
     q: 'Is anything I write uploaded?',
-    a: 'No. Reading the photo, tracing the letters and building the font all happen in this browser tab. There is no server involved, and the page keeps working with the network switched off.',
+    a: 'No. Reading the photo, tracing the letters and building the font all happen in this browser tab, and there is no server involved in any of it. The network is used for one thing only: fetching the app’s own code, some of which loads on demand the first time you reach it.',
   },
   {
     q: 'Who owns the font?',
