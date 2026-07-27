@@ -4551,3 +4551,73 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 :root[data-lite='on'] .parcel__tape,
 :root[data-decor='off'] .parcel__flap,
 :root[data-decor='off'] .parcel__tape { transition: none; }
+
+/* ── Specks ─────────────────────────────────────────────────────────────
+   Particle burst adapted from a Uiverse.io button by srinivasaiml (MIT), on
+   the one press in the app that turns ink into a font. Tracing scatters ink
+   into points; this is that, on the button that starts it.
+
+   It is deliberately a modifier and not a new button. There are already nine
+   button treatments in this sheet, and a tenth needs a reason — "Build my
+   font" is the only one that earns a burst, and .contbtn is shared by three
+   controls, so restyling the class would have decorated the two that do not.
+
+   What changed:
+
+   `background: #000`, `border: #333`, `color: #fff` on hover. This palette has
+   neither pure black nor pure white; the button keeps the accent fill it
+   already had and only the specks are added.
+
+   The purple, #b56aff, appears nowhere in this app. The specks are ink.
+
+   `overflow: hidden` on the button, which clipped the particles at the border
+   the moment they started travelling outward — the effect could not be seen at
+   all past a few pixels. They need to leave, so nothing is clipped, and the
+   glow is a shadow rather than a scaled child, which does not need containment.
+
+   `transition: all 0.3s` transitions every property including layout ones. The
+   two that actually change are named.
+
+   No reduced-motion guard on the original. All three switches stop it here,
+   and when they do the specks are simply absent rather than frozen mid-flight.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.contbtn--spark { position: relative; }
+
+.contbtn--spark:hover:not(:disabled) {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.contbtn__specks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Not clipped. The whole point is that they leave the button. */
+  overflow: visible;
+}
+
+.contbtn__specks i {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0;
+}
+
+.contbtn--spark:hover:not(:disabled) .contbtn__specks i,
+.contbtn--spark:focus-visible:not(:disabled) .contbtn__specks i {
+  animation: speck-fly 1.5s var(--ease) forwards;
+}
+
+@keyframes speck-fly {
+  0%   { transform: translate(0, 0) scale(0); opacity: 0; }
+  18%  { opacity: .9; }
+  100% { transform: translate(var(--tx), var(--ty)) scale(1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contbtn__specks { display: none; }
+}
+:root[data-lite='on'] .contbtn__specks,
+:root[data-decor='off'] .contbtn__specks { display: none; }

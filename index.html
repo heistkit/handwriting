@@ -571,7 +571,18 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-left"/></svg>
           <span>Back</span>
         </button>
-        <button class="contbtn" id="to-refine" type="button">
+        <!-- The one press in the app that turns ink into a font, so it is the
+             one that throws specks. Spans, not divs: a <button>'s content model
+             is phrasing content, and the original used divs. -->
+        <button class="contbtn contbtn--spark" id="to-refine" type="button">
+          <span class="contbtn__specks" aria-hidden="true">
+            <i style="--tx:-26px;--ty:-19px;left:18%;top:28%"></i>
+            <i style="--tx:19px;--ty:-24px;left:44%;top:20%;animation-delay:.09s"></i>
+            <i style="--tx:-18px;--ty:20px;left:28%;top:74%;animation-delay:.18s"></i>
+            <i style="--tx:27px;--ty:17px;left:66%;top:70%;animation-delay:.27s"></i>
+            <i style="--tx:32px;--ty:-6px;left:80%;top:44%;animation-delay:.36s"></i>
+            <i style="--tx:-30px;--ty:4px;left:10%;top:52%;animation-delay:.45s"></i>
+          </span>
           <span>Build my font</span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-circle"/></svg>
         </button>
