@@ -1481,6 +1481,26 @@ function init() {
     window.open(leavingUrl.href, '_blank', 'noopener,noreferrer');
   });
 
+  // The landing demo pulls in three modules, so it is mounted the first time the
+  // band comes into view rather than on load. A visitor who never scrolls to it
+  // — or who arrives already past it, on a step route — pays nothing.
+  const demoBand = $('#demo-mount');
+  if (demoBand && typeof IntersectionObserver === 'function') {
+    const demoIO = new IntersectionObserver(
+      (entries, self) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        self.disconnect();
+        import('./demo.js')
+          .then((m) => m.mountDemo(demoBand))
+          // The band keeps its fallback text. A demo that fails to load should
+          // leave the page as it was, not leave a hole where it would have been.
+          .catch(() => {});
+      },
+      { rootMargin: '200px 0px' }
+    );
+    demoIO.observe(demoBand);
+  }
+
   $('#open-guide').addEventListener('click', () => openGuide());
   $('#open-settings').addEventListener('click', () => {
     openModal('#settings');

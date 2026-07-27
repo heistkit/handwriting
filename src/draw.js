@@ -145,10 +145,15 @@ function stampDisc(cov, width, height, cx, cy, r) {
  * @param {number} [opts.guideXHeight=0.5] x-height as a fraction of box height
  * @param {(glyph) => void} opts.onCommit
  * @param {() => void} [opts.onClose]       optional; called on Esc
+ * @param {string} [opts.commitLabel]       label on the commit button
  * @returns {{destroy():void, clear():void, undo():void, isEmpty():boolean}}
  */
 export function createDrawPad(mount, opts = {}) {
-  const { ch = '', guideXHeight = 0.5, onCommit = () => {}, onClose } = opts;
+  const { ch = '', guideXHeight = 0.5, onCommit = () => {}, onClose,
+    // The pad is used in two places that mean different things by the same
+    // gesture: the repair flow is saving a character into a font, the landing
+    // demo is asking the tracer to run. One label cannot be honest for both.
+    commitLabel = 'Save character' } = opts;
 
   const W = Math.min(Math.max(mount.clientWidth || 360, 260), 440);
   const H = Math.round(W * 1.15);
@@ -189,7 +194,7 @@ export function createDrawPad(mount, opts = {}) {
 
   const undoBtn = toolButton('i-refresh', 'Undo', () => undo());
   const clearBtn = toolButton('i-x', 'Clear', () => clear());
-  const saveBtn = toolButton('i-check', 'Save character', () => commit());
+  const saveBtn = toolButton('i-check', commitLabel, () => commit());
   saveBtn.classList.add('btn-primary');
   toolbar.append(undoBtn, clearBtn, saveBtn);
 

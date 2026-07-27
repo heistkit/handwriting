@@ -179,27 +179,73 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   border-bottom: 1px solid var(--border);
 }
 /*
- * The whole bar scrolls sideways, not just the step rail inside it.
+ * The bar wraps rather than scrolling as one piece.
  *
- * The alternative was collapsing labels to icons on narrow screens, which
- * trades one problem for two: an icon-only control has to carry its name
- * somewhere else, and the reader has to already know what the icon means.
- * Scrolling keeps every label intact at every width and every text size —
- * which matters more here than usual, since the text size is a setting.
+ * Scrolling the whole bar kept every label — which is why it beat collapsing
+ * them to icons — but it pushed the last control, Settings, off the right edge
+ * with no visible scrollbar to say so. A control you cannot see and cannot
+ * discover is worse than one whose label is abbreviated.
  *
- * Children are `flex: none` so they scroll rather than squash. The scrollbar
- * is hidden because the bar is 60px tall and a scrollbar would eat a fifth of
- * it; touch drag, shift-wheel and keyboard focus all still scroll it, and
- * focusing a control off-screen brings it into view.
+ * So the parts that must always be reachable — the logo and the three actions —
+ * stay on the first row, and the step rail drops to a row of its own when the
+ * space runs out. It is the only thing here that is genuinely a list, so it is
+ * the only thing that should scroll, and on its own row it can do that without
+ * a second scroller nested inside a first.
  */
 .topbar-inner {
   display: flex; align-items: center; gap: 1.5rem; min-height: 3.8rem;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
+  flex-wrap: wrap;
+  row-gap: 0;
 }
-.topbar-inner::-webkit-scrollbar { display: none; }
 .topbar-inner > * { flex: none; }
+
+.topbar-inner .brand { margin-right: auto; }
+
+/*
+ * `order` puts the rail last in the flow so it is the item that wraps, while
+ * `margin-inline: auto` still centres it on the wide layout. Below the
+ * breakpoint it takes the full width and scrolls; `min-width: 0` is what makes
+ * that `overflow-x` do anything at all, since a flex item defaults to
+ * `min-width: auto` and refuses to shrink past its content.
+ */
+.steps { order: 2; }
+.topbar-inner .theme-switch,
+.topbar-inner .btn-ghost { order: 3; }
+
+@media (max-width: 860px) {
+  .topbar-inner { gap: .8rem; padding-bottom: .5rem; }
+  .steps {
+    order: 4;
+    flex-basis: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    margin-inline: 0;
+    padding-bottom: .15rem;
+  }
+  .steps::-webkit-scrollbar { display: none; }
+}
+
+/*
+ * On a narrow phone there is no width for a logo, a switch and two labelled
+ * buttons, and letting them wrap turned the bar into three rows — a fifth of a
+ * phone screen given over to chrome. Below this width the two action labels
+ * collapse to their icons.
+ *
+ * The labels are moved out of sight rather than removed. `display: none` would
+ * take the accessible name with them and leave two buttons that announce as
+ * nothing, which is the failure this whole batch of components kept shipping.
+ */
+@media (max-width: 540px) {
+  .topbar-inner .btn-ghost { padding: .5rem; }
+  .topbar-inner .btn-ghost > span {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+}
 
 .brand {
   display: flex; align-items: center; gap: .55rem;
@@ -874,6 +920,91 @@ main { flex: 1; }
   .contbtn:hover:not(:disabled) svg,
   .contbtn:focus-visible:not(:disabled) svg { transform: none; }
   .contbtn:active:not(:disabled) { transform: none; }
+}
+
+/* ── Landing demo ───────────────────────────────────────────────────────
+   The one thing on the landing page a visitor can actually do. See src/demo.js
+   for why it draws the real tracer rather than a canned example.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.demo-mount { margin-top: 2rem; }
+
+.demo-fallback {
+  color: var(--text-2);
+  max-width: 60ch;
+}
+
+.demo-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: start;
+}
+@media (max-width: 860px) { .demo-stage { grid-template-columns: 1fr; } }
+
+.demo-pad {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 1.1rem;
+}
+
+.demo-result { display: grid; gap: 1.75rem; min-width: 0; }
+
+.demo-idle { color: var(--text-2); max-width: 46ch; }
+
+.demo-panel { margin: 0; }
+.demo-panel figcaption {
+  margin-top: .85rem;
+  color: var(--text-2);
+  font-size: .93rem;
+  line-height: 1.55;
+}
+.demo-panel figcaption b { color: var(--text); font-weight: 600; }
+
+.demo-glyph {
+  /* Sized in em so the whole demo grows with the text-size setting rather than
+     staying small next to labels that grew. */
+  width: 7.5em;
+  height: 7.5em;
+  /* The global `svg` reset sets fill:none and stroke:currentColor, which is
+     right for the icon set and wrong for a glyph — a letter is a filled shape,
+     and its counters come from the fill rule, not from a stroke. */
+  fill: var(--ink);
+  stroke: none;
+  background: var(--paper);
+  border-radius: var(--r-md);
+  border: 1px solid rgb(0 0 0 / .1);
+}
+
+.demo-glyph__fill { fill: var(--ink); }
+
+/* The outline and its nodes sit on top of the filled shape so the curve
+   structure is legible against it — the point of this panel is that these are
+   real Béziers, and a solid silhouette alone would not show that. */
+.demo-glyph__stroke {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: .6;
+  vector-effect: non-scaling-stroke;
+}
+.demo-glyph__node {
+  fill: var(--accent);
+  stroke: var(--paper);
+  stroke-width: .5;
+}
+
+.demo-variants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .55rem;
+}
+.demo-variants .demo-glyph { width: 4.6em; height: 4.6em; }
+
+.demo-note {
+  color: var(--text-3);
+  font-size: .93rem;
+  max-width: 62ch;
 }
 
 /* ── Leaving the site ───────────────────────────────────────────────── */

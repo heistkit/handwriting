@@ -168,6 +168,21 @@ const scaleX = (contours, factor) => mapPoints(contours, (p) => ({ x: p.x * fact
 // Glyph definitions
 // ---------------------------------------------------------------------------
 
+/*
+ * How different a variant is from its parent.
+ *
+ * Deliberately small: the eye should register texture, never a wobble. Exported
+ * because the landing-page demo shows the same variation on the visitor's own
+ * letter, and a demo carrying its own copy of these numbers would drift out of
+ * step with the font it is describing the moment either changed.
+ */
+export const VARIANT_ROTATION = 1.1;
+export const VARIANT_SCALE = 0.014;
+export const VARIANT_SHIFT = 0.016;
+
+/** Re-exported so callers outside the build do not have to reach into metrics. */
+export const TARGET_X_HEIGHT_UNITS = TARGET_X_HEIGHT;
+
 /**
  * Assemble every glyph the font will contain, including derived characters and
  * variants, keyed by PostScript name.
@@ -175,10 +190,9 @@ const scaleX = (contours, factor) => mapPoints(contours, (p) => ({ x: p.x * fact
 export function buildGlyphDefs(glyphs, spacing, opts = {}) {
   const {
     variantCount = 3,
-    // Deliberately small. The eye should register texture, never a wobble.
-    variantRotation = 1.1,
-    variantScale = 0.014,
-    variantShift = 0.016,
+    variantRotation = VARIANT_ROTATION,
+    variantScale = VARIANT_SCALE,
+    variantShift = VARIANT_SHIFT,
   } = opts;
 
   const defs = new Map();
