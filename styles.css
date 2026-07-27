@@ -495,6 +495,139 @@ main { flex: 1; }
   .theme-switch__clouds { transition: none; }
 }
 
+/* ── Expanding CTA ──────────────────────────────────────────────────────
+   Adapted from a Uiverse.io button by cssbuttons-io (MIT).
+
+   The original opens with a bare `button { background: transparent; border: 0;
+   padding: 0 }` rule and then styles state through unscoped `button:hover
+   .circle`. Pasted in as-is that flattens every button in this app — the
+   toolbar, the modals, the segmented controls, all of it. Everything below is
+   scoped to .learn-more for that reason.
+
+   Also changed:
+
+   - `outline: none` with nothing put back removes the focus ring outright,
+     which strands keyboard users on what is the primary call to action on the
+     page. There is a real focus style here now.
+   - Fixed 12rem width clipped any longer label. Rebuilt as an inline-flex box
+     that sizes to its text, with the circle absolutely placed behind it. Text
+     no longer re-centres as the circle grows, which also removes a small
+     horizontal wobble the original had mid-hover.
+   - Added the press interaction, and a reduced-motion branch.
+   - Re-graded onto the palette; dropped the uppercase, since nothing else in
+     this interface shouts.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.learn-more {
+  --circle: 3rem;
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--circle);
+  padding: 0 1.7rem 0 3.7rem;
+  border: 0;
+  border-radius: calc(var(--circle) / 2);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  isolation: isolate;
+  -webkit-tap-highlight-color: transparent;
+
+  /* The release. A spring easing on the way back out is what makes letting go
+     feel like letting go of something physical rather than a state flip. */
+  transition: transform .34s var(--spring);
+}
+
+/*
+ * The press. Deliberately much faster than the release — a finger going down
+ * should be met immediately, while coming back up can take its time and
+ * overshoot. Matching the two durations is what makes CSS buttons feel mushy.
+ */
+.learn-more:active {
+  transform: scale(.955);
+  transition: transform .08s ease-out;
+}
+
+.learn-more .circle {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  translate: 0 -50%;
+  z-index: -1;
+  display: block;
+  width: var(--circle);
+  height: var(--circle);
+  border-radius: calc(var(--circle) / 2);
+  background: var(--accent);
+  transition: width .45s cubic-bezier(.65, 0, .076, 1), background .2s var(--ease);
+}
+
+.learn-more:hover .circle,
+.learn-more:focus-visible .circle { width: 100%; }
+.learn-more:active .circle { background: var(--accent-hover); }
+
+.learn-more .icon {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  left: .95rem;
+  width: 1.125rem;
+  height: .125rem;
+  background: none;
+  transition: transform .45s cubic-bezier(.65, 0, .076, 1), background .45s var(--ease);
+}
+
+.learn-more .icon::before {
+  content: '';
+  position: absolute;
+  top: -.29rem;
+  right: .0625rem;
+  width: .625rem;
+  height: .625rem;
+  border-top: .125rem solid var(--accent-fg);
+  border-right: .125rem solid var(--accent-fg);
+  transform: rotate(45deg);
+}
+
+.learn-more:hover .icon,
+.learn-more:focus-visible .icon {
+  background: var(--accent-fg);
+  transform: translateX(1rem);
+}
+
+/* The arrow leads the press by a hair, so the button reads as moving forward
+   rather than merely being squashed. */
+.learn-more:active .icon { transform: translateX(1.35rem); }
+
+.learn-more .button-text {
+  position: relative;
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.6;
+  padding: .7rem 0;
+  transition: color .45s cubic-bezier(.65, 0, .076, 1);
+}
+
+.learn-more:hover .button-text,
+.learn-more:focus-visible .button-text { color: var(--accent-fg); }
+
+.learn-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .learn-more,
+  .learn-more .circle,
+  .learn-more .icon,
+  .learn-more .button-text { transition-duration: .01ms; }
+  .learn-more:active { transform: none; }
+  .learn-more:active .icon { transform: translateX(1rem); }
+}
+
 /* ── Docs search ────────────────────────────────────────────────────────
    Adapted from a Uiverse.io search field by Lakshay-art (MIT).
 
