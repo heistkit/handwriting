@@ -25,6 +25,7 @@ import { PREVIEW_SAMPLES, REQUIRED, LIGATURE_SHEET } from './charset.js';
 import { download } from './export.js';
 import { FALLBACK_LESSONS, FALLBACK_INSTALL, FALLBACK_FAQ } from './content.js';
 import { DOCUMENTS, documentById, LEGAL_VERSION, LEGAL_UPDATED } from './legal.js';
+import { limiter, describeWait } from './ratelimit.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -132,6 +133,27 @@ function toast(message, bad = false) {
   $('span', el).textContent = message;
   $('#toasts').append(el);
   setTimeout(() => el.remove(), 4200);
+}
+
+/**
+ * Gate on the per-device limit before starting an expensive operation.
+ *
+ * Only genuinely heavy, user-initiated work is counted: reading a photograph,
+ * and compiling the full four-style family. Preview recompiles are pointedly
+ * *not* counted — the tuner debounces at 170 ms, so a few seconds of dragging a
+ * slider would burn through a 60/minute budget and the limit would fire during
+ * completely ordinary use. Counting only the heavy operations keeps the ceiling
+ * unreachable by hand, which is the whole point of where it was set.
+ */
+function allowHeavyOp() {
+  const status = limiter().take();
+  if (!status.allowed) {
+    toast(
+      `That is ${limiter().limit} builds in a minute — give it ${describeWait(status.retryAfterMs)}.`,
+      true
+    );
+  }
+  return status.allowed;
 }
 
 // ---------------------------------------------------------------------------
@@ -282,6 +304,7 @@ async function handleFile(file, sheetId) {
     toast('That does not look like an image.', true);
     return;
   }
+  if (!allowHeavyOp()) return;
   try {
     busy(true, 'Reading image', 0.02);
     const capture = await capturePage(file, sheetId, {
@@ -430,6 +453,8 @@ function scheduleRecompile() {
  */
 async function runCompile(previewOnly = false) {
   if (!state.glyphs.length) return;
+  // Preview recompiles are exempt — see allowHeavyOp for why.
+  if (!previewOnly && !allowHeavyOp()) return;
   try {
     const styles = previewOnly
       ? STYLES.filter((s) => s.name === state.previewStyle)

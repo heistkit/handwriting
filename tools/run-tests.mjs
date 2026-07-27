@@ -8,6 +8,8 @@ const suites = [
   './metrics.test.mjs',
   './fontbuild.test.mjs',
   './draw.test.mjs',
+  './ratelimit.test.mjs',
+  './middleware.test.mjs',
 ];
 
 let total = 0;
