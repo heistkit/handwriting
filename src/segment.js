@@ -273,6 +273,103 @@ const MAX_COMPONENT_FACTOR = 12;
  * @param {string[][]} expectedRows  rows of characters, as printed on the sheet
  * @returns {{rows: Array, issues: Array, stats: object}}
  */
+const median = (xs) => {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+/**
+ * Make the number of ink bands match the number of rows the sheet expects.
+ *
+ * This is the most consequential step in the file, because bands are paired to
+ * rows by *position*: band 0 is row 0, band 1 is row 1. Get the count wrong at
+ * the top and every character after it is written into the font under the wrong
+ * name. One stray mark above the writing — a crease, a shadow across the top of
+ * the page, a note in the margin, the printed sheet's own header caught in
+ * frame — became band 0, so the first written row paired with the *second* row
+ * of expected characters and an entire alphabet shifted down by thirteen. The
+ * capital A was compiled as N. Every letter typed the wrong letter.
+ *
+ * The app noticed, too: it raised "expected 2 rows but found 3" as a warning,
+ * and then built the font anyway. A warning is the right response to a font
+ * that is slightly wrong. It is the wrong response to one where every character
+ * is mislabelled, which is not a lesser font but a different and useless one.
+ *
+ * Two things fix it, and neither needs to recognise a letter.
+ *
+ * A row of writing holds about as many marks as it has characters. A spurious
+ * band holds one or two. That is a wide enough gap to separate them on count
+ * alone, and the expected count is already known — it is what the sheet asked
+ * the writer for. So: drop bands too sparse to be a row, provided that leaves
+ * enough behind.
+ *
+ * If bands are still too many after that, the remaining cause is the opposite
+ * one — a single row split in two by the smoother, usually where a row of
+ * capitals has no descenders to bridge the gap. Those two bands are vertically
+ * adjacent with almost nothing between them, so fusing the closest neighbours
+ * until the count matches repairs it.
+ *
+ * Both are recorded in `issues` at info level. They are corrections, and a
+ * correction the reader cannot see is indistinguishable from a guess.
+ *
+ * @param {Array<{y0,y1}>} bands
+ * @param {Array<{cy:number}>} boxes  every component found on the page
+ * @param {Array<Array<string>>} expectedRows
+ * @param {Array} issues              appended to
+ * @returns {Array<{y0,y1}>} exactly min(bands, expectedRows.length) bands
+ */
+function reconcileBands(bands, boxes, expectedRows, issues) {
+  if (bands.length <= expectedRows.length) return bands;
+
+  const countIn = (band) =>
+    boxes.reduce((n, b) => n + (b.cy >= band.y0 && b.cy < band.y1 ? 1 : 0), 0);
+
+  let items = bands.map((b) => ({ ...b, n: countIn(b) }));
+
+  // A quarter of the sparsest row the sheet asks for. Sparsest, not average:
+  // the symbols sheet ends on a short row, and a threshold set by the long
+  // rows would throw that one away.
+  const sparsest = Math.min(...expectedRows.map((r) => r.length));
+  const floor = Math.max(1, Math.ceil(sparsest * 0.25));
+
+  const strong = items.filter((b) => b.n >= floor);
+  if (strong.length >= expectedRows.length && strong.length < items.length) {
+    const dropped = items.length - strong.length;
+    issues.push({
+      level: 'info',
+      code: 'stray-band',
+      message:
+        `Ignored ${dropped} stray mark${dropped === 1 ? '' : 's'} above or below the writing. ` +
+        'If a whole row is missing on the next screen, photograph the sheet again with nothing ' +
+        'but the paper in frame.',
+    });
+    items = strong;
+  }
+
+  // Still too many: fuse the closest vertical neighbours until the count fits.
+  while (items.length > expectedRows.length) {
+    let at = 0, best = Infinity;
+    for (let i = 0; i + 1 < items.length; i++) {
+      const gap = items[i + 1].y0 - items[i].y1;
+      if (gap < best) { best = gap; at = i; }
+    }
+    items.splice(at, 2, {
+      y0: items[at].y0,
+      y1: items[at + 1].y1,
+      n: items[at].n + items[at + 1].n,
+    });
+    issues.push({
+      level: 'info',
+      code: 'merged-band',
+      message: 'Two bands of writing were close enough to be one row, and were read as one.',
+    });
+  }
+
+  return items;
+}
+
 export function segmentSheet(bin, w, h, expectedRows) {
   const { labels, boxes } = labelComponents(bin, w, h);
   const bands = findLines(bin, w, h);
@@ -312,36 +409,48 @@ export function segmentSheet(bin, w, h, expectedRows) {
     };
   }
 
-  if (bands.length !== expectedRows.length) {
+  // Bands are paired to rows by position — band 0 is row 0 — so the number of
+  // bands has to be right before anything else can be. See reconcileBands.
+  const chosen = reconcileBands(bands, boxes, expectedRows, issues);
+
+  if (chosen.length !== expectedRows.length) {
     issues.push({
-      level: bands.length === 0 ? 'fatal' : 'warn',
+      level: chosen.length === 0 ? 'fatal' : 'warn',
       code: 'row-count',
       message:
         `Expected ${expectedRows.length} row${expectedRows.length === 1 ? '' : 's'} of writing ` +
-        `but found ${bands.length}. Check that every row was written and that rows are ` +
+        `but found ${chosen.length}. Check that every row was written and that rows are ` +
         `clearly separated.`,
       expected: expectedRows.length,
-      found: bands.length,
+      found: chosen.length,
     });
   }
 
   // Assign every component to the band its centre falls in; components that
-  // fall outside all bands (a stray mark in the margin) attach to the nearest.
-  const perBand = bands.map(() => []);
+  // fall outside all bands (a stray mark in the margin) attach to the nearest,
+  // but only if they are close enough to plausibly belong to it.
+  const perBand = chosen.map(() => []);
+  const bandHeight = median(chosen.map((b) => b.y1 - b.y0)) ?? h;
+  const reachable = bandHeight * 0.6;
   for (const b of boxes) {
-    let idx = bands.findIndex((band) => b.cy >= band.y0 && b.cy < band.y1);
+    let idx = chosen.findIndex((band) => b.cy >= band.y0 && b.cy < band.y1);
     if (idx < 0) {
       let bestD = Infinity;
-      bands.forEach((band, i) => {
+      chosen.forEach((band, i) => {
         const d = b.cy < band.y0 ? band.y0 - b.cy : b.cy - band.y1;
         if (d < bestD) { bestD = d; idx = i; }
       });
+      // A mark further from every row than half a row's height is not part of
+      // a row. It is a crease, a margin note, a page number or a shadow, and
+      // adopting it into the nearest row would push that row's component count
+      // over and force reconcileCount to fuse two real characters together.
+      if (bestD > reachable) idx = -1;
     }
     if (idx >= 0) perBand[idx].push(b);
   }
 
   const rows = [];
-  const pairCount = Math.min(bands.length, expectedRows.length);
+  const pairCount = Math.min(chosen.length, expectedRows.length);
 
   for (let r = 0; r < pairCount; r++) {
     const expected = expectedRows[r];
@@ -390,7 +499,7 @@ export function segmentSheet(bin, w, h, expectedRows) {
       });
     }
 
-    rows.push({ index: r, band: bands[r], cells });
+    rows.push({ index: r, band: chosen[r], cells });
   }
 
   // Rows we never saw at all still need placeholders so the review grid can

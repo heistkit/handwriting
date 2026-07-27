@@ -370,6 +370,7 @@ export async function runAll(sources, settings = {}, opts = {}) {
 
   const health = analyse(glyphs, family.metrics.glyphs, family.metrics.rows, {
     slant: naturalSlant,
+    sheets: captures.map((c) => c.sheetId),
   });
 
   const zip = await packageFamily(settings.familyName ?? 'My Handwriting', serialised, {

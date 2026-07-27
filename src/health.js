@@ -13,7 +13,7 @@
  * how easy it was to detect.
  */
 
-import { BY_CHAR, REQUIRED, ZONES } from './charset.js';
+import { BY_CHAR, REQUIRED, ZONES, sheetOf } from './charset.js';
 
 const median = (xs) => {
   if (!xs.length) return null;
@@ -138,11 +138,16 @@ const finding = (level, code, title, detail, extra = {}) => ({
  * @param {Array} extracted   glyphs carrying `bitmap`, `w`, `h`, `ch`
  * @param {Array} normalized  glyphs in font units, carrying `ink`, `advanceWidth`
  * @param {Map}   rows        per-row metrics from metrics.solveAllRows
- * @param {object} opts       { slant, requiredOnly }
+ * @param {object} opts       { slant, requiredOnly, sheets }
+ * @param {Set<string>|Array<string>} [opts.sheets]
+ *        ids of the sheets actually photographed. See the note in the coverage
+ *        section — without it, a character you have not written yet and a
+ *        character the capture failed to read are the same fact.
  */
 export function analyse(extracted, normalized, rows, opts = {}) {
   const findings = [];
   const captured = new Set(extracted.map((g) => g.ch));
+  const attempted = opts.sheets == null ? null : new Set(opts.sheets);
 
   // Normalised once, here. Several checks below reach into `rows` directly,
   // and a build that got far enough to call analyse but produced no row map
@@ -172,29 +177,61 @@ export function analyse(extracted, normalized, rows, opts = {}) {
   }
 
   // -- Coverage -------------------------------------------------------------
+  //
+  // "You have not written this yet" and "the capture could not read what you
+  // wrote" are different facts about the font, and this used to report them as
+  // one. Someone who photographs the everyday sheet and nothing else was told
+  // "26 letters missing", at error level, with a score that called the result
+  // Needs work — for a font that is exactly what they set out to make and that
+  // types English perfectly well.
+  //
+  // The distinction is available: `attempted` is the set of sheets that were
+  // actually photographed, so a character absent from a sheet that was never
+  // shot is a choice, and a character absent from a sheet that was shot is a
+  // failure worth fixing. Only the second is an error, and only the second is
+  // something the reader can act on.
+  //
+  // When the caller does not say (an old call site, or the standalone pipeline
+  // helper), `attempted` is null and everything counts as attempted — the
+  // stricter of the two readings, which is the right way to be wrong.
   const missing = REQUIRED.filter((e) => !captured.has(e.ch));
-  const missingLetters = missing.filter((e) => e.group === 'lower' || e.group === 'upper');
+  const wasAttempted = (entry) => attempted === null || attempted.has(sheetOf(entry.ch));
+  const isLetter = (e) => e.group === 'lower' || e.group === 'upper';
 
-  if (missingLetters.length) {
+  const failedLetters = missing.filter((e) => isLetter(e) && wasAttempted(e));
+  const failedOther = missing.filter((e) => !isLetter(e) && wasAttempted(e));
+  const notWritten = missing.filter((e) => !wasAttempted(e));
+
+  if (failedLetters.length) {
     findings.push(
       finding(
         'error',
         'missing-letters',
-        `${missingLetters.length} letter${missingLetters.length === 1 ? '' : 's'} missing`,
-        'These will show as blank boxes wherever you type them. Draw them in, or re-photograph the sheet they were on.',
-        { chars: missingLetters.map((e) => e.ch) }
+        `${failedLetters.length} letter${failedLetters.length === 1 ? '' : 's'} could not be read`,
+        'These were on a sheet you photographed, but nothing was found in their place. They will show as blank boxes wherever you type them. Draw them in, or re-photograph that sheet.',
+        { chars: failedLetters.map((e) => e.ch) }
       )
     );
   }
-  const missingOther = missing.filter((e) => e.group !== 'lower' && e.group !== 'upper');
-  if (missingOther.length) {
+  if (failedOther.length) {
+    findings.push(
+      finding(
+        'warn',
+        'missing-symbols',
+        `${failedOther.length} character${failedOther.length === 1 ? '' : 's'} could not be read`,
+        'These were on a sheet you photographed but came out blank — usually a mark too light or too small to find. Draw them in, or leave them out if you never type them.',
+        { chars: failedOther.map((e) => e.ch) }
+      )
+    );
+  }
+  if (notWritten.length) {
     findings.push(
       finding(
         'info',
-        'missing-symbols',
-        `${missingOther.length} symbol${missingOther.length === 1 ? '' : 's'} not captured`,
-        'Fine to leave out if you never type them. Anything missing falls back to a plain substitute.',
-        { chars: missingOther.map((e) => e.ch) }
+        'not-written',
+        `${notWritten.length} character${notWritten.length === 1 ? '' : 's'} not written yet`,
+        'These are on sheets you have not photographed. The font works without them — anything you have not written falls back to whatever font sits behind yours. Add a sheet whenever you feel like it.',
+        { chars: notWritten.map((e) => e.ch) }
       )
     );
   }
@@ -335,8 +372,22 @@ export function analyse(extracted, normalized, rows, opts = {}) {
     );
   }
 
-  const score = computeScore(findings, captured.size);
-  return { findings, score, captured: captured.size, expected: REQUIRED.length };
+  // What was set out to be captured: everything on the sheets that were shot.
+  // With no sheet list, that is the whole inventory, as before.
+  const expected = attempted === null
+    ? REQUIRED.length
+    : REQUIRED.filter(wasAttempted).length;
+
+  const score = computeScore(findings, captured.size, expected);
+  return {
+    findings,
+    score,
+    captured: captured.size,
+    expected,
+    // The full inventory, so a caller can still say "112 of 111 possible"
+    // without having to import the charset to find out.
+    possible: REQUIRED.length,
+  };
 }
 
 /** Characters that are legitimately tiny, and so should not trip size checks. */
@@ -350,14 +401,24 @@ function isSmallByNature(ch) {
  * Weighted so that a missing letter — which produces a visible blank box in
  * every word containing it — costs far more than a symbol nobody will type.
  */
-function computeScore(findings, capturedCount) {
+function computeScore(findings, capturedCount, expectedCount = REQUIRED.length) {
   let score = 100;
   for (const f of findings) {
     if (f.level === 'error') score -= 12 + f.chars.length * 2;
     else if (f.level === 'warn') score -= 5 + Math.min(8, f.chars.length);
     else score -= 1;
   }
-  const coverage = capturedCount / REQUIRED.length;
+  // Measured against what was set out to be captured, not against the full
+  // inventory. This number answers "how good is the font you made", and someone
+  // who deliberately wrote one sheet did not make a worse font than they meant
+  // to — they made a smaller one. Charging them 25 points for the sheets they
+  // chose not to write turns a complete result into a failing grade, which is
+  // both untrue and the surest way to stop them coming back for the rest.
+  //
+  // The `not-written` finding above still tells them exactly what is absent, at
+  // info level, which is where a choice belongs.
+  const denominator = Math.max(1, expectedCount);
+  const coverage = Math.min(1, capturedCount / denominator);
   score -= Math.round((1 - coverage) * 25);
   return Math.max(0, Math.min(100, Math.round(score)));
 }

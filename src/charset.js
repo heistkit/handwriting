@@ -263,32 +263,74 @@ function chunk(list, size) {
 
 const ROW = 13;
 
+/**
+ * The marks that turn letters into prose.
+ *
+ * These ride on the first sheet rather than with the rest of the punctuation,
+ * because a set of letters with no full stop is not a font anyone can write a
+ * sentence in — and the first sheet has to stand on its own. Six marks is about
+ * half a row; the cost is nothing and it is the difference between "letters"
+ * and "usable".
+ */
+const EVERYDAY_PUNCT = ['.', ',', "'", '-', '?', '!'];
+const isEveryday = (e) => EVERYDAY_PUNCT.includes(e.ch);
+
+/**
+ * The sheets, in the order they are offered — and that order is the point.
+ *
+ * This used to open with the capitals and present four sheets as one
+ * undifferentiated wall of about 112 characters. That is a single ask, and it
+ * is the ask people decline: nothing works until all of it is done, so the
+ * whole thing is a commitment made before any of it has paid off.
+ *
+ * So the first sheet is now a font on its own. Lowercase carries the ascenders
+ * and descenders the baseline solver reads, which makes it both the most useful
+ * sheet and the one that measures best; with six marks of punctuation added it
+ * sets ordinary English. Thirty-two characters, one photograph, and something
+ * installable at the end of it.
+ *
+ * `tier` says how each sheet is offered, not whether the app will build without
+ * it — the app has always built from whatever it was given. What was missing
+ * was anyone saying so.
+ *
+ *   essential    one photograph, and you have a working font
+ *   recommended  most people will want these before they use it in earnest
+ *   extra        worth it only if you type them
+ */
 export const SHEETS = [
   {
-    id: 'letters-upper',
+    id: 'everyday',
+    title: 'Everyday letters',
+    tier: 'essential',
+    blurb: 'One photograph of this sheet is a working font.',
+    hint: 'Let tall letters (b d f h k l) and tails (g p q y) run their natural length — the app reads your baseline from them. The six marks at the end are what let you write a sentence.',
+    rows: chunk([...LOWER.map((e) => e.ch), ...EVERYDAY_PUNCT], ROW),
+  },
+  {
+    id: 'capitals',
     title: 'Capitals',
+    tier: 'recommended',
+    blurb: 'Sentences start with these.',
     hint: 'Write each capital letter once, keeping a clear gap between them.',
     rows: chunk(UPPER.map((e) => e.ch), ROW),
   },
   {
-    id: 'letters-lower',
-    title: 'Lowercase',
-    hint: 'Let tall letters (b d f h k l) and tails (g p q y) run their natural length — the app reads your baseline from them.',
-    rows: chunk(LOWER.map((e) => e.ch), ROW),
-  },
-  {
-    id: 'digits-punct',
-    title: 'Numbers & punctuation',
-    hint: 'Small marks matter. Write the period and comma at their true size, not enlarged.',
+    id: 'numbers',
+    title: 'Numbers and the rest of the punctuation',
+    tier: 'recommended',
+    blurb: 'Dates, prices, brackets, quotes.',
+    hint: 'Small marks matter. Write the colon and semicolon at their true size, not enlarged.',
     rows: [
       ...chunk(DIGITS.map((e) => e.ch), ROW),
-      ...chunk(PUNCT.map((e) => e.ch), ROW),
+      ...chunk(PUNCT.filter((e) => !isEveryday(e)).map((e) => e.ch), ROW),
     ],
   },
   {
     id: 'symbols',
-    title: 'Symbols & math',
-    hint: 'Skip any you will never type — the app substitutes a neutral fallback for anything left blank.',
+    title: 'Symbols and maths',
+    tier: 'extra',
+    blurb: 'Currency, arrows, operators.',
+    hint: 'Skip any you will never type — anything left blank simply falls back to the font behind yours.',
     rows: [
       ...chunk([...CURRENCY, ...MARKS].map((e) => e.ch), ROW),
       ...chunk([...MATH, ...ARROWS].map((e) => e.ch), ROW),
@@ -307,12 +349,32 @@ export const LIGATURE_SHEET = {
   id: 'ligatures',
   title: 'Joined pairs',
   optional: true,
+  tier: 'extra',
+  blurb: 'Only for joined-up handwriting.',
   hint: 'Only worth doing if your writing joins up. Write each pair as one continuous stroke, exactly as you would mid-word.',
   rows: chunk(LIGATURES.map((l) => l.seq), 6),
 };
 
 /** The flat write-order, matching how sheets are read: sheet → row → cell. */
 export const WRITE_ORDER = SHEETS.flatMap((s) => s.rows.flat());
+
+/**
+ * Which sheet a character is written on.
+ *
+ * The health report needs this to tell "you have not written this yet" apart
+ * from "the capture could not read what you wrote". Both look identical in the
+ * glyph list — the character is simply absent — and they call for opposite
+ * responses: one is a choice, the other is a fault worth going back for.
+ *
+ * Built once. Ligature pairs are excluded deliberately: they are sequences, not
+ * characters, and never appear in REQUIRED.
+ */
+const SHEET_OF = new Map(
+  SHEETS.flatMap((s) => s.rows.flat().map((ch) => [ch, s.id]))
+);
+
+/** @returns {string|undefined} sheet id, or undefined for a derived glyph. */
+export const sheetOf = (ch) => SHEET_OF.get(ch);
 
 /** Sanity check: every required glyph appears on exactly one sheet. */
 export function auditSheets() {

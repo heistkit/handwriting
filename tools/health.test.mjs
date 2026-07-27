@@ -40,10 +40,73 @@ function healthyInput(REQUIRED) {
 
 export async function run() {
   const { analyse } = await import('../src/health.js');
-  const { REQUIRED } = await import('../src/charset.js');
+  const { REQUIRED, SHEETS, sheetOf } = await import('../src/charset.js');
   const { TARGET_X_HEIGHT } = await import('../src/metrics.js');
 
   const { extracted, normalized } = healthyInput(REQUIRED);
+
+  // --- not written yet is not the same as could not be read ----------------
+  {
+    // Someone photographs one sheet and stops. Every character on the sheets
+    // they never shot is absent from the glyph list, exactly as if the capture
+    // had failed — and the two call for opposite responses.
+    const one = SHEETS[0];
+    const onIt = new Set(one.rows.flat());
+    const partial = healthyInput(REQUIRED.filter((e) => onIt.has(e.ch)));
+    const rows = new Map([[0, { xHeight: 250, scale: TARGET_X_HEIGHT / 250 }]]);
+
+    const told = analyse(partial.extracted, partial.normalized, rows, { sheets: [one.id] });
+    const codes = told.findings.map((f) => f.code);
+
+    check('a sheet never photographed reports as not written yet',
+      codes.includes('not-written'), codes.join(', '));
+    check('and is not reported as letters that could not be read',
+      !codes.includes('missing-letters'), codes.join(', '));
+    check('and is reported at info level, because it was a choice',
+      told.findings.find((f) => f.code === 'not-written')?.level === 'info');
+
+    // The number that decides whether the screen says Excellent or Needs work.
+    check('a complete sheet scores as a good font, not a failing one',
+      told.score >= 78, `score=${told.score}`);
+    check('and `expected` counts only what was set out to be captured',
+      told.expected === REQUIRED.filter((e) => onIt.has(e.ch)).length,
+      `${told.expected}`);
+    check('while `possible` still reports the whole inventory',
+      told.possible === REQUIRED.length, `${told.possible}`);
+  }
+
+  // --- but a genuine capture failure is still an error ----------------------
+  {
+    // Same one sheet photographed, but three of its own letters came back
+    // blank. That is not a choice, and it is the thing worth going back for.
+    const one = SHEETS.find((s) => s.rows.flat().some((ch) => /[a-z]/.test(ch))) ?? SHEETS[0];
+    const onIt = one.rows.flat();
+    const dropped = onIt.filter((ch) => /[a-zA-Z]/.test(ch)).slice(0, 3);
+    const kept = REQUIRED.filter((e) => onIt.includes(e.ch) && !dropped.includes(e.ch));
+    const partial = healthyInput(kept);
+    const rows = new Map([[0, { xHeight: 250, scale: TARGET_X_HEIGHT / 250 }]]);
+
+    const told = analyse(partial.extracted, partial.normalized, rows, { sheets: [one.id] });
+    const failed = told.findings.find((f) => f.code === 'missing-letters');
+    check('a letter absent from a sheet that WAS photographed is an error',
+      failed?.level === 'error', JSON.stringify(told.findings.map((f) => f.code)));
+    check('and names the characters that failed',
+      dropped.every((ch) => failed?.chars.includes(ch)), JSON.stringify(failed?.chars));
+    check('and does not blame the sheets that were never shot',
+      !failed?.chars.some((ch) => sheetOf(ch) !== one.id));
+  }
+
+  // --- saying nothing about sheets keeps the old, stricter reading ----------
+  {
+    const partial = healthyInput(REQUIRED.slice(0, 20));
+    const rows = new Map([[0, { xHeight: 250, scale: TARGET_X_HEIGHT / 250 }]]);
+    const told = analyse(partial.extracted, partial.normalized, rows);
+    check('with no sheet list, everything counts as attempted',
+      told.findings.some((f) => f.code === 'missing-letters'),
+      told.findings.map((f) => f.code).join(', '));
+    check('and `expected` falls back to the whole inventory',
+      told.expected === REQUIRED.length, `${told.expected}`);
+  }
   const resFinding = (rows) =>
     analyse(extracted, normalized, rows).findings.find((f) => f.code === 'low-resolution');
 

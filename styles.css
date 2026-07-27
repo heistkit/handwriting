@@ -2623,6 +2623,25 @@ details.legal-section > summary:focus-visible {
 
 .drop-body h3 { margin-bottom: .2rem; }
 .drop-body p { font-size: .88rem; color: var(--text-2); }
+
+/* ── Which sheet to do first ──
+   Four identical rows read as four things that all have to be done before
+   anything works, which is the ask people decline. One of them is marked, and
+   the marked one is the one that alone makes a font. */
+.drop-tier {
+  display: inline-block; vertical-align: middle;
+  margin-left: .1rem; padding: .12em .5em;
+  font-size: .7em; font-weight: 600; letter-spacing: .02em;
+  border-radius: 999px;
+  background: var(--accent-quiet); color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.drop-tier.is-quiet {
+  background: var(--surface-2); color: var(--text-3);
+  border-color: var(--border);
+}
+.drop.is-essential { border-color: var(--accent); opacity: 1; }
+.drop.is-essential:not(.is-done) .drop-thumb { color: var(--accent); }
 .drop-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 @media (max-width: 700px) {
   .drop { grid-template-columns: 48px minmax(0, 1fr); }

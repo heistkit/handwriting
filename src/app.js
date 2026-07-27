@@ -550,8 +550,10 @@ function renderCaptureList() {
       const row = document.createElement('div');
       row.className = 'drop';
       row.dataset.sheet = sheet.id;
+      row.dataset.tier = sheet.tier || 'extra';
       if (capture) row.classList.add('is-done');
       if (sheet.optional) row.classList.add('is-optional');
+      if (sheet.tier === 'essential') row.classList.add('is-essential');
 
       const thumb = document.createElement('div');
       thumb.className = 'drop-thumb';
@@ -562,11 +564,29 @@ function renderCaptureList() {
       const body = document.createElement('div');
       body.className = 'drop-body';
       const h = document.createElement('h3');
-      h.textContent = sheet.title + (sheet.optional ? ' (optional)' : '');
+      h.textContent = sheet.title;
+      // The tier, said once, where the decision is made. This screen used to
+      // show four identical rows, which reads as four things that must all be
+      // done before anything works — and that is the ask people decline.
+      if (sheet.tier === 'essential') {
+        const tag = document.createElement('span');
+        tag.className = 'drop-tier';
+        tag.textContent = 'Start here';
+        h.append(' ', tag);
+      } else if (sheet.optional) {
+        const tag = document.createElement('span');
+        tag.className = 'drop-tier is-quiet';
+        tag.textContent = 'Optional';
+        h.append(' ', tag);
+      }
+
       const p = document.createElement('p');
       p.textContent = capture
         ? `${capture.stats.found} of ${capture.stats.total} characters found`
-        : 'Drop a photo here, or choose a file.';
+        // The blurb says what this sheet buys; the instruction is the same on
+        // every row and does not need saying five times.
+        : (sheet.blurb ? `${sheet.blurb} Drop a photo here, or choose a file.`
+                       : 'Drop a photo here, or choose a file.');
       body.append(h, p);
 
       const actions = document.createElement('div');
@@ -1052,6 +1072,10 @@ async function runCompile(previewOnly = false) {
 
     state.health = analyse(state.glyphs, family.metrics.glyphs, family.metrics.rows, {
       slant: state.naturalSlant,
+      // Which sheets were actually photographed. Without this the report cannot
+      // tell a character someone chose not to write from one the capture failed
+      // to read, and calls both a missing letter.
+      sheets: [...state.captures.keys()],
     });
     renderHealth();
     return true;
@@ -1104,8 +1128,16 @@ function renderHealth() {
     </div>
     <div class="score-text"><b></b><span></span></div>`;
   $('.score-text b', wrap).textContent = label.label;
-  $('.score-text span', wrap).textContent =
-    `${state.health.captured} of ${state.health.expected} characters`;
+  // `expected` is what the photographed sheets could have yielded, `possible`
+  // the whole inventory. Saying "32 of 32" to someone who shot one sheet is
+  // true and reads as complete, which it is; the second phrasing exists so it
+  // does not also read as "there is nothing else to write".
+  {
+    const { captured, expected, possible } = state.health;
+    $('.score-text span', wrap).textContent = expected >= (possible ?? expected)
+      ? `${captured} of ${expected} characters`
+      : `${captured} characters so far, of ${possible}`;
+  }
   card.append(wrap);
 
   if (!findings.length) {
