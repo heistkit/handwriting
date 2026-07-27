@@ -38,7 +38,7 @@ import { observe as observeReveal, showAll as revealAll } from './reveal.js';
 import { enhance as enhanceFolds } from './fold.js';
 import { token as paletteToken, onPaletteChange } from './paint.js';
 import { init as initFlourish, bindToggle as bindFlourish } from './flourish.js';
-import { read as readRoute, write as writeRoute } from './routes.js';
+import { read as readRoute, write as writeRoute, base as routeBase } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
 import { intercept as interceptExternal, describe as describeUrl } from './leaving.js';
@@ -870,6 +870,12 @@ async function prepareExport() {
     if (!ok) return false;
     busy(true, 'Packaging', 0.7);
     renderExport();
+    // navigator.share() needs the click's transient activation, which a
+    // multi-second zip build can outlive. Warmed only where a share button
+    // will actually appear — elsewhere it is wasted work on the slowest
+    // devices. Not awaited, and a failure here is silent: both the share and
+    // the download path rebuild and report their own errors.
+    if (canShareFont()) bundleNow().catch(() => {});
     return true;
   } finally {
     busy(false);
@@ -978,6 +984,234 @@ function dlState(next, fill = null) {
     next === 'working' ? 'Packaging…' : next === 'done' ? 'Downloaded' : 'Download';
 }
 
+/**
+ * The one place a font bundle is built.
+ *
+ * Keyed on all three inputs that change what the zip contains:
+ *
+ *   serialised    a fresh array per full compile, so object identity is a
+ *                 reliable build token
+ *   familyName    changes with NO recompile, so it cannot be inferred from
+ *                 `serialised`. There is a concrete path where this matters:
+ *                 prepareExport calls runCompile, which returns early while
+ *                 the rate limiter is holding it off — rename, come back to
+ *                 Export while limited, and `serialised` keeps its identity
+ *                 while the screen shows the new name. Without this key the
+ *                 share would hand over a zip named after the old font.
+ *   variantCount  reaches the bundled README through packageFamily
+ *
+ * The cached value is the PROMISE, not the zip, and the cache is populated
+ * before this function returns — so a pre-warm and a click in the same tick
+ * join one build instead of racing into two. A rejected build is evicted, or
+ * every retry for the rest of the session would replay the same rejection.
+ *
+ * Progress is fanned out to whoever is listening rather than bound to the
+ * first caller's callback. Caching the promise alone would mean the download
+ * ring jumping straight from 0 to 100 on any build the pre-warm had already
+ * started — which is precisely the common case.
+ */
+let bundleCache = null;
+
+function bundleNow(onProgress) {
+  const serialised = state.serialised;
+  if (!serialised?.length) return Promise.reject(new Error('The font is not built yet.'));
+
+  const familyName = state.settings.familyName || 'My Handwriting';
+  const variantCount = state.settings.variantCount;
+
+  const hit =
+    bundleCache &&
+    bundleCache.serialised === serialised &&
+    bundleCache.familyName === familyName &&
+    bundleCache.variantCount === variantCount
+      ? bundleCache
+      : null;
+
+  if (hit) {
+    if (onProgress) {
+      // Already finished: the zip exists, so reporting it complete is true.
+      if (hit.settled) onProgress(1);
+      else hit.listeners.add(onProgress);
+    }
+    return hit.promise;
+  }
+
+  const entry = {
+    serialised, familyName, variantCount,
+    listeners: new Set(), settled: false, promise: null,
+  };
+  if (onProgress) entry.listeners.add(onProgress);
+
+  entry.promise = packageFamily(
+    familyName,
+    serialised,
+    { variantCount },
+    (pct) => { for (const fn of entry.listeners) fn(pct); }
+  ).then(
+    (zip) => { entry.settled = true; entry.listeners.clear(); return zip; },
+    (err) => {
+      entry.listeners.clear();
+      if (bundleCache === entry) bundleCache = null;
+      throw err;
+    }
+  );
+
+  bundleCache = entry;
+  return entry.promise;
+}
+
+/**
+ * Whether Web Share can actually take a zip here — not whether this looks like
+ * a phone. An earlier attempt called itself mobile-only, which is not true:
+ * desktop Chrome reports canShare({files}) as well.
+ *
+ * The probe carries the real MIME type, because canShare answers on the type
+ * rather than on the bytes.
+ */
+function canShareFont() {
+  if (typeof navigator.share !== 'function') return false;
+  if (typeof navigator.canShare !== 'function') return false;
+  if (typeof File !== 'function') return false;
+  try {
+    const probe = new File([new Uint8Array(0)], 'probe.zip', { type: 'application/zip' });
+    return navigator.canShare({ files: [probe] });
+  } catch {
+    return false;
+  }
+}
+
+let shareResetTimer = null;
+
+async function shareFont() {
+  const btn = $('#share-font');
+  const label = $('#share-font-label');
+  const live = $('#share-font-live');
+  clearTimeout(shareResetTimer);
+
+  const idle = () => {
+    btn.dataset.state = 'idle';
+    btn.disabled = false;
+    label.textContent = 'Share';
+    live.textContent = '';
+  };
+  const settle = (next, announce) => {
+    btn.dataset.state = next;
+    btn.disabled = false;
+    label.textContent = next === 'done' ? 'Shared' : 'Share';
+    live.textContent = announce;
+    shareResetTimer = setTimeout(idle, 4000);
+  };
+
+  btn.dataset.state = 'working';
+  btn.disabled = true;
+  label.textContent = 'Preparing...';
+  live.textContent = 'Preparing the font to share.';
+
+  // Read the name after the build, from the same place bundleNow keys on, so
+  // the file name and the zip contents cannot disagree.
+  let file;
+  const familyName = state.settings.familyName || 'My Handwriting';
+  try {
+    const zip = await bundleNow();
+    file = new File([zip], `${slugify(familyName)}.zip`, { type: 'application/zip' });
+  } catch (err) {
+    console.error(err);
+    settle('failed', 'Could not prepare the font to share.');
+    toast(`Could not package the font: ${err.message}`, true);
+    return;
+  }
+
+  try {
+    await navigator.share({
+      files: [file],
+      title: `${familyName} - a font from my handwriting`,
+      text: `${familyName}, made from my own handwriting.`,
+    });
+    settle('done', `${familyName} shared.`);
+  } catch (err) {
+    // Dismissing the share sheet is a choice, not a failure: no error, and no
+    // download nobody asked for.
+    if (err?.name === 'AbortError') { idle(); return; }
+    // Anything else still owes them the font. Most often this is
+    // NotAllowedError, because a cold zip build can outlast the click's
+    // transient activation.
+    console.error(err);
+    download(file, file.name, 'application/zip');
+    settle('failed', 'Sharing was refused, so the font was downloaded instead.');
+    toast('Sharing was not allowed, so the font downloaded instead.');
+  }
+}
+
+/**
+ * The address of this app, or null when there isn't one.
+ *
+ * Deliberately not a hardcoded domain. This repo has no canonical URL, no
+ * og:url and no production hostname; the one https link in index.html points
+ * at the source. Inventing an address would be inventing a fact.
+ *
+ * base() covers the subdirectory deploy routes.js already reasons about — it
+ * is derived from import.meta.url and returns '/' or '/repo' with no trailing
+ * slash.
+ */
+function appLink() {
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return null;
+  const b = routeBase();
+  return location.origin + (b === '/' ? '/' : `${b}/`);
+}
+
+let appLinkResetTimer = null;
+
+async function copyAppLink() {
+  const btn = $('#copy-applink');
+  const result = $('#copy-applink-result');
+  const field = $('#copy-applink-url');
+  const live = $('#copy-applink-live');
+  const link = appLink();
+  if (!link) return;
+
+  clearTimeout(appLinkResetTimer);
+
+  let ok = false;
+  try {
+    // navigator.clipboard is undefined outright on an insecure origin, not
+    // merely refused. The optional call turns that into the same failure path
+    // as a denied permission instead of a TypeError.
+    if (!navigator.clipboard?.writeText) throw new Error('no clipboard');
+    await navigator.clipboard.writeText(link);
+    ok = true;
+  } catch {
+    ok = false;
+  }
+
+  btn.dataset.state = ok ? 'done' : 'failed';
+  result.textContent = ok ? 'Copied' : 'Could not copy';
+
+  if (ok) {
+    field.hidden = true;
+  } else {
+    // Put the link where it can be copied by hand, and select it. Telling
+    // someone to select the text is useless when no text is on screen.
+    field.value = link;
+    field.hidden = false;
+    field.select();
+  }
+
+  // The label swap is decoration as far as a screen reader is concerned; this
+  // is the announcement, and it reports what happened rather than what was
+  // clicked.
+  live.textContent = ok
+    ? 'Link to this app copied to the clipboard.'
+    : 'Could not copy. The link is on screen and selected — press Control C, or Command C on a Mac.';
+
+  appLinkResetTimer = setTimeout(() => {
+    btn.dataset.state = 'idle';
+    result.textContent = 'Copied';
+    live.textContent = '';
+    // The field stays on screen after a failure. Hiding the only copy of the
+    // link a few seconds later would take the fallback away again.
+  }, 2600);
+}
+
 async function downloadZip() {
   const name = state.settings.familyName || 'My Handwriting';
   // Above dlState('working'), deliberately: that call sets btn.disabled = true,
@@ -991,12 +1225,9 @@ async function downloadZip() {
   clearTimeout(dlResetTimer);
   dlState('working', 0);
   try {
-    const zip = await packageFamily(
-      name,
-      state.serialised,
-      { variantCount: state.settings.variantCount },
-      (pct) => dlState(null, pct)
-    );
+    // Same builder as the share button, so the two cannot deliver different
+    // bytes for the same font, and pressing both does not build it twice.
+    const zip = await bundleNow((pct) => dlState(null, pct));
     download(zip, `${slugify(name)}.zip`, 'application/zip');
     dlState('done', 1);
     toast('Downloaded. Open the zip and install the four .otf files.');
@@ -1950,6 +2181,19 @@ function init() {
   $('#close-guide').addEventListener('click', () => closeOverlay('#guide'));
   $('#close-draw').addEventListener('click', () => closeModal('#draw-modal'));
   $('#dl-zip').addEventListener('click', downloadZip);
+
+  // Only mounted when there is an address worth copying. Under file://, which
+  // routes.js explicitly supports, there is none — so there is no button
+  // rather than a button that copies "null/".
+  if (appLink()) {
+    $('#copy-applink').hidden = false;
+    $('#copy-applink').addEventListener('click', copyAppLink);
+  }
+
+  if (canShareFont()) {
+    $('#share-font').hidden = false;
+    $('#share-font').addEventListener('click', shareFont);
+  }
   $('#start-over').addEventListener('click', () => location.reload());
 
   // Wrapped, not passed by reference: addEventListener hands the listener the

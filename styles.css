@@ -2761,10 +2761,42 @@ input[type=range]:focus-visible {
   input[type=range] { transition: none; }
 }
 
+/* ── Hard-shadow text field ─────────────────────────────────────────────
+   Adapted from a Uiverse.io input by anniekoop (MIT).
+
+   The original is the exact mistake this sheet's palette note warns about,
+   three times over: `border: 1.5px solid #000`, `box-shadow: 2.5px 3px 0 #000`
+   and `outline: none`. Only the offset shadow comes across.
+
+   The shadow colour is derived, not picked. An outer box-shadow paints below
+   the element's background and border while an outline paints above it, so the
+   focus ring is never broken — but it does cross the shadow along the right
+   and bottom edges, and its contrast there is measured against the shadow
+   rather than against the card. --accent over each candidate, light / dark:
+
+     --border-strong   3.08 / 4.01   <- darkest that clears 3:1 in both
+     --text            3.19 / 2.08   <- the #000 analogue; fails dark
+     --text-2          1.26 / 1.12   <- fails both
+     --text-3          1.03 / 1.24   <- fails both
+
+   So --border-strong is as hard as this can get and stay legible. At 1.61:1
+   light / 1.64:1 dark against --surface it is decoration; the 1px border is
+   still what bounds the control.
+
+   The step happens on :focus-visible rather than :focus, matching the ring, so
+   a mouse click that already told you where you are does not also move the
+   furniture.
+   ─────────────────────────────────────────────────────────────────────── */
 .input {
   width: 100%; padding: .55rem .75rem; border-radius: var(--r-md);
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+  box-shadow: 3px 3px 0 var(--border-strong);
+  transition: box-shadow .18s var(--ease), border-color .18s var(--ease);
 }
+/* Equal specificity, so source order settles a field that is both hovered and
+   focused. Focus wins, which is correct. */
+.input:hover { box-shadow: 4px 4px 0 var(--border-strong); }
+.input:focus-visible { box-shadow: 5px 5px 0 var(--border-strong); }
 /*
  * `outline: none` was here, which meant the app's only two text fields — the
  * font name and the feedback box — were the two controls with no focus ring.
@@ -3189,3 +3221,115 @@ input[type=range]:focus-visible {
 textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 
 @media print { .topbar, .footer, .step-actions, .busy, .toasts { display: none !important; } }
+
+
+/* ── Copy link → Copied ─────────────────────────────────────────────────
+   Adapted from a Uiverse.io copy button by fabiodevbr (MIT).
+
+   The original drove the whole thing off `:focus`, which fires on any focus —
+   including a Tab that copied nothing — and had no way to say "that failed".
+   State lives on `data-state`, set from the clipboard promise, matching what
+   #copy-css already does. The two labels were `position: absolute` with no
+   positioned ancestor, so they resolved against the page; they share one grid
+   cell here instead, which also means the button cannot resize mid-swap.
+
+   The widest label is the idle one — "Copy link to this app" at 20 characters
+   against "Could not copy" at 14 — so the resting state sets the box and no
+   outcome can widen it.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.applink-wrap { display: grid; gap: .5rem; margin-top: .9rem; justify-items: start; }
+.applink { position: relative; }
+/* `.btn { display: inline-flex }` is an author declaration and outranks the UA
+   stylesheet's `[hidden] { display: none }` by cascade origin. */
+.applink[hidden] { display: none; }
+
+.applink__swap { display: grid; overflow: hidden; }
+.applink__swap > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  transition: opacity .2s var(--ease), translate .2s var(--ease);
+}
+.applink__done { opacity: 0; translate: 0 100%; }
+
+.applink[data-state='done'] .applink__idle,
+.applink[data-state='failed'] .applink__idle { opacity: 0; translate: 0 -100%; }
+.applink[data-state='done'] .applink__done,
+.applink[data-state='failed'] .applink__done { opacity: 1; translate: 0 0; }
+
+.applink[data-state='done'] { color: var(--accent); border-color: var(--accent); }
+.applink[data-state='failed'] { color: var(--danger); border-color: var(--danger); }
+
+/* Two classes deliberately: `.applink__ico` alone is (0,1,0) and loses to the
+   sheet's `.btn svg { width: 1.05em }` at (0,1,1), because this is
+   `class="btn applink"`. */
+.applink .applink__ico { width: 17px; height: 17px; flex: none; }
+
+.applink__url {
+  min-width: min(100%, 22rem);
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: .85rem;
+}
+.applink__url[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .applink__swap > span { transition: none; }
+}
+
+/* ── Share button ───────────────────────────────────────────────────────
+   Adapted from a Uiverse.io share button by SalladShooter (MIT).
+
+   The original's scale-on-hover reflowed its neighbours in this flex row, its
+   `outline: 0` on hover deleted the focus ring mid-hover, and its fixed
+   #212121-on-white field could not follow the theme. The pill, the icon-and-
+   label row and the soft bloom on hover are what survives.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.sharebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .72rem 1.3rem;
+  border: 2px solid var(--accent);
+  border-radius: 50px;
+  /* Transparent, not --surface: its neighbour .dlbtn sits transparent over the
+     card's own gradient, and an opaque pill beside a transparent one shows. */
+  background: transparent;
+  font: inherit;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .28s var(--ease), border-color .28s var(--ease),
+              box-shadow .28s var(--ease);
+}
+
+/* Needed because an author `display` declaration outranks the UA stylesheet's
+   `[hidden] { display: none }` by cascade origin — not by source order. */
+.sharebtn[hidden] { display: none; }
+
+.sharebtn:hover:not(:disabled) {
+  background: var(--accent-quiet);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.sharebtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.sharebtn:disabled { cursor: default; }
+
+.sharebtn__ico { display: grid; place-items: center; flex: none; color: var(--accent); }
+.sharebtn__ico svg { width: 19px; height: 19px; }
+
+.sharebtn[data-state='working'] .sharebtn__ico { animation: share-nudge 1.1s var(--ease) infinite; }
+.sharebtn[data-state='done'] { background: var(--accent-quiet); }
+.sharebtn[data-state='failed'] { border-color: var(--danger); }
+.sharebtn[data-state='failed'] .sharebtn__ico { color: var(--danger); }
+
+@keyframes share-nudge {
+  0%, 100% { opacity: 1; translate: 0 0; }
+  50% { opacity: .55; translate: 3px 0; }
+}
+
+/* Not redundant: the sheet's reduced-motion block only clamps transitions and
+   stops the step animation — it does not reach a named keyframe animation. */
+@media (prefers-reduced-motion: reduce) {
+  .sharebtn { transition: none; }
+  .sharebtn[data-state='working'] .sharebtn__ico { animation: none; opacity: 1; }
+}
