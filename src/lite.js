@@ -40,11 +40,46 @@ function safeWrite(value) {
 const motionQuery = () =>
   typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
 
-/** What the visitor explicitly chose, or null if they are following the system. */
-export const chosen = () => safeRead();
+/**
+ * The last explicit choice made in this tab.
+ *
+ * Storage is the durable record of a choice, and the only one that survives a
+ * reload — but when it cannot be written, `chosen()` answered null forever, and
+ * null means "following the system". So a reader who had explicitly turned lite
+ * mode off would have that choice thrown away the moment their system's
+ * reduced-motion setting changed, because the listener below only defers to the
+ * system when nothing was chosen.
+ */
+let chosenThisTab = null;
 
-/** Whether lite is actually in effect right now. */
+/** What the visitor explicitly chose, or null if they are following the system. */
+export const chosen = () => safeRead() ?? chosenThisTab;
+
+/**
+ * Whether lite is actually in effect right now.
+ *
+ * The attribute the page is wearing comes first, and storage second, because
+ * storage is not always writable and this question has to be answerable
+ * anyway. In Chrome with "block all cookies", in Safari private browsing, or
+ * in a sandboxed iframe, `safeWrite` swallows the failure and `safeRead` keeps
+ * returning null — so an answer taken from storage alone reported "off" no
+ * matter what had just been applied.
+ *
+ * That made the switch a one-way door. Press it: `isOn()` is false, so
+ * `apply('on')` runs, the page really does strip its ornament — and then the
+ * control re-reads storage, still finds nothing, and labels itself "off". Press
+ * it again to undo, and because `isOn()` is *still* false it evaluates to
+ * `apply('on')` a second time. Lite mode goes on and can never come off, while
+ * the button insists it was never on.
+ *
+ * `apply()` is what sets the attribute, and it sets it for the reduced-motion
+ * case too, so reading it here also covers someone who chose nothing and whose
+ * system asked for less motion. flourish.js already works this way, which is
+ * why its switches survive the same environment.
+ */
 export function isOn() {
+  const worn = document?.documentElement?.dataset?.lite;
+  if (worn === 'on' || worn === 'off') return worn === 'on';
   const pick = safeRead();
   if (pick) return pick === 'on';
   return Boolean(motionQuery()?.matches);
@@ -55,6 +90,7 @@ export function isOn() {
  */
 export function apply(value) {
   const root = document.documentElement;
+  chosenThisTab = value === 'on' || value === 'off' ? value : null;
   if (value === 'on' || value === 'off') root.dataset.lite = value;
   else delete root.dataset.lite;
 

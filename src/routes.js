@@ -134,12 +134,58 @@ function detectBase() {
   try {
     const here = new URL('../', import.meta.url);
     if (here.protocol === 'http:' || here.protocol === 'https:') {
-      return here.pathname.length > 1 ? here.pathname.replace(/\/+$/, '') : '/';
+      const path = here.pathname.length > 1 ? here.pathname.replace(/\/+$/, '') : '/';
+      return stripSectionSegment(path);
     }
   } catch {
     /* no import.meta in this environment */
   }
   return '/';
+}
+
+/**
+ * Remove a trailing segment that names a sectioned overlay rather than a
+ * directory the app is served from.
+ *
+ * `import.meta.url` is resolved against the *document*, and index.html loads
+ * `src/app.js` by a relative path — so the module URL is
+ * `<document's directory>/src/app.js`, and `../` gives the document's
+ * directory. At the root, or on a one-segment address like `/write`, that
+ * directory IS the base and everything above holds.
+ *
+ * A two-segment address breaks it. On `/guide/pen` the document's directory is
+ * `/guide/`, so the base came back as `/guide` — and `read()` then stripped
+ * that prefix from `/guide/pen`, was left with `/pen`, matched no overlay, and
+ * rewrote the address to `/guide/`. Deep links into a lesson survived being
+ * clicked and died on being reloaded or shared, which is the one thing they
+ * exist for.
+ *
+ * It is not guesswork to undo, because `/guide` is not a plausible directory
+ * for this app to be deployed in *and* a sectioned overlay: those are the only
+ * addresses with a second segment, and the set is enumerated right here. The
+ * deployment already knows about this shape, too — vercel.json rewrites
+ * `/guide/src/:path*` back to `/src/:path*` for exactly the same reason.
+ *
+ * The check is deliberately narrow. A subdirectory deploy at `/repo/` keeps its
+ * base, because `repo` names no overlay; only the sectioned ones are stripped,
+ * so an app genuinely served from a directory called `guide` is the one case
+ * this gets wrong, and it would need a second `guide` inside it to notice.
+ *
+ * Exported for the tests. `BASE` is resolved once at module load from
+ * `import.meta.url`, which under Node is a `file:` URL, so there is no way to
+ * exercise this through the module's public surface — and this is the whole of
+ * the logic, not a seam cut into production code to make room for a test.
+ */
+export function stripSectionSegment(path) {
+  if (path === '/') return path;
+  const cut = path.lastIndexOf('/');
+  const last = path.slice(cut);
+  const overlay = overlayFromPath[last];
+  if (overlay && SECTIONED_OVERLAYS.has(overlay)) {
+    const parent = path.slice(0, cut);
+    return parent === '' ? '/' : parent;
+  }
+  return path;
 }
 
 const BASE = detectBase();

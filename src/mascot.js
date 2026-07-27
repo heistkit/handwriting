@@ -45,16 +45,27 @@ export function mount(root = document) {
     stage.style.removeProperty('--look-y');
   };
 
-  // Reading a rect per move would force layout on every pointer event. They are
-  // taken once, refreshed when the page moves under them, and that is enough
-  // for something whose whole job is to be approximately looking at you.
+  // Reading a rect per move would force layout on every pointer event, so they
+  // are taken once and marked stale when something moves them, which is enough
+  // for a thing whose whole job is to be approximately looking at you.
+  //
+  // Marked rather than re-read at the moment they move, because most of what
+  // moves a card is scrolling, and scrolling arrives in bursts of dozens of
+  // events. Setting a flag is free, and the one measurement that matters is the
+  // one taken on the next pointer move, by which time the burst is over. A
+  // reader who scrolls past this section without ever pointing at it pays
+  // nothing at all.
   let boxes = [];
+  let stale = true;
   const measure = () => {
     boxes = stages.map((stage) => ({ stage, r: stage.getBoundingClientRect() }));
+    stale = false;
   };
+  const invalidate = () => { stale = true; };
 
   const onMove = (event) => {
     if (suppressed()) { for (const s of stages) centre(s); return; }
+    if (stale) measure();
     for (const { stage, r } of boxes) {
       if (!r.width) continue;
       // Only the card actually on screen. `.is-current` is set by stepshow.js.
@@ -70,19 +81,38 @@ export function mount(root = document) {
 
   const onLeave = () => { for (const s of stages) centre(s); };
 
-  measure();
   addEventListener('pointermove', onMove, { passive: true });
   addEventListener('pointerleave', onLeave);
   addEventListener('blur', onLeave);
-  addEventListener('scroll', measure, { passive: true });
-  addEventListener('resize', measure);
+  /*
+   * Capture, and this is the whole of it.
+   *
+   * A scroll event fired at an element does not bubble — only the one fired at
+   * the document does. The step deck is its own scroll container: the cards
+   * move sideways inside a track while the window itself never moves. So a
+   * plain listener on the window heard nothing when the reader swiped the deck,
+   * the cached rects went stale on the first swipe and stayed stale, and the
+   * eyes carried on aiming at the place a card had been rather than at where it
+   * is now.
+   *
+   * Capturing gets every scroller in the document, this one included, without
+   * this module needing to know which elements happen to scroll — which matters
+   * because the deck is not the mascot's business and should not have to be
+   * named here. Hearing about scrollers that have nothing to do with a mascot
+   * costs one assignment, since all that happens is a flag being set.
+   */
+  addEventListener('scroll', invalidate, { capture: true, passive: true });
+  addEventListener('resize', invalidate);
 
   return () => {
     removeEventListener('pointermove', onMove);
     removeEventListener('pointerleave', onLeave);
     removeEventListener('blur', onLeave);
-    removeEventListener('scroll', measure);
-    removeEventListener('resize', measure);
+    // The capture flag is part of what identifies a listener; drop it here and
+    // the scroll listener above outlives the teardown that was meant to remove
+    // it.
+    removeEventListener('scroll', invalidate, { capture: true });
+    removeEventListener('resize', invalidate);
     for (const s of stages) centre(s);
   };
 }

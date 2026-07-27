@@ -243,6 +243,40 @@ export async function run() {
     check('a history that refuses to be written does not take the app down', !threw);
   }
 
+  // --- the base, on a sectioned address ------------------------------------
+  {
+    // `import.meta.url` is resolved against the DOCUMENT, and index.html loads
+    // src/app.js by a relative path. So the module URL is
+    // `<document's directory>/src/app.js` — which is the app's base at `/` and
+    // at `/write`, but NOT at `/guide/pen`, where the document sits one level
+    // deeper and the base came back as `/guide`. read() then stripped that
+    // prefix, was left with `/pen`, matched no overlay, and rewrote the address
+    // to `/guide/`. Deep links into a lesson survived being clicked and died on
+    // being reloaded or shared, which is the one thing they exist for.
+    const { stripSectionSegment } = await import('../src/routes.js');
+
+    check('a sectioned address does not become the base',
+      stripSectionSegment('/guide') === '/', stripSectionSegment('/guide'));
+    check('and neither does one under a subdirectory deploy',
+      stripSectionSegment('/repo/guide') === '/repo', stripSectionSegment('/repo/guide'));
+
+    // What must survive untouched: a genuine subdirectory deploy. This is the
+    // case detectBase exists for, and the reason it reads the module URL at all.
+    check('a real subdirectory base is kept',
+      stripSectionSegment('/repo') === '/repo', stripSectionSegment('/repo'));
+    check('a nested subdirectory base is kept',
+      stripSectionSegment('/a/b') === '/a/b', stripSectionSegment('/a/b'));
+    check('the domain root is unchanged',
+      stripSectionSegment('/') === '/', stripSectionSegment('/'));
+
+    // Only the sectioned overlays are stripped. `/settings` takes no second
+    // segment, so a directory of that name is a directory.
+    check('an unsectioned overlay name is left alone',
+      stripSectionSegment('/settings') === '/settings', stripSectionSegment('/settings'));
+    check('a step name is left alone',
+      stripSectionSegment('/write') === '/write', stripSectionSegment('/write'));
+  }
+
   delete globalThis.location;
   delete globalThis.history;
   return results;

@@ -4233,6 +4233,19 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
   display: flex; align-items: center; justify-content: center; gap: 1rem;
   margin-top: 1.25rem;
 }
+/* The rule above quietly defeated the `hidden` attribute that the markup puts
+   on this element and src/stepshow.js takes off again. An author `display`
+   declaration outranks the user-agent stylesheet's `[hidden] { display: none }`
+   by cascade origin — not by source order and not by specificity — so the nav
+   laid itself out regardless, and a reader whose script never ran was given a
+   full set of arrows and dots that looked live and moved nothing. That is worse
+   than showing no controls at all, which is the point of hiding them: the track
+   underneath is a scroll-snap container, so it still swipes, drags and answers
+   the arrow keys on its own, and nothing is actually missing without them.
+   Restating `display: none` behind the attribute is how the rest of this file
+   handles the same collision — see `.sharebtn[hidden]` and `.busy[hidden]`. */
+.stepshow__nav[hidden] { display: none; }
+
 .stepshow__arrow {
   display: grid; place-items: center;
   width: 2.6rem; height: 2.6rem; flex: none;

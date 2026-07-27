@@ -20,6 +20,7 @@ const suites = [
   './filetype.test.mjs',
   './salvage.test.mjs',
   './health.test.mjs',
+  './lite.test.mjs',
   './markup.test.mjs',
   './segment.test.mjs',
   './endtoend.test.mjs',
