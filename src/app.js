@@ -676,20 +676,52 @@ function renderInstall() {
   );
 }
 
+let dlResetTimer = null;
+
+/**
+ * Drive the download button's own progress ring.
+ *
+ * The ring is filled from real packaging progress rather than a timer, so it
+ * physically cannot reach the checkmark before the zip exists. That is the
+ * whole reason it replaces the generic overlay here: on the one screen where
+ * the user is waiting for a specific artefact, the wait should be attached to
+ * the thing producing it.
+ */
+function dlState(next, fill = null) {
+  const btn = $('#dl-zip');
+  const label = $('#dl-zip-label');
+  if (fill !== null) btn.style.setProperty('--dl-fill', `${Math.round(fill * 100)}%`);
+  if (!next) return;
+
+  btn.dataset.state = next;
+  btn.disabled = next === 'working';
+  label.textContent =
+    next === 'working' ? 'Packaging…' : next === 'done' ? 'Downloaded' : 'Download';
+}
+
 async function downloadZip() {
   const name = state.settings.familyName || 'My Handwriting';
-  busy(true, 'Packaging your font', 0.4);
+  clearTimeout(dlResetTimer);
+  dlState('working', 0);
   try {
-    const zip = await packageFamily(name, state.serialised, {
-      variantCount: state.settings.variantCount,
-    });
+    const zip = await packageFamily(
+      name,
+      state.serialised,
+      { variantCount: state.settings.variantCount },
+      (pct) => dlState(null, pct)
+    );
     download(zip, `${slugify(name)}.zip`, 'application/zip');
+    dlState('done', 1);
     toast('Downloaded. Open the zip and install the four .otf files.');
+
+    // Return to idle so a second download is obviously available. Long enough
+    // that the checkmark is read as confirmation, not a flicker.
+    dlResetTimer = setTimeout(() => dlState('idle', 0), 4000);
   } catch (err) {
     console.error(err);
+    // Failure must not leave a checkmark on screen.
+    dlState('idle', 0);
     toast(`Could not package the font: ${err.message}`, true);
-  } finally {
-    busy(false);
   }
 }
 

@@ -250,12 +250,12 @@ export function serialise(family) {
 }
 
 /** Build the downloadable zip for a compiled family. */
-export async function packageFamily(familyName, serialised, extra = {}) {
+export async function packageFamily(familyName, serialised, extra = {}, onProgress) {
   return bundleFamily(familyName, serialised, {
     glyphCount: serialised[0]?.glyphCount,
     kernCount: serialised[0]?.kernCount,
     ...extra,
-  });
+  }, onProgress);
 }
 
 // ---------------------------------------------------------------------------

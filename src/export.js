@@ -357,21 +357,36 @@ export function download(data, filename, mime = 'application/octet-stream') {
  * @param {string} familyName
  * @param {Array<{style: string, italic: boolean, weightClass: number, otf: ArrayBuffer}>} styles
  */
-export async function bundleFamily(familyName, styles, stats = {}) {
+export async function bundleFamily(familyName, styles, stats = {}, onProgress = () => {}) {
   const base = slug(familyName);
   const files = [];
 
   for (const s of styles) {
     files.push({ name: `${base}-${slug(s.style)}.otf`, data: new Uint8Array(s.otf) });
   }
-  for (const s of styles) {
-    files.push({ name: `woff/${base}-${slug(s.style)}.woff`, data: await toWOFF(s.otf) });
+  onProgress(0.12);
+
+  // The WOFF conversions are the expensive part — four compressions — so this
+  // is where progress is reported from. Reporting on a timer instead would let
+  // the bar finish while the work is still running, which is the one thing a
+  // progress indicator must never do.
+  for (let i = 0; i < styles.length; i++) {
+    files.push({
+      name: `woff/${base}-${slug(styles[i].style)}.woff`,
+      data: await toWOFF(styles[i].otf),
+    });
+    onProgress(0.12 + (0.68 * (i + 1)) / styles.length);
+    // Yield so the fill actually paints between conversions.
+    await new Promise((r) => setTimeout(r, 0));
   }
 
   files.push({ name: `${base}.css`, data: cssSnippet(familyName, styles) });
   files.push({ name: 'README.txt', data: readmeText(familyName, styles, stats) });
+  onProgress(0.85);
 
-  return makeZip(files);
+  const zip = makeZip(files);
+  onProgress(1);
+  return zip;
 }
 
 export { slug as slugify };

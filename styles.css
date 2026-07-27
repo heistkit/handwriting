@@ -495,6 +495,120 @@ main { flex: 1; }
   .theme-switch__clouds { transition: none; }
 }
 
+/* ── Download button ────────────────────────────────────────────────────
+   Adapted from a Uiverse.io button by Na3ar-17 (MIT).
+
+   The original runs on a fixed timeline: it fills for 3s, then declares
+   "installed" at 3.5s, unconditionally. Nothing is being measured — the
+   animation would report success just as confidently if the work had failed or
+   were still running. Here the fill height comes from --dl-fill, which
+   bundleFamily sets from the actual WOFF conversions, so the ring cannot reach
+   the top before the zip exists.
+
+   Also changed:
+
+   - It is a checkbox. Downloading is an action, not a two-way state, and
+     unchecking it would play the whole sequence in reverse. Rebuilt on a real
+     <button> with a data-state attribute.
+   - `.input { display: none }` again removes the control from the
+     accessibility tree and from keyboard reach — the same defect as the theme
+     toggle. The button element carries its own semantics now, and its label is
+     announced through aria-live as the state changes.
+   - The finish state was a plain square. It is a checkmark that draws itself,
+     as asked.
+   - Hard-coded pixel choreography (`right: 18px` animating to `right: 56px`)
+     broke with any other label. It is a flex row.
+   - Purple re-graded onto the palette, and a reduced-motion branch added: the
+     pulse and the draw are exactly the kind of decoration that setting exists
+     to switch off.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.dlbtn {
+  --dl-fill: 0%;
+  --dl-size: 46px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: .85rem;
+  padding: 5px 1.5rem 5px 5px;
+  border: 2px solid var(--accent);
+  border-radius: 50px;
+  background: transparent;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color .4s var(--ease), transform .3s var(--ease);
+}
+
+.dlbtn:active { transform: scale(.975); }
+.dlbtn:disabled { cursor: default; }
+.dlbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.dlbtn__circle {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--dl-size);
+  height: var(--dl-size);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-fg);
+  overflow: hidden;
+  transition: background .3s var(--ease);
+}
+
+/* Rises from the bottom in proportion to work actually completed. */
+.dlbtn__fill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: var(--dl-fill);
+  background: color-mix(in srgb, var(--accent-fg) 26%, transparent);
+  transition: height .25s linear;
+}
+
+.dlbtn__arrow,
+.dlbtn__check {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  transition: opacity .25s var(--ease), transform .25s var(--ease);
+}
+
+.dlbtn__check {
+  opacity: 0;
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+}
+
+.dlbtn[data-state='working'] .dlbtn__arrow { opacity: 0; transform: translateY(6px); }
+.dlbtn[data-state='working'] .dlbtn__circle { animation: dl-pulse 1.4s ease-out infinite; }
+
+.dlbtn[data-state='done'] { border-color: var(--accent); }
+.dlbtn[data-state='done'] .dlbtn__arrow { opacity: 0; }
+.dlbtn[data-state='done'] .dlbtn__fill { height: 100%; }
+.dlbtn[data-state='done'] .dlbtn__check {
+  opacity: 1;
+  animation: dl-draw .45s cubic-bezier(.65, 0, .35, 1) forwards;
+}
+
+@keyframes dl-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  70% { box-shadow: 0 0 0 12px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@keyframes dl-draw { to { stroke-dashoffset: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dlbtn__fill { transition: none; }
+  .dlbtn[data-state='working'] .dlbtn__circle { animation: none; }
+  .dlbtn[data-state='done'] .dlbtn__check { animation: none; stroke-dashoffset: 0; }
+  .dlbtn:active { transform: none; }
+}
+
 /* ── Expanding CTA ──────────────────────────────────────────────────────
    Adapted from a Uiverse.io button by cssbuttons-io (MIT).
 

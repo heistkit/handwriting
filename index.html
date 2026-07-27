@@ -423,9 +423,19 @@
               <h3 id="download-title">Everything, in one file</h3>
               <p class="muted">All four styles, web fonts, a stylesheet and installation notes.</p>
             </div>
-            <button class="btn btn-primary btn-lg" id="dl-zip" type="button">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"/></svg>
-              <span>Download</span>
+            <button class="dlbtn" id="dl-zip" type="button" data-state="idle">
+              <span class="dlbtn__circle" aria-hidden="true">
+                <span class="dlbtn__fill"></span>
+                <svg class="dlbtn__arrow" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 19V5m0 14-4-4m4 4 4-4" stroke="currentColor"
+                        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <svg class="dlbtn__check" viewBox="0 0 24 24" fill="none">
+                  <path d="M4.5 12.6 9.6 17.7 19.5 6.9" stroke="currentColor"
+                        stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <span class="dlbtn__label" id="dl-zip-label" aria-live="polite">Download</span>
             </button>
           </div>
 
