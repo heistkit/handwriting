@@ -742,6 +742,80 @@ main { flex: 1; }
   .learn-more:active .icon { transform: translateX(1rem); }
 }
 
+/* ── Continue button ────────────────────────────────────────────────────
+   Adapted from a Uiverse.io button by alexmaracinaru (MIT). It takes the
+   forward action at the foot of every step, where a badge that leans toward
+   the next screen carries the movement a flat arrow glyph cannot.
+
+   Changed from the original:
+   - It styles a bare `button` selector, plus unscoped `button:hover svg` and
+     `button:active`. Dropped in as written it would repaint and shrink every
+     button on the page — the top bar, the modals, the segmented controls,
+     the step chips. Scoped to a class.
+   - `stroke="black"` and `fill="black"` sat in the markup, so the badge
+     stayed black whatever the theme did. It is `currentColor` now, and the
+     icon moved into the sprite the rest of the interface draws from, so it
+     inherits the same stroke weight as every other icon here.
+   - No `:disabled` rule. The first of these ships disabled until a
+     photograph exists, so without one it would look live while doing
+     nothing — the one state this button genuinely had to have.
+   - No focus ring, and a single `.3s` transition covering press and release
+     alike. Press is met immediately and release is allowed to take its time
+     and overshoot, the same asymmetry the expanding CTA uses.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.contbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .4rem .45rem .4rem 1.3rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: .95rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .16s var(--ease), border-color .16s var(--ease),
+              transform .34s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.contbtn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.contbtn:active:not(:disabled) {
+  transform: scale(.965);
+  transition: transform .08s ease-out;
+}
+
+.contbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.contbtn:disabled { opacity: .45; cursor: not-allowed; }
+
+.contbtn svg {
+  width: 1.75em;
+  height: 1.75em;
+  stroke-width: 1.5;
+  transition: transform .3s var(--ease);
+}
+
+.contbtn:hover:not(:disabled) svg,
+.contbtn:focus-visible:not(:disabled) svg { transform: translateX(5px); }
+
+/* The nudge is the whole gesture, so reduced motion removes it rather than
+   shortening it — a 5px jump on hover is exactly what that setting asks not
+   to happen. The colour change still reports the hover. */
+@media (prefers-reduced-motion: reduce) {
+  .contbtn svg { transition: none; }
+  .contbtn:hover:not(:disabled) svg,
+  .contbtn:focus-visible:not(:disabled) svg { transform: none; }
+  .contbtn:active:not(:disabled) { transform: none; }
+}
+
 /* ── Docs search ────────────────────────────────────────────────────────
    Adapted from a Uiverse.io search field by Lakshay-art (MIT).
 
@@ -1900,6 +1974,11 @@ input[type=range]:focus-visible {
 :root[data-lite='on'] .topbar { backdrop-filter: none; background: var(--bg); }
 :root[data-lite='on'] .shimmer__ch { opacity: 1; }
 :root[data-lite='on'] .arcloader .front { stroke-dashoffset: 0; }
+
+/* With transitions cut to nothing the arrow would snap 5px sideways on hover
+   instead of sliding. Lite mode is meant to be calmer, not twitchier. */
+:root[data-lite='on'] .contbtn:hover:not(:disabled) svg,
+:root[data-lite='on'] .contbtn:focus-visible:not(:disabled) svg { transform: none; }
 
 .lite-toggle[aria-pressed='true'] { color: var(--accent); }
 
