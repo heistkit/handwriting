@@ -464,8 +464,22 @@
           <div class="card">
             <h3>Use it on a website</h3>
             <p class="muted">Paste this into your stylesheet. The <code>woff</code> folder in the zip has the files.</p>
-            <pre class="code" id="css-snippet"></pre>
-            <button class="btn btn-block" id="copy-css" type="button"><span>Copy CSS</span></button>
+            <div class="code-wrap">
+              <pre class="code" id="css-snippet"></pre>
+              <button class="copybtn" id="copy-css" type="button"
+                      data-state="idle" aria-label="Copy the stylesheet">
+                <span class="copybtn__tip" id="copy-css-tip" aria-hidden="true">Copy to clipboard</span>
+                <svg class="sheetico" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.7"/>
+                  <path d="M5 15V6a2 2 0 0 1 2-2h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                </svg>
+                <svg class="tick" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M4.5 12.5 9.5 17.5 19.5 6.5" stroke="currentColor"
+                        stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <span class="sr-only" id="copy-css-live" role="status" aria-live="polite"></span>
+            </div>
           </div>
         </aside>
       </div>

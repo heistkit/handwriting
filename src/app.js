@@ -1321,13 +1321,42 @@ function init() {
     }
   });
 
+  /**
+   * The copy button's state comes from the clipboard Promise, not from focus.
+   *
+   * Clipboard writes are refused more often than people expect — a page served
+   * over plain HTTP, a denied permission, a browser that wants a fresher user
+   * gesture. A button that reports success regardless is worse than one with
+   * no feedback at all, because the user walks away believing they have the
+   * text.
+   */
+  let copyResetTimer = null;
   $('#copy-css').addEventListener('click', async () => {
+    const btn = $('#copy-css');
+    const tip = $('#copy-css-tip');
+    const live = $('#copy-css-live');
+    clearTimeout(copyResetTimer);
+
+    let ok = false;
     try {
       await navigator.clipboard.writeText($('#css-snippet').textContent);
-      toast('CSS copied.');
+      ok = true;
     } catch {
-      toast('Could not copy — select the text instead.', true);
+      ok = false;
     }
+
+    btn.dataset.state = ok ? 'done' : 'failed';
+    tip.textContent = ok ? 'Copied' : 'Could not copy';
+    // The tooltip is decoration for a screen reader; this is the announcement.
+    live.textContent = ok
+      ? 'Stylesheet copied to clipboard.'
+      : 'Could not copy. Select the text and copy it manually.';
+
+    copyResetTimer = setTimeout(() => {
+      btn.dataset.state = 'idle';
+      tip.textContent = 'Copy to clipboard';
+      live.textContent = '';
+    }, 2200);
   });
 
   $('#print-template').addEventListener('click', async () => {
