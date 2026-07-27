@@ -12,6 +12,8 @@ const suites = [
   './middleware.test.mjs',
   './docsearch.test.mjs',
   './eta.test.mjs',
+  './routes.test.mjs',
+  './leaving.test.mjs',
 ];
 
 let total = 0;

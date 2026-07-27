@@ -57,10 +57,24 @@ function invert(map) {
  * GitHub Pages serves projects from `/repo-name/`, and hard-coding a leading
  * slash would break every route there.
  */
+/**
+ * The pathname with the noise taken off, so everything downstream sees one
+ * spelling of a given screen.
+ *
+ * The trailing slash is not a nicety. `/write/` and `/write` are the same
+ * screen to a reader, and a link shared with the slash on the end is a link
+ * someone typed or a CMS mangled. Left alone it defeated base(), which then
+ * treated `/write` as the directory and the empty remainder as the root — so a
+ * deep link with a slash landed on the start page instead of the one it named.
+ */
+function normalisedPath() {
+  let path = location.pathname.replace(/index\.html$/, '');
+  if (path.length > 1) path = path.replace(/\/+$/, '');
+  return path || '/';
+}
+
 export function base() {
-  const path = location.pathname;
-  const marker = path.lastIndexOf('/index.html');
-  if (marker >= 0) return path.slice(0, marker) || '/';
+  const path = normalisedPath();
   // Anything the router knows about is a route, so whatever precedes it is the
   // base. Otherwise the current directory is.
   for (const p of [...Object.values(STEP_PATHS), ...Object.values(OVERLAY_PATHS)]) {
@@ -77,11 +91,8 @@ const join = (b, p) => (b === '/' ? p : p === '/' ? `${b}/` : b + p);
  */
 export function read() {
   const b = base();
-  let path = location.pathname;
+  let path = normalisedPath();
   if (b !== '/' && path.startsWith(b)) path = path.slice(b.length) || '/';
-  path = path.replace(/index\.html$/, '') || '/';
-  // A trailing slash on anything but the root is the same screen.
-  if (path.length > 1) path = path.replace(/\/$/, '');
 
   const overlay = overlayFromPath[path] ?? null;
   const step = overlay ? null : (stepFromPath[path] ?? null);
