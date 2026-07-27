@@ -1188,7 +1188,12 @@ let dlResetTimer = null;
 function dlState(next, fill = null) {
   const btn = $('#dl-zip');
   const label = $('#dl-zip-label');
-  if (fill !== null) btn.style.setProperty('--dl-fill', `${Math.round(fill * 100)}%`);
+  if (fill !== null) {
+    btn.style.setProperty('--dl-fill', `${Math.round(fill * 100)}%`);
+    // The parcel's flaps fold shut on the same number, so the box cannot close
+    // before the archive it depicts actually exists. 210deg is fully open.
+    $('.parcel')?.style.setProperty('--dl-flap', `${(1 - Math.min(1, Math.max(0, fill))) * 210}deg`);
+  }
   if (!next) return;
 
   btn.dataset.state = next;

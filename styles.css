@@ -4384,3 +4384,80 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 }
 :root[data-lite='on'] .press__sheet::before,
 :root[data-decor='off'] .press__sheet::before { animation: none; }
+
+
+/* ── The parcel ─────────────────────────────────────────────────────────
+   The box and its folding flaps from a Uiverse.io order button by
+   yeisonordonez (MIT). Only the box.
+
+   What was left behind, and why it had to be. The original is a delivery van
+   driving a package across the button — and nothing is delivered here. The
+   font is written to your downloads by your own browser; a van leaving the
+   frame is a picture of the one thing this app spends its whole front page
+   promising does not happen. Re-colouring cannot fix a metaphor.
+
+   The mechanism was the other problem. It is a `<label for>` over a hidden
+   checkbox whose "Done" state arrives at the 50% mark of a six-second CSS
+   timeline, so it announces success on a timer regardless of whether anything
+   was produced. Worse, `#trigger { display: none }` takes the control out of
+   the tab order and the accessibility tree entirely, so it cannot be operated
+   by keyboard at all. The button beside this is a real <button> whose ring is
+   filled from actual packaging progress, and it stays.
+
+   The class names would also have collided immediately: the original ships
+   `.btn`, `.container`, `.background`, `.details`, `.stars` and `.package`, and
+   this app already owns `.btn` and renders many `<details>` elements.
+
+   So what is left is the box, folding shut on --dl-flap, which src/app.js sets
+   from the same real progress that fills the ring. It cannot close early.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.parcel {
+  position: relative;
+  flex: none;
+  width: 2.6rem;
+  height: 2rem;
+  align-self: center;
+  border-radius: 3px;
+  /* Kraft, out of the warm tier rather than a hard-coded orange, so it holds
+     up in both themes. */
+  background: var(--warn-quiet);
+  border: 1px solid var(--warn);
+}
+
+.parcel__flap {
+  position: absolute;
+  top: -1px;
+  width: 50%;
+  height: 4px;
+  background: var(--warn);
+  /* 210deg is fully open, 0 is shut. src/app.js drives it. */
+  transition: transform .25s var(--ease);
+}
+.parcel__flap--l { left: 0; transform-origin: left center; transform: rotate(calc(-1 * var(--dl-flap, 210deg))); }
+.parcel__flap--r { right: 0; transform-origin: right center; transform: rotate(var(--dl-flap, 210deg)); }
+
+/* The strip of tape only means anything once the box is actually shut. */
+.parcel__tape {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 5px;
+  height: 100%;
+  margin-left: -2.5px;
+  background: var(--warn);
+  opacity: 0;
+  transition: opacity .25s var(--ease);
+}
+.dlbtn[data-state='done'] ~ .parcel .parcel__tape,
+.download-card:has(.dlbtn[data-state='done']) .parcel__tape { opacity: .55; }
+
+/* The flaps still track real progress — that is information, not decoration —
+   they simply stop easing between positions. */
+@media (prefers-reduced-motion: reduce) {
+  .parcel__flap, .parcel__tape { transition: none; }
+}
+:root[data-lite='on'] .parcel__flap,
+:root[data-lite='on'] .parcel__tape,
+:root[data-decor='off'] .parcel__flap,
+:root[data-decor='off'] .parcel__tape { transition: none; }

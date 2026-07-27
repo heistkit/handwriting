@@ -689,6 +689,17 @@
       <div class="export-layout">
         <div class="export-main">
           <div class="download-card">
+            <!-- The flaps fold shut as the zip is assembled, on the same
+                 --dl-fill the ring uses. It is a picture of what packageFamily
+                 is doing — four style files going into one archive — and it
+                 physically cannot finish early, because nothing here runs on a
+                 timer. Decoration: aria-hidden, and the button beside it says
+                 everything. -->
+            <div class="parcel" aria-hidden="true">
+              <span class="parcel__flap parcel__flap--l"></span>
+              <span class="parcel__flap parcel__flap--r"></span>
+              <span class="parcel__tape"></span>
+            </div>
             <div class="download-copy">
               <h3 id="download-title">Everything, in one file</h3>
               <p class="muted">All four styles, web fonts, a stylesheet and installation notes.</p>
