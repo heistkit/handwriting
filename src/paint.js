@@ -49,8 +49,27 @@ function paletteKey() {
 }
 
 /**
- * @param {string} name      custom property, including the leading dashes
- * @param {string} fallback  used when the token is missing or does not resolve
+ * Resolve a per-theme fallback against the live palette.
+ *
+ * A single hardcoded fallback is always wrong in one theme. Every one of them
+ * in this app was the dark branch, so the failure path — token missing, CSS
+ * blocked, stylesheet not applied yet — painted #e4e9ef ink on a #fbfcfd
+ * surface in light mode: 1.19:1, an invisible interface in exactly the
+ * situation the fallback exists to rescue.
+ *
+ * 'system-unknown' lands on dark, matching `color-scheme: dark` in :root.
+ */
+function pick(fallback, key) {
+  if (typeof fallback === 'string' || !fallback) return fallback;
+  const light = key === 'light' || key === 'system-light';
+  return light ? fallback.light : fallback.dark;
+}
+
+/**
+ * @param {string} name  custom property, including the leading dashes
+ * @param {string|{light: string, dark: string}} fallback  used when the token
+ *   is missing or does not resolve. Prefer the two-branch form for anything
+ *   that has to stay legible against a themed surface.
  * @returns {string} an rgb()/rgba()/color() string
  */
 export function token(name, fallback) {
@@ -77,11 +96,20 @@ export function token(name, fallback) {
     probe.remove();
 
     const failed = !computed || computed === 'rgba(0, 0, 0, 0)' || computed === 'transparent';
-    const out = failed ? fallback : computed;
+    const out = failed ? pick(fallback, key) : computed;
     CACHE.set(name, out);
     return out;
   } catch {
-    return fallback;
+    return pick(fallback, paletteKeySafe());
+  }
+}
+
+/** paletteKey() reads the DOM, and this path is reached because something threw. */
+function paletteKeySafe() {
+  try {
+    return paletteKey();
+  } catch {
+    return 'system-unknown';
   }
 }
 

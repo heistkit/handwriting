@@ -176,11 +176,19 @@ export function createDrawPad(mount, opts = {}) {
   // unresolved token stream — which a canvas rejects, silently, leaving every
   // one of these black. See src/paint.js.
   //
-  // Mutable, because the visitor can change the theme with the pad open.
-  let ink = token('--text', '#e4e9ef');
-  let guideColor = token('--border-strong', '#3a424c');
-  let lineColor = token('--accent', '#3fb950');
-  let ghostColor = token('--text-3', '#8a929c');
+  // The fallbacks carry both branches. A single literal is always wrong in one
+  // theme, and every one of these used to be the dark value, so a failed
+  // resolve painted near-white ink on a near-white surface in light mode.
+  //
+  // Declared once and refreshed in place, because the visitor can change the
+  // theme with the pad open and a canvas repaints nothing by itself.
+  let ink, lineColor, ghostColor;
+  function readPalette() {
+    ink = token('--text', { light: '#1c2128', dark: '#e4e9ef' });
+    lineColor = token('--accent', { light: '#1a7f37', dark: '#3fb950' });
+    ghostColor = token('--text-3', { light: '#656d76', dark: '#8a929c' });
+  }
+  readPalette();
 
   // -- DOM ------------------------------------------------------------------
   const wrap = document.createElement('div');
@@ -300,10 +308,19 @@ export function createDrawPad(mount, opts = {}) {
       gctx.stroke();
       gctx.restore();
     };
-    line(yAsc, guideColor, 0.5, [4, 4]);
-    line(yX, lineColor, 0.5, [6, 4]);
-    line(yBase, lineColor, 0.85, []);
-    line(yDesc, guideColor, 0.5, [4, 4]);
+    // These alphas were tuned while every colour here was accidentally black,
+    // so they were never graded against anything real. Composited on --surface,
+    // --border-strong at 0.5 measured 1.26:1 dark and 1.25:1 light — invisible.
+    // Worse, no opacity of --border-strong reaches the 3:1 floor for a
+    // meaningful graphic: solid, it is only 1.64:1. So the two faint rules take
+    // the quiet text tone instead, at 3.91:1 dark / 3.40:1 light.
+    //
+    // They are not decoration. The printable sheet tells the writer to "rest
+    // each letter on the dotted baseline and size it to the dashed mid-line".
+    line(yAsc, ghostColor, 0.8, [4, 4]);
+    line(yX, lineColor, 0.75, [6, 4]);   // 4.27:1 dark / 3.17:1 light
+    line(yBase, lineColor, 0.85, []);    // 5.13:1 dark / 3.76:1 light
+    line(yDesc, ghostColor, 0.8, [4, 4]);
   }
 
   function redrawInk() {
@@ -318,10 +335,7 @@ export function createDrawPad(mount, opts = {}) {
   // The theme can change while the pad is open — the switch is two clicks away
   // in the header — and the canvas is a bitmap, so nothing repaints itself.
   const stopWatchingPalette = onPaletteChange(() => {
-    ink = token('--text', '#e4e9ef');
-    guideColor = token('--border-strong', '#3a424c');
-    lineColor = token('--accent', '#3fb950');
-    ghostColor = token('--text-3', '#8a929c');
+    readPalette();
     drawGuides();
     redrawInk();
   });

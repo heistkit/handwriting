@@ -36,6 +36,7 @@ import {
 import { bindToggle as bindTextSize } from './textsize.js';
 import { observe as observeReveal, showAll as revealAll } from './reveal.js';
 import { enhance as enhanceFolds } from './fold.js';
+import { token as paletteToken, onPaletteChange } from './paint.js';
 import { init as initFlourish, bindToggle as bindFlourish } from './flourish.js';
 import { read as readRoute, write as writeRoute } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
@@ -180,6 +181,17 @@ function renderSteps() {
       return btn;
     })
   );
+
+  // Below 860px the rail is its own horizontal scroller, and this function
+  // resets its scrollLeft to 0 on every step change. So by Refine the current
+  // chip sat entirely outside the visible strip: the progress nav read
+  // "Start / Write / Photog…" and never moved again for the whole session.
+  //
+  // 'instant' rather than 'smooth' so it is already right under
+  // prefers-reduced-motion without a second branch, and block: 'nearest' so
+  // this cannot drag the page itself around — goto() owns the page scroll.
+  nav.querySelector('[aria-current="step"]')
+    ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'instant' });
 }
 
 // ---------------------------------------------------------------------------
@@ -234,9 +246,39 @@ let busyRun = null;
  * @param {number} pct
  * @param {'capture'|'preview'|'family'|null} [op] which history bucket this is
  */
+/** Whether the build overlay is up. Read by applyInert alongside the stack. */
+let busyOpen = false;
+/** What had focus before the overlay took it. */
+let busyReturnFocus = null;
+
+/**
+ * The full-screen overlay shown while a font is being built.
+ *
+ * It is painted over everything at z-index 80 and it stops the pointer — but
+ * it never stopped the keyboard. Tab walked through the topbar, the whole
+ * active step and the footer, all of them invisible under an 88%-opaque blur,
+ * with the focus ring painted underneath. Enter then fired whatever was
+ * reached, including "Start over", whose handler reloads the page and throws
+ * the build away. So the overlay now feeds applyInert() like a dialogue does.
+ */
 function busy(on, stage = '', pct = 0, op = null) {
   const el = $('#busy');
   el.hidden = !on;
+
+  busyOpen = on;
+  if (on && document.activeElement && document.activeElement !== document.body) {
+    busyReturnFocus = document.activeElement;
+  }
+  applyInert();
+  if (on) {
+    // Inert on an ancestor blurs whatever had focus and drops it on <body>, so
+    // it is parked somewhere deliberate. #busy is not in INERT_WHILE_OPEN, so
+    // #busy-stage keeps announcing progress from its own live region.
+    el.focus?.();
+  } else if (busyReturnFocus?.isConnected) {
+    busyReturnFocus.focus?.();
+    busyReturnFocus = null;
+  }
 
   if (!on) {
     // Timed here rather than at each call site, because this is the one place
@@ -514,9 +556,20 @@ function buildGlyphSet() {
     : 0;
 }
 
+/**
+ * Draw the review grid from whatever is currently in `state.glyphs`.
+ *
+ * It used to call buildGlyphSet() first, which re-derives the whole set from
+ * the photographs — so redrawing a character and pressing Save re-rendered the
+ * grid from the scans and threw the repair away. The toast said "Updated a",
+ * the cell went back to the scanned shape, and a character that had been
+ * missing stayed missing. That is the advertised purpose of this screen.
+ *
+ * The rebuild belongs to *entering* review from capture, which is the only
+ * point at which the photographs are the source of truth, so it now lives at
+ * that call site.
+ */
 function renderReview() {
-  buildGlyphSet();
-
   const found = new Map(state.glyphs.map((g) => [g.ch, g]));
   const expected = [
     ...REQUIRED.map((e) => e.ch),
@@ -533,6 +586,11 @@ function renderReview() {
   );
 
   const grid = $('#glyph-grid');
+  // Hoisted out of the map: this was resolved once per character, ~120 times,
+  // and each glyph then kept the ink colour of whatever palette it happened to
+  // be rasterised under. Flipping the theme from the header left #e4e9ef ink on
+  // a #fbfcfd cell — 1.19:1 — and the whole grid read as blank.
+  const ink = paletteToken('--text', { light: '#1c2128', dark: '#e4e9ef' });
   grid.replaceChildren(
     ...expected.map((ch) => {
       const glyph = found.get(ch);
@@ -548,7 +606,7 @@ function renderReview() {
       cell.append(label);
 
       if (glyph) {
-        const canvas = glyphToCanvas(glyph, { size: 96, ink: getComputedStyle(document.body).color });
+        const canvas = glyphToCanvas(glyph, { size: 96, ink });
         cell.append(canvas);
       } else {
         cell.classList.add('is-missing');
@@ -641,10 +699,18 @@ function scheduleRecompile() {
  *
  * @param {boolean} previewOnly compile just the visible style, for slider drags
  */
+/**
+ * @returns {Promise<boolean>} whether a font actually came out of it.
+ *
+ * The return value matters because prepareExport used to navigate to the
+ * export screen regardless. A failed build left that screen fully formed and
+ * hollow — "Your font is ready", zero characters, no download rows, and a
+ * Download button that threw a raw TypeError when pressed.
+ */
 async function runCompile(previewOnly = false) {
-  if (!state.glyphs.length) return;
+  if (!state.glyphs.length) return false;
   // Preview recompiles are exempt — see allowHeavyOp for why.
-  if (!previewOnly && !allowHeavyOp()) return;
+  if (!previewOnly && !allowHeavyOp()) return false;
 
   topload(true);
   // Only before the first build. On later recompiles the preview already shows
@@ -687,9 +753,11 @@ async function runCompile(previewOnly = false) {
       slant: state.naturalSlant,
     });
     renderHealth();
+    return true;
   } catch (err) {
     console.error(err);
     toast(`Could not build the font: ${err.message}`, true);
+    return false;
   } finally {
     topload(false);
   }
@@ -792,12 +860,17 @@ function renderSamples() {
 // Export step
 // ---------------------------------------------------------------------------
 
+/** @returns {Promise<boolean>} whether the export screen is worth showing. */
 async function prepareExport() {
   busy(true, 'Building all four styles', 0.15, 'family');
   try {
-    await runCompile(false);
+    const ok = await runCompile(false);
+    // The failure has already been reported by runCompile. Landing on a screen
+    // that says "Your font is ready" over nothing would contradict it.
+    if (!ok) return false;
     busy(true, 'Packaging', 0.7);
     renderExport();
+    return true;
   } finally {
     busy(false);
   }
@@ -907,6 +980,14 @@ function dlState(next, fill = null) {
 
 async function downloadZip() {
   const name = state.settings.familyName || 'My Handwriting';
+  // Above dlState('working'), deliberately: that call sets btn.disabled = true,
+  // so returning after it would leave Download permanently dead. Without this
+  // a failed build produced "Cannot read properties of null (reading '0')" in
+  // a red toast, which tells the reader nothing they can act on.
+  if (!state.serialised?.length) {
+    toast('The font has not finished building yet.', true);
+    return;
+  }
   clearTimeout(dlResetTimer);
   dlState('working', 0);
   try {
@@ -1301,9 +1382,16 @@ function renderLegal(id) {
   // Privacy and Licences are deliberately left open. A privacy page whose
   // disclosures are collapsed by default is worse than one that is long — the
   // whole point of it is that the answer is in front of you, not one click
-  // away. So the rule is a length threshold rather than a name, and it decides
-  // itself as the documents change.
-  const foldSections = doc.sections.length > 6;
+  // away.
+  //
+  // The test is numbering, not length. A first attempt used a section count,
+  // and Privacy has fifteen sections, so it folded too — the exact outcome the
+  // paragraph above rules out. Numbered clauses are what make a document a
+  // reference you navigate rather than prose you read, and that is the property
+  // worth folding. It still decides itself: number the Licences page one day
+  // and it folds, with no list of document names to keep in step.
+  const numbered = doc.sections.filter((s) => s.body.some((p) => /^\d+\.\d+\s/.test(p)));
+  const foldSections = numbered.length > 6;
   if (foldSections) body.append(expandAllControl(body));
 
   for (const [index, section] of doc.sections.entries()) {
@@ -1411,10 +1499,20 @@ let returnFocusTo = null;
 function applyInert() {
   const top = modalStack[modalStack.length - 1] ?? null;
 
+  // Two independent reasons the page can be unavailable, combined additively.
+  // Gating one on the absence of the other inverts it: with a dialogue open,
+  // busy(true) would then *remove* inert and re-expose the page behind it.
+  const shut = Boolean(top) || busyOpen;
+
+  // Without this the reader can wheel the page behind an open dialogue and
+  // watch the whole app slide about underneath it, with two scrollbars on
+  // screen at once.
+  document.documentElement.classList.toggle('modal-open', shut);
+
   for (const sel of INERT_WHILE_OPEN) {
     const el = $(sel);
     if (!el) continue;
-    el.toggleAttribute('inert', Boolean(top));
+    el.toggleAttribute('inert', shut);
   }
   for (const m of $$('.sheet-modal')) {
     m.toggleAttribute('inert', m !== top);
@@ -1438,7 +1536,10 @@ function openModal(sel) {
   el.hidden = false;
   modalStack.push(el);
   applyInert();
-  el.querySelector('.btn-icon')?.focus();
+  // A document-shaped dialogue has nothing focusable in its prose, so focus
+  // landing on the close button leaves PageDown scrolling the page behind
+  // instead of the document. The body is made focusable for exactly this.
+  (el.querySelector('.modal-body[tabindex]') ?? el.querySelector('.btn-icon'))?.focus();
 }
 
 function closeModal(sel) {
@@ -1459,7 +1560,8 @@ function closeModal(sel) {
 
   if (modalStack.length) {
     // Back to the dialogue underneath, not to the page.
-    modalStack[modalStack.length - 1].querySelector('.btn-icon')?.focus();
+    const under = modalStack[modalStack.length - 1];
+    (under.querySelector('.modal-body[tabindex]') ?? under.querySelector('.btn-icon'))?.focus();
     return;
   }
 
@@ -1677,6 +1779,10 @@ function init() {
   // the guide and the health report each call this again for their own subtree.
   enhanceFolds();
 
+  // Module level, once. renderReview has no teardown, so subscribing from
+  // inside it would pile up a listener per visit to the screen.
+  onPaletteChange(() => { if (state.step === 'review') renderReview(); });
+
   // The brand writes a line under itself, and rubs it out on the next press.
   // Bound before the navigation handler below so a press does both.
   const brand = $('#brand-home');
@@ -1754,12 +1860,19 @@ function init() {
   $$('[data-goto]').forEach((btn) =>
     btn.addEventListener('click', () => {
       const target = btn.dataset.goto;
-      if (target === 'export') prepareExport().then(() => goto('export'));
+      if (target === 'export') prepareExport().then((ok) => { if (ok) goto('export'); });
       else goto(target);
     })
   );
 
   $('#to-review').addEventListener('click', () => {
+    // Coming from capture, the photographs are the source of truth. This is
+    // the only place that is so — buildGlyphSet is destructive, and calling it
+    // from the renderer discarded every redraw. Re-entering review this way
+    // after adding another photograph still wipes earlier repairs, which is
+    // inherent to rebuilding from the scans; returning by the step chip does
+    // not, because that path calls neither.
+    buildGlyphSet();
     renderReview();
     goto('review');
   });

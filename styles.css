@@ -97,9 +97,29 @@
   --r-lg: 16px;
   --r-xl: 22px;
 
-  --shadow-1: light-dark(0 1px 2px rgb(20 25 35 / .07), 0 1px 2px rgb(0 0 0 / .3));
-  --shadow-2: light-dark(0 4px 16px -4px rgb(20 25 35 / .12), 0 4px 16px -4px rgb(0 0 0 / .45));
-  --shadow-3: light-dark(0 18px 50px -12px rgb(20 25 35 / .18), 0 18px 50px -12px rgb(0 0 0 / .6));
+  /*
+   * These have to be built from a light-dark() *colour*, not wrapped in one.
+   *
+   * light-dark() is a colour function. It takes two <color> arguments and
+   * nothing else. Written as `light-dark(0 1px 2px rgb(...), 0 1px 2px
+   * rgb(...))` the whole thing fails to parse, `var(--shadow-1)` substitutes
+   * an invalid value, the declaration is invalid at computed-value time, and
+   * `box-shadow` falls back to its initial value: none.
+   *
+   * That is how every shadow in this app came to be silently absent — all
+   * three tokens computed to `none`, on the modal panels, the toasts, the
+   * paper preview, the browser-gate panel, the active segmented button and the
+   * specimen sheet. Nothing errored. The interface was simply flat, and the
+   * dark-theme modal panel having almost no edge against its own backdrop was
+   * a downstream symptom of it rather than a separate problem.
+   */
+  --shadow-tint-1: light-dark(rgb(20 25 35 / .07), rgb(0 0 0 / .3));
+  --shadow-tint-2: light-dark(rgb(20 25 35 / .12), rgb(0 0 0 / .45));
+  --shadow-tint-3: light-dark(rgb(20 25 35 / .18), rgb(0 0 0 / .6));
+
+  --shadow-1: 0 1px 2px var(--shadow-tint-1);
+  --shadow-2: 0 4px 16px -4px var(--shadow-tint-2);
+  --shadow-3: 0 18px 50px -12px var(--shadow-tint-3);
 
   --wrap: 1180px;
   --ease: cubic-bezier(.22, .68, .36, 1);
@@ -493,6 +513,14 @@ main { flex: 1; }
   /* Fixed rather than var(--accent): the sheet is light in both themes, and
      the dark theme's brighter green sits at about 2.3:1 on paper. */
   --spec-mark: #17722f;
+  /* Without this the sheet is invisible in light theme: #f7f4ec paper on a
+     #f4f5f7 page, so the ink, the rules and the brackets appear to float on
+     the page and the whole point of the picture — a photograph of paper — is
+     gone. Fixed rather than light-dark(), like every token in this block: the
+     sheet is light in both themes. Measured 3.24:1 on the light page, which
+     clears the 3:1 floor if the edge counts as a graphic rather than pure
+     decoration. */
+  --spec-edge: #8f8874;
 }
 
 .spec__sheet {
@@ -502,7 +530,7 @@ main { flex: 1; }
   background:
     radial-gradient(120% 90% at 50% 0%, #fffdf7 0%, transparent 60%),
     var(--spec-paper);
-  box-shadow: var(--shadow-3);
+  box-shadow: 0 0 0 1px var(--spec-edge), var(--shadow-3);
   /* A sheet set down on a desk, not a diagram. */
   transform: rotate(-1.15deg);
   animation: spec-sheet .8s var(--ease) backwards;
@@ -1282,6 +1310,14 @@ main { flex: 1; }
   transition: opacity .4s var(--ease);
 }
 .inkbtn:hover::after { opacity: .55; }
+/* The blobs are the only thing that moved on hover, and both switches remove
+   them — leaving the page's final call to action with no hover state at all.
+   A border shift costs nothing and is not motion. */
+:root[data-lite='on'] .inkbtn:hover:not(:disabled),
+:root[data-decor='off'] .inkbtn:hover:not(:disabled) { border-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .inkbtn:hover:not(:disabled) { border-color: var(--accent); }
+}
 
 @keyframes inkdrift-a {
   0%, 100% { transform: translate(0, 0); }
@@ -1333,6 +1369,11 @@ main { flex: 1; }
 /* The page behind keeps rendering — the app still initialises — so it must not
    scroll under a panel that covers it. */
 :root.bgate-open, :root.bgate-open body { overflow: hidden; }
+/* Set from applyInert(), which already computes whether anything is over the
+   page — a dialogue, or the build overlay. Without it, wheeling over the dim
+   backdrop scrolled the app about underneath a dialogue that stayed put, with
+   two scrollbars on screen at once. */
+:root.modal-open, :root.modal-open body { overflow: hidden; }
 
 .bgate__panel {
   max-width: 34rem;
@@ -2102,7 +2143,14 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
 .detail-grid b { color: var(--text); font-weight: 600; }
 .detail-grid .mono { font-size: .88em; background: var(--surface-2); padding: .1rem .35rem; border-radius: 4px; }
 
-.faq-list { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+/* `overflow: hidden` was here to clip the children to the rounded corners, and
+   it clipped the keyboard focus ring off every question with it. The corners
+   are now the children's own responsibility, so nothing needs clipping. */
+.faq-list { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.faq-item:first-child { border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.faq-item:last-child { border-radius: 0 0 var(--r-lg) var(--r-lg); }
+.faq-item:only-child { border-radius: var(--r-lg); }
+.faq-item summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: inherit; }
 .faq-item { background: var(--surface); }
 .faq-item summary {
   cursor: pointer; padding: 1.15rem 1.4rem; font-weight: 500;
@@ -2921,7 +2969,16 @@ input[type=range]:focus-visible {
   padding: 1.1rem 1.35rem; border-bottom: 1px solid var(--border);
 }
 .modal-head h2 { font-size: 1.2rem; }
-.modal-body { padding: 1.35rem; overflow-y: auto; }
+/* `overscroll-behavior: contain` stops a gesture that reaches the bottom of the
+   Terms from silently handing the rest of itself to the page behind, which left
+   the reader somewhere they never navigated to once they closed the dialogue.
+   The page lock below is the other half of the same problem. */
+.modal-body { padding: 1.35rem; overflow-y: auto; overscroll-behavior: contain; }
+/* Focusable so PageDown reaches the document rather than the page behind it —
+   these dialogues hold nothing else focusable. Inset so the ring is not clipped
+   by the panel's own `overflow: hidden`. */
+.modal-body[tabindex]:focus { outline: none; }
+.modal-body[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .lesson + .lesson { margin-top: 1.75rem; padding-top: 1.75rem; border-top: 1px solid var(--border); }
 .lesson h3 { margin-bottom: .6rem; }
