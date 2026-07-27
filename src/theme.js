@@ -20,7 +20,7 @@
  * import is deferred, and deferred is exactly what causes the flash.
  */
 
-const KEY = 'inkwell.theme';
+const KEY = 'handwrite.theme';
 
 /** Background colours matching --bg in each palette, for the browser chrome. */
 const CHROME = { light: '#f4f5f7', dark: '#14161a' };

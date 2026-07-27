@@ -27,7 +27,7 @@ const check = (name, pass, detail = '') => {
 };
 
 const req = (ip) =>
-  new Request('https://inkwell.test/', {
+  new Request('https://handwrite.test/', {
     headers: ip ? { 'x-forwarded-for': `${ip}, 10.0.0.1` } : {},
   });
 
@@ -86,11 +86,11 @@ export async function run() {
 
   // --- missing or malformed client address ---------------------------------
   {
-    check('tolerates no forwarding header', passesThrough(mw(new Request('https://inkwell.test/'))));
+    check('tolerates no forwarding header', passesThrough(mw(new Request('https://handwrite.test/'))));
     check('tolerates an empty header',
-      passesThrough(mw(new Request('https://inkwell.test/', { headers: { 'x-forwarded-for': '' } }))));
+      passesThrough(mw(new Request('https://handwrite.test/', { headers: { 'x-forwarded-for': '' } }))));
     check('tolerates x-real-ip only',
-      passesThrough(mw(new Request('https://inkwell.test/', { headers: { 'x-real-ip': '192.0.2.7' } }))));
+      passesThrough(mw(new Request('https://handwrite.test/', { headers: { 'x-real-ip': '192.0.2.7' } }))));
   }
 
   // --- scope ---------------------------------------------------------------

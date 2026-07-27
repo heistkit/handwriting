@@ -124,7 +124,7 @@ export async function run() {
   {
     let t = 4_000_000;
     const lim = createLimiter({
-      storage: memStorage({ 'inkwell.ops': '{"not":"an array"}' }),
+      storage: memStorage({ 'handwrite.ops': '{"not":"an array"}' }),
       now: () => t, limit: 3, windowMs: 60_000,
     });
     check('survives a corrupted counter', lim.check().allowed && lim.check().remaining === 3);
@@ -132,7 +132,7 @@ export async function run() {
   {
     let t = 4_500_000;
     const lim = createLimiter({
-      storage: memStorage({ 'inkwell.ops': 'definitely not json' }),
+      storage: memStorage({ 'handwrite.ops': 'definitely not json' }),
       now: () => t, limit: 3, windowMs: 60_000,
     });
     check('survives unparseable storage', lim.check().allowed);
@@ -143,7 +143,7 @@ export async function run() {
     // site data.
     let t = 6_000_000;
     const lim = createLimiter({
-      storage: memStorage({ 'inkwell.ops': JSON.stringify([t + 5_000_000, t + 6_000_000]) }),
+      storage: memStorage({ 'handwrite.ops': JSON.stringify([t + 5_000_000, t + 6_000_000]) }),
       now: () => t, limit: 3, windowMs: 60_000,
     });
     check('discards timestamps from the future', lim.check().remaining === 3,

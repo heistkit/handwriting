@@ -123,7 +123,7 @@ function hit(address, now) {
 const RETRY_PAGE = (retryAfter) => `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Too many requests — Inkwell</title>
+<title>Too many requests — Handwrite</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin:0; min-height:100vh; display:grid; place-items:center;

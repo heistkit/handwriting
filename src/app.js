@@ -27,7 +27,14 @@ import { FALLBACK_LESSONS, FALLBACK_INSTALL, FALLBACK_FAQ } from './content.js';
 import { DOCUMENTS, documentById, LEGAL_VERSION, LEGAL_UPDATED } from './legal.js';
 import { limiter, describeWait } from './ratelimit.js';
 import { bindToggle } from './theme.js';
-import { bindToggle as bindLite, apply as applyLite, chosen as liteChosen } from './lite.js';
+import {
+  bindToggle as bindLite,
+  bindCheckbox as bindLiteCheckbox,
+  apply as applyLite,
+  chosen as liteChosen,
+} from './lite.js';
+import { bindToggle as bindTextSize } from './textsize.js';
+import { observe as observeReveal, showAll as revealAll } from './reveal.js';
 import { profile, createEstimator, describeEta, slowDeviceNote } from './eta.js';
 import { buildIndex, search as searchDocs, terms as searchTerms, highlight } from './docsearch.js';
 
@@ -35,7 +42,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 /** Internal family name for live preview, kept stable while the user renames. */
-const PREVIEW_FAMILY = 'InkwellLivePreview';
+const PREVIEW_FAMILY = 'HandwriteLivePreview';
 
 const STEPS = [
   { id: 'start', label: 'Start' },
@@ -86,6 +93,12 @@ function goto(stepId) {
   $$('.step').forEach((s) => s.classList.toggle('is-active', s.dataset.step === stepId));
   renderSteps();
   window.scrollTo({ top: 0, behavior: 'instant' });
+
+  // Until this moment the step was `display: none`, so everything inside it
+  // measured as zero and could not be staggered or judged on-screen. Now that
+  // it has a position, measure it again.
+  const step = $(`.step[data-step="${stepId}"]`);
+  if (step) observeReveal(step);
 }
 
 function renderSteps() {
@@ -1241,8 +1254,36 @@ function init() {
   renderFAQ();
   bindControls();
 
-  bindToggle($('#theme-toggle'));
+  // Theme and lite each have two controls now — the quick one in the chrome and
+  // the labelled one in Settings. They write to the same store, so each has to
+  // re-read after the other moves; otherwise opening Settings shows a switch
+  // that disagrees with the page it is sitting on.
+  const theme = bindToggle($('#theme-toggle'));
+  const themeSetting = bindToggle($('#set-theme'));
+  $('#theme-toggle').addEventListener('change', () => themeSetting?.sync());
+  $('#set-theme').addEventListener('change', () => theme?.sync());
+
   const lite = bindLite($('#lite-toggle'));
+  const liteSetting = bindLiteCheckbox($('#set-lite'));
+  const afterLite = () => {
+    liteSetting?.sync();
+    lite?.sync();
+    // Turning lite on mid-page must not leave elements stranded below the fold
+    // with their reveal still pending, since the observer stops mattering the
+    // moment the transition is cut to nothing.
+    if (document.documentElement.dataset.lite === 'on') revealAll();
+    else observeReveal();
+  };
+  $('#lite-toggle').addEventListener('click', afterLite);
+  $('#set-lite').addEventListener('change', afterLite);
+
+  bindTextSize($('#set-textsize'));
+
+  // Called straight out rather than from requestAnimationFrame. reveal.js reads
+  // getBoundingClientRect, which forces layout itself, so there is nothing to
+  // wait for — and rAF does not fire at all in a background tab, which would
+  // leave a page opened in one with no reveal bound until it was looked at.
+  observeReveal();
 
   // Benchmark once, after first paint, so it never delays the page appearing.
   // On a device that looks like it will struggle, lite mode is turned on for
@@ -1253,6 +1294,7 @@ function init() {
     if (note && !liteChosen()) {
       applyLite('on');
       lite?.sync();
+      liteSetting?.sync();
       toast(note, true);
     }
   }, { timeout: 2500 });
@@ -1320,6 +1362,8 @@ function init() {
   });
 
   $('#open-guide').addEventListener('click', openGuide);
+  $('#open-settings').addEventListener('click', () => openModal('#settings'));
+  $('#close-settings').addEventListener('click', () => closeModal('#settings'));
   $('#start-guide').addEventListener('click', openGuide);
   $('#close-guide').addEventListener('click', () => closeModal('#guide'));
   $('#close-draw').addEventListener('click', () => closeModal('#draw-modal'));
@@ -1405,6 +1449,7 @@ function init() {
       closeModal('#draw-modal');
       closeModal('#legal');
       closeModal('#feedback');
+      closeModal('#settings');
     }
   });
 

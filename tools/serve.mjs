@@ -60,5 +60,5 @@ createServer(async (req, res) => {
     res.end(String(err));
   }
 }).listen(PORT, () => {
-  console.log(`Inkwell dev server → http://localhost:${PORT}`);
+  console.log(`Handwrite dev server → http://localhost:${PORT}`);
 });

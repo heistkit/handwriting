@@ -32,8 +32,8 @@
 export const DEVICE_LIMIT = 60;
 export const WINDOW_MS = 60_000;
 
-const KEY_ID = 'inkwell.device';
-const KEY_HITS = 'inkwell.ops';
+const KEY_ID = 'handwrite.device';
+const KEY_HITS = 'handwrite.ops';
 
 /**
  * localStorage is unavailable in some private-browsing modes and can throw on
@@ -42,7 +42,7 @@ const KEY_HITS = 'inkwell.ops';
  */
 function safeStorage() {
   try {
-    const probe = '__inkwell_probe__';
+    const probe = '__handwrite_probe__';
     localStorage.setItem(probe, '1');
     localStorage.removeItem(probe);
     return localStorage;

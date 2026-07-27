@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   Inkwell — design system
+   Handwrite — design system
 
    Graphite and green. Deliberately never pure black or pure white: #000 on a
    backlit screen crushes the shadow detail out of the glyph previews, and #fff
@@ -178,7 +178,28 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   backdrop-filter: blur(14px) saturate(1.4);
   border-bottom: 1px solid var(--border);
 }
-.topbar-inner { display: flex; align-items: center; gap: 1.5rem; min-height: 3.8rem; }
+/*
+ * The whole bar scrolls sideways, not just the step rail inside it.
+ *
+ * The alternative was collapsing labels to icons on narrow screens, which
+ * trades one problem for two: an icon-only control has to carry its name
+ * somewhere else, and the reader has to already know what the icon means.
+ * Scrolling keeps every label intact at every width and every text size —
+ * which matters more here than usual, since the text size is a setting.
+ *
+ * Children are `flex: none` so they scroll rather than squash. The scrollbar
+ * is hidden because the bar is 60px tall and a scrollbar would eat a fifth of
+ * it; touch drag, shift-wheel and keyboard focus all still scroll it, and
+ * focusing a control off-screen brings it into view.
+ */
+.topbar-inner {
+  display: flex; align-items: center; gap: 1.5rem; min-height: 3.8rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.topbar-inner::-webkit-scrollbar { display: none; }
+.topbar-inner > * { flex: none; }
 
 .brand {
   display: flex; align-items: center; gap: .55rem;
@@ -193,15 +214,9 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 .brand-mark { width: 22px; height: 22px; color: var(--accent); }
 .brand-name { font-size: 1.05rem; }
 
-/* `min-width: 0` is what makes the `overflow-x` below do anything. A flex item
-   defaults to `min-width: auto`, so without it the rail refuses to shrink past
-   its content and pushes the whole page sideways instead of scrolling itself —
-   which is exactly what happened the first time the type scale went up. */
-.steps {
-  display: flex; gap: .15rem; margin-inline: auto;
-  min-width: 0; overflow-x: auto; scrollbar-width: none;
-}
-.steps::-webkit-scrollbar { display: none; }
+/* No scroller of its own — the bar around it scrolls, and nesting two
+   horizontal scrollers means a drag has to guess which one you meant. */
+.steps { display: flex; gap: .15rem; margin-inline: auto; }
 
 .step-chip {
   display: flex; align-items: center; gap: .5rem;
@@ -210,35 +225,38 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   color: var(--text-3); font-size: .87rem; font-weight: 500;
   white-space: nowrap; transition: color .18s var(--ease), background .18s var(--ease);
 }
-/*
- * The bar has four things competing for one row, and raising the type scale is
- * what finally made them collide. Below this width the action labels collapse
- * to their icons — using the same treatment as .sr-only rather than
- * `display: none`, so the buttons keep their accessible names and do not
- * announce as unlabelled to a screen reader.
- */
-@media (max-width: 660px) {
-  .topbar-inner { gap: .55rem; }
-  .topbar-inner .btn-ghost { padding: .5rem; }
-  .topbar-inner .btn-ghost > span {
-    position: absolute;
-    width: 1px; height: 1px;
-    margin: -1px; overflow: hidden;
-    clip-path: inset(50%); white-space: nowrap;
-  }
-}
+@media (max-width: 660px) { .topbar-inner { gap: .8rem; } }
 
 .step-chip:hover:not(:disabled) { color: var(--text-2); background: var(--surface-2); }
 .step-chip:disabled { cursor: default; opacity: .5; }
 .step-chip[aria-current="step"] { color: var(--text); background: var(--surface-2); }
+/*
+ * Filled, not outlined.
+ *
+ * This was a hairline ring at `1.5px solid currentColor` around a fractional
+ * rem box. A ring that thin never lands on a device pixel — at a 17px root the
+ * circle is 24.65px across — so the browser spreads it across two rows of
+ * pixels and it renders soft and grey rather than sharp. Worse at every text
+ * size, since none of them make it a whole number either.
+ *
+ * A filled disc has no hairline to blur: the edge is antialiased against a
+ * solid, which is what antialiasing is good at. It also carries the state in
+ * the fill rather than in a border colour, so pending, current and done read
+ * apart at a glance instead of on inspection.
+ */
 .step-chip .dot {
-  width: 1.45rem; height: 1.45rem; border-radius: 50%; flex: none;
+  width: 1.5rem; height: 1.5rem; border-radius: 50%; flex: none;
   display: grid; place-items: center;
-  border: 1.5px solid currentColor; font-size: .85rem; font-weight: 600;
+  background: var(--surface-3); color: var(--text-2);
+  font-size: .82rem; font-weight: 600; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: background .18s var(--ease), color .18s var(--ease);
 }
+.step-chip:disabled .dot { background: var(--surface-2); color: var(--text-3); }
+.step-chip[aria-current="step"] .dot { background: var(--text); color: var(--bg); }
 .step-chip.is-done { color: var(--accent); }
-.step-chip.is-done .dot { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-.step-chip.is-done .dot svg { width: 12px; height: 12px; stroke-width: 2.6; }
+.step-chip.is-done .dot { background: var(--accent); color: var(--accent-fg); }
+.step-chip.is-done .dot svg { width: .72rem; height: .72rem; stroke-width: 2.8; }
 
 /* ── Buttons ────────────────────────────────────────────────────────── */
 
@@ -857,6 +875,105 @@ main { flex: 1; }
   .contbtn:focus-visible:not(:disabled) svg { transform: none; }
   .contbtn:active:not(:disabled) { transform: none; }
 }
+
+/* ── The lock shutting itself ───────────────────────────────────────────
+   Every line in this app that promises your handwriting stays on your device
+   carries a padlock. It arrives open and closes itself as you reach it, which
+   is the claim the sentence is making, drawn.
+
+   The shackle pivots at the leg that stays seated, the way a real one does,
+   rather than sliding straight down — a shackle that translates reads as a
+   picture being assembled, not as something shutting. It overshoots slightly
+   and settles, and the body takes a short squash on the beat the shackle
+   lands, so the two halves feel like one event.
+
+   Held open by the same `[data-reveal]` state the rest of the page uses, so
+   there is no second mechanism to keep in step. Where reveal is off — lite
+   mode, reduced motion, no script — the lock is simply drawn shut, which is
+   the state the sentence is about anyway.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.locklock__shackle {
+  /* Without fill-box the origin resolves against the SVG's user space, which
+     for a 24-unit viewBox puts the pivot somewhere off the shape entirely. */
+  transform-box: fill-box;
+  transform-origin: 88% 100%;
+}
+
+.reveal-ready [data-reveal] .locklock__shackle {
+  transform: translateY(-1.4px) rotate(-30deg);
+}
+
+.reveal-ready [data-reveal='in'] .locklock__shackle {
+  animation: lock-shut .62s var(--ease) .18s both;
+}
+.reveal-ready [data-reveal='in'] .locklock__body {
+  animation: lock-seat .62s var(--ease) .18s both;
+}
+
+@keyframes lock-shut {
+  from { transform: translateY(-1.4px) rotate(-30deg); }
+  62%  { transform: rotate(4deg); }
+  82%  { transform: rotate(-2deg); }
+  to   { transform: none; }
+}
+
+/* Scaled about the bottom edge so the body settles onto the line of text
+   rather than growing symmetrically out of it. */
+@keyframes lock-seat {
+  from, 55% { transform: none; }
+  70% { transform: scale(1.09, .9); }
+  86% { transform: scale(.98, 1.03); }
+  to  { transform: none; }
+}
+.locklock__body { transform-box: fill-box; transform-origin: 50% 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-ready [data-reveal] .locklock__shackle { transform: none; }
+  .reveal-ready [data-reveal='in'] .locklock__shackle,
+  .reveal-ready [data-reveal='in'] .locklock__body { animation: none; }
+}
+:root[data-lite='on'] .locklock__shackle,
+:root[data-lite='on'] .locklock__body { transform: none; animation: none; }
+
+/* ── Scroll reveal ──────────────────────────────────────────────────────
+   Content arrives as you reach it.
+
+   Both rules are gated on `.reveal-ready`, which src/reveal.js puts on the
+   root only once it has decided to run. Without that gate a browser that never
+   executed the module — script blocked, module error, an engine that chokes on
+   the syntax — would render a page of permanently invisible elements. An
+   effect must never be able to take the content down with it.
+
+   `transform` and `opacity` only, so the whole thing runs on the compositor
+   and does not compete with the main thread while a font is compiling.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.reveal-ready [data-reveal] {
+  opacity: 0;
+  transform: translateY(1.1rem);
+  /* Slightly slower out than in, and eased so it decelerates into place rather
+     than arriving and stopping. The delay staggers a row without needing a
+     rule per child — reveal.js sets --reveal-i from screen position. */
+  transition:
+    opacity .62s var(--ease) calc(var(--reveal-i, 0) * 65ms),
+    transform .62s var(--ease) calc(var(--reveal-i, 0) * 65ms);
+  will-change: opacity, transform;
+}
+
+.reveal-ready [data-reveal='in'] {
+  opacity: 1;
+  transform: none;
+  will-change: auto;
+}
+
+/* Belt and braces: if either switch is on, nothing is ever hidden, whatever
+   the class on the root says. reveal.js also returns early in both cases —
+   this is the copy that survives someone flipping the setting mid-page. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-ready [data-reveal] { opacity: 1; transform: none; transition: none; }
+}
+:root[data-lite='on'] [data-reveal] { opacity: 1; transform: none; transition: none; }
 
 /* ── Switch ─────────────────────────────────────────────────────────────
    Adapted from a Uiverse.io switch by namecho (MIT). Used for the rows in

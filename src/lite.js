@@ -17,7 +17,7 @@
  * less motion does not have to ask again here.
  */
 
-const KEY = 'inkwell.lite';
+const KEY = 'handwrite.lite';
 
 function safeRead() {
   try {
@@ -64,6 +64,40 @@ export function apply(value) {
   // the CSS would miss the reduced-motion case where nothing was chosen.
   if (!value && isOn()) root.dataset.lite = 'on';
   return isOn();
+}
+
+/**
+ * Bind a checkbox instead of a button — the Settings row.
+ *
+ * Kept separate from bindToggle rather than sniffing the element's type,
+ * because the two controls differ in more than markup: a button reports state
+ * through `aria-pressed` and its own label, a checkbox through `checked`.
+ * Guessing which one you were handed is how a control ends up announcing
+ * nothing.
+ */
+export function bindCheckbox(input) {
+  if (!input) return;
+
+  const sync = () => {
+    input.checked = isOn();
+  };
+
+  apply(chosen());
+  sync();
+
+  input.addEventListener('change', () => {
+    apply(input.checked ? 'on' : 'off');
+    sync();
+  });
+
+  motionQuery()?.addEventListener?.('change', () => {
+    if (!chosen()) {
+      apply(null);
+      sync();
+    }
+  });
+
+  return { sync };
 }
 
 export function bindToggle(button) {

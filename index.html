@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Inkwell — turn your handwriting into a real font</title>
+<title>Handwrite — turn your handwriting into a real font</title>
 <meta name="description" content="Write on a sheet of paper, photograph it, and get an installable font of your own handwriting. Runs entirely in your browser — nothing is uploaded.">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#14161a">
@@ -16,13 +16,19 @@
    * flash this exists to prevent.
    */
   try {
-    var t = localStorage.getItem('inkwell.theme');
+    var t = localStorage.getItem('handwrite.theme');
     if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
 
-    var l = localStorage.getItem('inkwell.lite');
+    var l = localStorage.getItem('handwrite.lite');
     if (l === 'on' || l === 'off') document.documentElement.dataset.lite = l;
     else if (matchMedia('(prefers-reduced-motion: reduce)').matches)
       document.documentElement.dataset.lite = 'on';
+
+    /* Text size matters most here. Theme is a repaint, but this one reflows the
+       entire page, so applying it after first paint would move every line under
+       the reader's eye. */
+    if (localStorage.getItem('handwrite.textsize') === 'large')
+      document.documentElement.dataset.textsize = 'large';
   } catch (e) { /* private mode: fall back to the system preference */ }
 </script>
 <link rel="stylesheet" href="styles.css">
@@ -60,9 +66,9 @@
 
 <header class="topbar">
   <div class="wrap topbar-inner">
-    <button class="brand" id="brand-home" type="button" aria-label="Inkwell — back to the start">
+    <button class="brand" id="brand-home" type="button" aria-label="Handwrite — back to the start">
       <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pen"/></svg>
-      <span class="brand-name">Inkwell</span>
+      <span class="brand-name">Handwrite</span>
     </button>
 
     <nav class="steps" id="steps" aria-label="Progress">
@@ -112,7 +118,7 @@
         <h1>Write it once.<br>Type it forever.</h1>
         <p class="lede">
           Copy a short sheet of characters onto blank paper, photograph it, and
-          Inkwell builds an installable font in your own hand — with proper
+          Handwrite builds an installable font in your own hand — with proper
           spacing, bold, italic, and letters that vary the way real writing does.
         </p>
 
@@ -128,7 +134,7 @@
         </div>
 
         <p class="privacy">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg>
+          <svg class="locklock" viewBox="0 0 24 24" aria-hidden="true"><rect class="locklock__body" x="4" y="10" width="16" height="11" rx="2"/><path class="locklock__shackle" d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
           Everything runs inside your browser. Your handwriting is never uploaded,
           and this page works with the network switched off.
         </p>
@@ -151,7 +157,7 @@
           <p>All four styles are generated from your single sample, so <strong>bold</strong> and <em>italic</em> work properly in any app.</p>
         </li>
         <li>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg>
+          <svg class="locklock" viewBox="0 0 24 24" aria-hidden="true"><rect class="locklock__body" x="4" y="10" width="16" height="11" rx="2"/><path class="locklock__shackle" d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
           <h3>Nothing leaves your device</h3>
           <p>No account, no upload, no server. The font is built on your machine and saved straight to your downloads.</p>
         </li>
@@ -205,7 +211,7 @@
           <article>
             <h3>Spacing is measured, not guessed</h3>
             <p>Most handwriting fonts give every letter the same margin. That looks wrong, because a round <b>o</b> already carries space in its own curve while a flat <b>H</b> carries none — identical margins make one look loose and the other cramped.</p>
-            <p>Inkwell measures the ink profile of every character and sets its bearings so the <em>perceived</em> gap comes out equal. On a real layout engine, ordinary prose shifts by under 1.5%, while a deliberately awkward line like <span class="mono">AVATAR To Wave off; r.</span> tightens by 5%.</p>
+            <p>Handwrite measures the ink profile of every character and sets its bearings so the <em>perceived</em> gap comes out equal. On a real layout engine, ordinary prose shifts by under 1.5%, while a deliberately awkward line like <span class="mono">AVATAR To Wave off; r.</span> tightens by 5%.</p>
           </article>
           <article>
             <h3>No letter repeats itself</h3>
@@ -220,7 +226,7 @@
           <article>
             <h3>Bold and italic are real</h3>
             <p>Ask a word processor to bold a font that has no bold and it smears the outline sideways. It looks like exactly what it is.</p>
-            <p>Inkwell generates genuine Bold and Italic from your single sample — thickening outlines along their own edges, and leaning them about the middle of the x-height so the rhythm of the line survives. Markdown and rich text behave properly.</p>
+            <p>Handwrite generates genuine Bold and Italic from your single sample — thickening outlines along their own edges, and leaning them about the middle of the x-height so the rhythm of the line survives. Markdown and rich text behave properly.</p>
           </article>
         </div>
       </section>
@@ -319,7 +325,7 @@
       <header class="step-head">
         <h2>Check the characters</h2>
         <p class="sub">
-          These are the shapes Inkwell found. Anything that looks wrong can be
+          These are the shapes Handwrite found. Anything that looks wrong can be
           redrawn — click it.
         </p>
       </header>
@@ -611,7 +617,7 @@
       </details>
 
       <p class="privacy" style="margin-top:1rem">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg>
+        <svg class="locklock" viewBox="0 0 24 24" aria-hidden="true"><rect class="locklock__body" x="4" y="10" width="16" height="11" rx="2"/><path class="locklock__shackle" d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
         No handwriting, images or font files are included — only the numbers shown above.
       </p>
 
@@ -686,7 +692,7 @@
       </div>
 
       <p class="privacy" style="margin-top:1.5rem">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg>
+        <svg class="locklock" viewBox="0 0 24 24" aria-hidden="true"><rect class="locklock__body" x="4" y="10" width="16" height="11" rx="2"/><path class="locklock__shackle" d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
         These choices are written to this browser's own storage and nowhere else.
         <a href="#privacy" data-legal="privacy">Everything that gets stored</a>.
       </p>

@@ -1,4 +1,4 @@
-# Inkwell
+# Handwrite
 
 **Upload your handwriting. Apply everywhere.**
 
@@ -14,7 +14,7 @@ page has loaded it works offline, and the font is built on your own machine.
 ## Why it works without AI
 
 The obvious way to build this is to photograph a page of handwriting and use a
-vision model to find and identify the letters. Inkwell does something simpler
+vision model to find and identify the letters. Handwrite does something simpler
 and strictly more reliable: **it tells you exactly what to write, and in what
 order.**
 

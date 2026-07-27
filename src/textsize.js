@@ -14,7 +14,7 @@
  * script. Inventing a third state that follows nothing would be a lie.
  */
 
-const KEY = 'inkwell.textsize';
+const KEY = 'handwrite.textsize';
 const SIZES = ['normal', 'large'];
 
 function safeRead() {

@@ -27,7 +27,7 @@
  * is worse than naming none.
  */
 export const OPERATOR = {
-  name: 'the maintainers of Inkwell',
+  name: 'the maintainers of Handwrite',
   repo: 'https://github.com/heistkit/handwriting',
   contact: 'https://github.com/heistkit/handwriting/issues',
   jurisdiction: null, // e.g. 'the Republic of Korea' — see note above
@@ -88,11 +88,11 @@ export const PRIVACY = {
     {
       heading: 'What is stored on your device',
       body: [
-        'Three things, all in your browser\'s local storage, and nothing else. No session storage, no IndexedDB, no cookies.',
+        'Four things, all in your browser\'s local storage, and nothing else. No session storage, no IndexedDB, no cookies.',
         `First, the rate limit described in the Terms. The app keeps a short random string and a list of recent timestamps, so it can tell how many fonts have been built in the last minute and hold you to ${LIMITS.perDevicePerMinute} per minute.`,
         'That random string is generated on your device by your browser\'s cryptographic random number generator. It is not derived from your hardware, your browser configuration, your network, or anything else about you — two people on identical machines get different values, and the same person gets a new one in a fresh browser profile. It cannot be used to recognise you on any other site, and it is never transmitted anywhere.',
-        'Second, your choice of light or dark theme, and third, whether you have turned lite mode on or off — each only once you have actually chosen. Until then nothing is stored for either, and the app follows your system settings.',
-        'You can erase all three at any time by clearing site data for this domain. Doing so resets the counter and returns both display settings to following your system; there is no other effect.',
+        'The other three are the settings you can see in the Settings panel: your choice of light or dark theme, whether lite mode is on, and whether you have asked for larger text. Each is written only once you have actually chosen it. Until then nothing is stored, and the app follows your system settings.',
+        'You can erase all four at any time by clearing site data for this domain. Doing so resets the counter and returns the display settings to following your system; there is no other effect.',
       ],
     },
     {
@@ -290,7 +290,7 @@ export const LICENSES = {
       ],
     },
     {
-      heading: 'Inkwell — MIT Licence',
+      heading: 'Handwrite — MIT Licence',
       body: [`Copyright (c) 2026 ${OPERATOR.name}.`, ...MIT_TEXT, `Source: ${OPERATOR.repo}`],
     },
     {

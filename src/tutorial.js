@@ -180,7 +180,7 @@ export const FAQ = [
   },
   {
     q: 'How is letter spacing decided?',
-    a: 'It is measured, not guessed. Inkwell reads the ink profile down each side of every character and sets its bearings so the perceived gap between any two letters comes out even. A round o already carries space in its own curve where a flat H carries none, so giving them identical margins — which is what most handwriting fonts do — makes one look loose and the other cramped.',
+    a: 'It is measured, not guessed. Handwrite reads the ink profile down each side of every character and sets its bearings so the perceived gap between any two letters comes out even. A round o already carries space in its own curve where a flat H carries none, so giving them identical margins — which is what most handwriting fonts do — makes one look loose and the other cramped.',
   },
   {
     q: 'What is kerning, and do I need it?',
