@@ -3757,49 +3757,110 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 
 /* ── The mascot ──
    An ink drop, which is the one character this app could honestly have: it is
-   what comes off the pen. It bobs, it blinks, and it holds whatever the step
-   is about. Decoration throughout — aria-hidden, and every card's text says
-   the same thing without it. */
+   what comes off the pen.
 
-.mascot { width: clamp(150px, 26vw, 210px); height: auto; overflow: visible; }
-.mascot__shadow { fill: var(--ink); opacity: .16; }
-.mascot__drop { fill: var(--accent); stroke: none; }
-.mascot__blush { fill: var(--accent-fg); opacity: .28; stroke: none; }
-.mascot__eyes circle { fill: var(--accent-fg); stroke: none; }
-.mascot__smile { fill: none; stroke: var(--accent-fg); stroke-width: 2.4; stroke-linecap: round; }
-.mascot__prop {
-  fill: none; stroke: var(--text-2); stroke-width: 2.6;
-  stroke-linecap: round; stroke-linejoin: round;
+   The body is an HTML box whose `border-radius` is animated, not an SVG path.
+   That is what makes it read as liquid: eight radii interpolating
+   independently give a surface that bulges and settles, and it passes through
+   a true circle and a rounded square on the way round without any of those
+   states being a separate asset. An SVG path morph would need every keyframe
+   to carry the same node count and would still not be as smooth.
+
+   Decoration throughout — the whole thing is aria-hidden, and every card's
+   text says the same thing without it.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.mascot {
+  display: flex; align-items: center; gap: clamp(.5rem, 2vw, 1.1rem);
+}
+.mascot__stage { position: relative; width: clamp(5.5rem, 13vw, 8rem); aspect-ratio: 1; flex: none; }
+
+.mascot__blob {
+  position: absolute; inset: 0;
+  background: linear-gradient(150deg, var(--accent-hover), var(--accent) 62%);
+  border-radius: 58% 42% 44% 56% / 52% 48% 52% 48%;
+  animation:
+    blob-morph 11s ease-in-out infinite,
+    mascot-bob 3.4s ease-in-out infinite;
 }
 
-/* Only the card you are looking at is alive. Four mascots bobbing in a row —
-   three of them off screen — is work nobody sees. */
-.stepcard.is-current .mascot__body { animation: mascot-bob 3.4s ease-in-out infinite; }
-.stepcard.is-current .mascot__shadow { animation: mascot-shadow 3.4s ease-in-out infinite; }
-.stepcard.is-current .mascot__eyes { animation: mascot-blink 5.2s steps(1, end) infinite; }
-.stepcard.is-current .mascot__prop { animation: mascot-prop 3.4s ease-in-out infinite; }
+/* Circle, blob, rounded square, blob — and back. The two axes are given
+   different rhythms so the shape never looks like it is simply rotating. */
+@keyframes blob-morph {
+  0%, 100% { border-radius: 58% 42% 44% 56% / 52% 48% 52% 48%; }
+  14% { border-radius: 50%; }
+  30% { border-radius: 38% 62% 63% 37% / 41% 44% 56% 59%; }
+  46% { border-radius: 22%; }
+  62% { border-radius: 66% 34% 31% 69% / 57% 59% 41% 43%; }
+  78% { border-radius: 50% 50% 46% 54% / 62% 38% 62% 38%; }
+}
+
+.mascot__eye {
+  position: absolute; top: 40%;
+  width: 13%; aspect-ratio: 1; border-radius: 50%;
+  background: var(--accent-fg);
+  animation: mascot-blink 5.2s steps(1, end) infinite;
+}
+.mascot__eye:nth-of-type(1) { left: 27%; }
+.mascot__eye:nth-of-type(2) { right: 27%; }
+
+/* A mouth drawn as the bottom edge of a box, so it curves with one radius. */
+.mascot__mouth {
+  position: absolute; left: 50%; top: 56%;
+  width: 26%; height: 13%;
+  transform: translateX(-50%);
+  border-bottom: .18rem solid var(--accent-fg);
+  border-radius: 0 0 60% 60% / 0 0 100% 100%;
+}
+
+.mascot__shadow {
+  position: absolute; left: 12%; right: 12%; bottom: -8%;
+  height: .5rem; border-radius: 50%;
+  background: var(--ink); opacity: .16;
+  animation: mascot-shadow 3.4s ease-in-out infinite;
+}
+
+.mascot__prop {
+  width: clamp(2.2rem, 6vw, 3.4rem); height: auto; flex: none;
+  fill: none; stroke: var(--text-2); stroke-width: 2.6;
+  stroke-linecap: round; stroke-linejoin: round;
+  animation: mascot-prop 3.4s ease-in-out infinite;
+}
 
 @keyframes mascot-bob {
   0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-6px) rotate(-1.5deg); }
+  50% { transform: translateY(-7px) rotate(-2deg); }
 }
 /* The shadow tightens as it lifts, which is what sells the lift. */
 @keyframes mascot-shadow {
   0%, 100% { transform: scaleX(1); opacity: .16; }
-  50% { transform: scaleX(.82); opacity: .1; }
+  50% { transform: scaleX(.8); opacity: .09; }
 }
 @keyframes mascot-blink {
   0%, 92% { transform: scaleY(1); }
-  94%, 97% { transform: scaleY(.1); }
+  94%, 97% { transform: scaleY(.08); }
   98%, 100% { transform: scaleY(1); }
 }
 @keyframes mascot-prop {
   0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-3px) rotate(4deg); }
+  50% { transform: translateY(-4px) rotate(5deg); }
 }
-.mascot__body, .mascot__prop { transform-box: fill-box; transform-origin: 50% 100%; }
-.mascot__shadow { transform-box: fill-box; transform-origin: 50% 50%; }
-.mascot__eyes { transform-box: fill-box; transform-origin: 50% 50%; }
+
+/* Only the card you are looking at is alive. Four blobs morphing at once,
+   three of them off screen, is work nobody sees. */
+.stepcard:not(.is-current) :is(.mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop) {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop { animation: none; }
+  .mascot__blob { border-radius: 52% 48% 46% 54% / 54% 50% 50% 46%; }
+  .stepshow__dot { transition: none; }
+}
+:root[data-lite='on'] :is(.mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop),
+:root[data-decor='off'] :is(.mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop) { animation: none; }
+:root[data-lite='on'] .mascot__blob,
+:root[data-decor='off'] .mascot__blob { border-radius: 52% 48% 46% 54% / 54% 50% 50% 46%; }
 
 /* ── Deck controls ── */
 .stepshow__nav {
