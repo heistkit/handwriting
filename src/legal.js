@@ -34,7 +34,7 @@ export const OPERATOR = {
 };
 
 /** Bump when the substance changes, not for typos. Shown to the user. */
-export const LEGAL_VERSION = '1.2';
+export const LEGAL_VERSION = '1.3';
 export const LEGAL_UPDATED = '2026-07-27';
 
 /** Kept in sync with ratelimit.js and middleware.js — see the Terms. */
@@ -281,7 +281,7 @@ export const LICENSES = {
   id: 'licenses',
   title: 'Licences',
   summary:
-    'The app is MIT licensed. Two open-source components are bundled. None of this reaches the fonts you make — those are unencumbered.',
+    'The app is MIT licensed, and so is everything bundled into it. None of this reaches the fonts you make — those are unencumbered.',
   sections: [
     {
       heading: 'Fonts you create are not covered',
@@ -306,6 +306,14 @@ export const LICENSES = {
         'Copyright (c) 2023 Vercel, Inc. Used for the interface typeface, and self-hosted so that rendering this page discloses your visit to no one else.',
         'The OFL permits use, study, modification, and redistribution, including as part of a larger work such as this one, provided the fonts are not sold on their own and that any modified version is released under the same licence and not under the reserved font name.',
         'This applies to the interface font only. It has no bearing on the fonts you create, which are yours without condition.',
+      ],
+    },
+    {
+      heading: 'Interface components from Uiverse.io — MIT Licence',
+      body: [
+        'Twelve interface pieces began as components published on uiverse.io, all under the MIT Licence: the theme switch, the volume sliders and the copy button by Galahhad; the search field by Lakshay-art; the expanding call-to-action by cssbuttons-io; the download button by Na3ar-17; the envelope checkbox by SelfMadeSystem; the arc loader by mobinkakei; the letter wave by joao-canais; the progress bar by satyamchaudharydev; the skeleton placeholder by Nawsome; and the forward button by alexmaracinaru.',
+        'Each was re-graded onto this palette and reworked for accessibility, so what ships is a modified version rather than the original. A comment above each block in the stylesheet names its author, and COMPONENTS.md in the repository records every change made and why.',
+        ...MIT_TEXT,
       ],
     },
     {

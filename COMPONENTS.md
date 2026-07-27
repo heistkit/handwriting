@@ -21,12 +21,12 @@ here and in a comment above each adapted block in `styles.css`.
 | 9 | Copy button + tooltip | Galahhad | CSS snippet corner |
 | 10 | Indeterminate progress bar | satyamchaudharydev | page-top load bar |
 | 11 | Skeleton placeholder | Nawsome | preview, pre-first-compile |
-| 12 | "Continue" arrow button | alexmaracinaru | **not yet integrated** |
+| 12 | "Continue" arrow button | alexmaracinaru | forward action, all 4 steps |
 
 ## The recurring defect
 
-Eleven of the twelve shipped at least one thing that breaks outside a demo page.
-Worth assuming there is one in each rather than that this batch was unlucky.
+All twelve shipped at least one thing that breaks outside a demo page. Worth
+assuming there is one in each rather than that this batch was unlucky.
 
 - **`display: none` on the control input** — 4 times (1, 4, 5, and the search
   field's pattern). Removes it from the accessibility tree *and* from keyboard
@@ -43,6 +43,10 @@ Worth assuming there is one in each rather than that this batch was unlucky.
   is not an interpolable pair; 6 sets `position` on SVG geometry, where it does
   nothing; 2 is SCSS pasted as CSS, so its `//` comments are discarded as bad
   declarations.
+- **Missing states** — 3 kills the focus ring and puts nothing back; 12 has no
+  focus or disabled rule at all. The first of the four places 12 now sits ships
+  disabled until a photograph exists, so as pasted it would have looked live
+  while doing nothing.
 - **Hard-coded colour** — all twelve. 11 is the worst case: its shimmer is
   built from the same value as the background it sweeps, so on a dark palette
   it is a bright slab with an invisible sweep.
@@ -1215,12 +1219,37 @@ hidden from the accessibility tree.
 
 ## 12. "Continue" arrow button — alexmaracinaru
 
-**Status: not yet integrated.**
+**In:** the forward action at the foot of all four working steps — Write →
+Capture, Capture → Review, Review → Refine, Refine → Export. Every one of them
+advances to the next screen, which is exactly what this button says.
+**Fixed:** the bare `button { }` reset; `stroke="black"`/`fill="black"` →
+`currentColor`; added `:disabled` and `:focus-visible`; split the single
+`transition: all .2s` so the press is met immediately and the release springs
+back; added reduced-motion and lite-mode branches.
 
-Same bare `button { }` reset as #3, so it would flatten every button in the app
-if pasted as-is. `#cfef00` is a lime that sits outside the palette entirely.
-Candidate homes: the Review → Refine step advance, or the capture step's
-"Continue" once sheets are processed.
+Same bare `button { }` reset as #3 — plus unscoped `button:hover svg` and
+`button:active` — so pasted as-is it would have flattened, re-coloured and
+shrunk every button in the app: the top bar, the modals, the segmented
+controls, the step chips. `#cfef00` is a lime that sits outside the palette
+entirely, and the SVG carried black in its markup rather than in CSS, so the
+badge would have stayed black whatever the theme did.
+
+The badge is now `#i-arrow-circle` in the shared sprite, drawn stroked in
+`currentColor` at the same weight as every other icon here, so it reads as part
+of the set rather than as an import. The 5px nudge on hover is the component's
+whole gesture and is kept as-is; reduced motion removes it rather than
+shortening it, since a 5px jump on hover is precisely what that setting is
+asking not to happen.
+
+The `transition: all 0.2s` is the quiet problem. It covers the press and the
+release with one duration, which is what makes CSS buttons feel mushy — a
+finger going down should be met at once, while coming back up can take its time
+and overshoot. Same split as #3 uses: `.08s ease-out` down, a spring on the way
+back.
+
+Measured after the change: 4.94:1 at rest and 6.70:1 on hover in the light
+theme, 7.47:1 and 8.44:1 in the dark one, and the row still fits at 375px with
+37px to spare on its widest label.
 
 ```css
 button {
