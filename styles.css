@@ -89,7 +89,24 @@
 
   --wrap: 1180px;
   --ease: cubic-bezier(.22, .68, .36, 1);
+
+  /*
+   * One lever for the whole interface. Every size in this sheet is in rem, so
+   * multiplying the root multiplies the type, the padding and the hit targets
+   * together — which is the point. Scaling the text alone gives you large
+   * labels crammed into small buttons.
+   *
+   * 1.0625 puts the root at 17px rather than the browser's 16px. The old sheet
+   * set `body { font-size: 17px }` and left the root at 16, so every `rem`
+   * silently measured against 16 — .68rem was 10.9px, which is a size you read
+   * by leaning in. Nothing is below 13px now, and the settings panel can push
+   * this to 1.25 for anyone who wants more.
+   */
+  --ui-scale: 1.0625;
 }
+
+html { font-size: calc(16px * var(--ui-scale)); }
+:root[data-textsize='large'] { --ui-scale: 1.25; }
 
 /*
  * Follow the system unless the visitor has explicitly chosen. The :not() is
@@ -114,7 +131,7 @@ html { -webkit-text-size-adjust: 100%; }
 
 body {
   font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 17px;
+  font-size: 1.0625rem;
   line-height: 1.6;
   color: var(--text);
   background: var(--bg);
@@ -161,7 +178,7 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   backdrop-filter: blur(14px) saturate(1.4);
   border-bottom: 1px solid var(--border);
 }
-.topbar-inner { display: flex; align-items: center; gap: 1.5rem; height: 64px; }
+.topbar-inner { display: flex; align-items: center; gap: 1.5rem; min-height: 3.8rem; }
 
 .brand {
   display: flex; align-items: center; gap: .55rem;
@@ -176,7 +193,14 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 .brand-mark { width: 22px; height: 22px; color: var(--accent); }
 .brand-name { font-size: 1.05rem; }
 
-.steps { display: flex; gap: .15rem; margin-inline: auto; overflow-x: auto; scrollbar-width: none; }
+/* `min-width: 0` is what makes the `overflow-x` below do anything. A flex item
+   defaults to `min-width: auto`, so without it the rail refuses to shrink past
+   its content and pushes the whole page sideways instead of scrolling itself —
+   which is exactly what happened the first time the type scale went up. */
+.steps {
+  display: flex; gap: .15rem; margin-inline: auto;
+  min-width: 0; overflow-x: auto; scrollbar-width: none;
+}
 .steps::-webkit-scrollbar { display: none; }
 
 .step-chip {
@@ -186,13 +210,31 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   color: var(--text-3); font-size: .87rem; font-weight: 500;
   white-space: nowrap; transition: color .18s var(--ease), background .18s var(--ease);
 }
+/*
+ * The bar has four things competing for one row, and raising the type scale is
+ * what finally made them collide. Below this width the action labels collapse
+ * to their icons — using the same treatment as .sr-only rather than
+ * `display: none`, so the buttons keep their accessible names and do not
+ * announce as unlabelled to a screen reader.
+ */
+@media (max-width: 660px) {
+  .topbar-inner { gap: .55rem; }
+  .topbar-inner .btn-ghost { padding: .5rem; }
+  .topbar-inner .btn-ghost > span {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+}
+
 .step-chip:hover:not(:disabled) { color: var(--text-2); background: var(--surface-2); }
 .step-chip:disabled { cursor: default; opacity: .5; }
 .step-chip[aria-current="step"] { color: var(--text); background: var(--surface-2); }
 .step-chip .dot {
-  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  width: 1.45rem; height: 1.45rem; border-radius: 50%; flex: none;
   display: grid; place-items: center;
-  border: 1.5px solid currentColor; font-size: .68rem; font-weight: 600;
+  border: 1.5px solid currentColor; font-size: .85rem; font-weight: 600;
 }
 .step-chip.is-done { color: var(--accent); }
 .step-chip.is-done .dot { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
@@ -252,7 +294,7 @@ main { flex: 1; }
 
 .hero { max-width: 40ch; padding-block: clamp(1rem, 5vw, 3.5rem); }
 .eyebrow {
-  display: inline-block; font-size: .82rem; font-weight: 600;
+  display: inline-block; font-size: .87rem; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase; color: var(--accent);
   background: var(--accent-quiet); padding: .35rem .75rem; border-radius: 999px;
   margin-bottom: 1.5rem;
@@ -816,6 +858,115 @@ main { flex: 1; }
   .contbtn:active:not(:disabled) { transform: none; }
 }
 
+/* ── Switch ─────────────────────────────────────────────────────────────
+   Adapted from a Uiverse.io switch by namecho (MIT). Used for the rows in
+   Settings, where a plain on/off needs no illustration — the sun-and-moon
+   toggle in the header is the one place a picture earns its keep.
+
+   Changed from the original:
+   - `input[type="checkbox"] { display: none }`, the fault every switch in this
+     batch shipped. It removes the control from the accessibility tree and from
+     the tab order, so the setting becomes unreachable by keyboard and
+     invisible to a screen reader. The input is still here, stretched over the
+     track at zero opacity: focusable, clickable, announced.
+   - No focus ring. There is one now, drawn on the track from the input's
+     `:focus-visible`.
+   - `--color-grey: #cccccc` against a white knob is 1.6:1, below the 3:1 that
+     WCAG asks of a control's own parts. Re-graded so the knob clears 3:1
+     against the track in both themes, and the accent carries the on state.
+   - Sized in rem rather than em off an arbitrary root, so it grows with the
+     text-size setting instead of staying small next to larger labels.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.switch {
+  --sw-w: 3.1rem;
+  --sw-h: 1.75rem;
+  --sw-knob: 1.3rem;
+  --sw-pad: calc((var(--sw-h) - var(--sw-knob)) / 2);
+  --sw-squish: 1.7rem;
+  --sw-off: light-dark(#828b95, #545c66);
+
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: var(--sw-w);
+  height: var(--sw-h);
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch__track {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(var(--sw-h) / 2);
+  background: var(--sw-off);
+  transition: background .3s var(--ease);
+}
+
+.switch__track::after {
+  content: '';
+  position: absolute;
+  top: var(--sw-pad);
+  left: var(--sw-pad);
+  width: var(--sw-knob);
+  height: var(--sw-knob);
+  border-radius: calc(var(--sw-knob) / 2);
+  background: light-dark(#fbfcfd, #eef1f5);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .28);
+  transition: width .22s var(--ease), transform .3s var(--ease);
+}
+
+.switch input:checked + .switch__track { background: var(--accent); }
+
+.switch input:checked + .switch__track::after {
+  transform: translateX(calc(var(--sw-w) - var(--sw-knob) - var(--sw-pad) * 2));
+}
+
+/* The knob stretches while held, then settles — the original's one genuinely
+   good idea, and the reason this reads as a physical switch rather than a
+   checkbox wearing a costume. */
+.switch input:active + .switch__track::after { width: var(--sw-squish); }
+.switch input:checked:active + .switch__track::after {
+  transform: translateX(calc(var(--sw-w) - var(--sw-squish) - var(--sw-pad) * 2));
+}
+
+.switch input:focus-visible + .switch__track {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch__track, .switch__track::after { transition: none; }
+}
+
+/* ── Settings rows ──────────────────────────────────────────────────── */
+
+.setting {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  padding: 1.15rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.setting:last-of-type { border-bottom: 0; }
+
+.setting-text { flex: 1; cursor: pointer; }
+.setting-text b { display: block; font-weight: 600; margin-bottom: .2rem; }
+.setting-text span { display: block; color: var(--text-2); font-size: .9rem; line-height: 1.5; }
+
+/* The switch sits a little below the label's cap height so the two read as one
+   row rather than as a heading with something floating beside it. */
+.setting .switch { margin-top: .15rem; }
+
 /* ── Docs search ────────────────────────────────────────────────────────
    Adapted from a Uiverse.io search field by Lakshay-art (MIT).
 
@@ -974,7 +1125,7 @@ main { flex: 1; }
 .docsearch__hint {
   flex: none;
   font-family: 'Geist Mono', monospace;
-  font-size: .68rem;
+  font-size: .85rem;
   color: var(--text-3);
   border: 1px solid var(--border);
   border-radius: 5px;
@@ -991,7 +1142,7 @@ main { flex: 1; }
 
 /* ── Docs results ───────────────────────────────────────────────────── */
 
-.doc-count { font-size: .82rem; color: var(--text-3); margin-bottom: 1rem; }
+.doc-count { font-size: .87rem; color: var(--text-3); margin-bottom: 1rem; }
 
 .doc-result { padding: 1rem 0; border-top: 1px solid var(--border); }
 .doc-result:first-of-type { border-top: 0; padding-top: 0; }
@@ -1000,7 +1151,7 @@ main { flex: 1; }
 
 .doc-kind {
   display: inline-block;
-  font-size: .68rem;
+  font-size: .85rem;
   letter-spacing: .04em;
   text-transform: uppercase;
   color: var(--accent);
@@ -1101,7 +1252,7 @@ main { flex: 1; }
 .legal-section h3 { margin-bottom: .55rem; }
 .legal-section p { font-size: .94rem; color: var(--text-2); }
 .legal-section p + p { margin-top: .6rem; }
-.legal-meta { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .82rem; color: var(--text-3); }
+.legal-meta { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .87rem; color: var(--text-3); }
 
 /* ── Cards ──────────────────────────────────────────────────────────── */
 
@@ -1129,7 +1280,7 @@ main { flex: 1; }
 }
 .paper-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1.1rem; }
 .paper-head h3 { font-size: 1.15rem; color: var(--ink); }
-.paper-count { font-size: .8rem; color: #6b6459; font-family: 'Geist Mono', monospace; }
+.paper-count { font-size: .87rem; color: #6b6459; font-family: 'Geist Mono', monospace; }
 .paper-hint { font-size: .87rem; color: #6b6459; margin-bottom: 1.2rem; max-width: 60ch; }
 
 .paper-row {
@@ -1147,7 +1298,7 @@ main { flex: 1; }
 }
 .paper-badge {
   display: inline-flex; align-items: center; gap: .4rem;
-  font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  font-size: .85rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
   color: #6b6459; background: rgb(0 0 0 / .06);
   padding: .2rem .55rem; border-radius: 999px;
 }
@@ -1219,7 +1370,7 @@ main { flex: 1; }
 .glyph canvas { width: 100%; height: 100%; }
 .glyph .label {
   position: absolute; left: 5px; top: 3px;
-  font-size: .68rem; font-family: 'Geist Mono', monospace; color: var(--text-3);
+  font-size: .85rem; font-family: 'Geist Mono', monospace; color: var(--text-3);
 }
 .glyph.is-missing { border-style: dashed; background: var(--surface-2); }
 .glyph.is-missing::after {
@@ -1228,7 +1379,7 @@ main { flex: 1; }
 .glyph.is-flagged { border-color: var(--warn); }
 .glyph .redraw {
   position: absolute; inset: auto 0 0 0; padding: .2rem;
-  font-size: .68rem; background: var(--accent); color: var(--accent-fg);
+  font-size: .85rem; background: var(--accent); color: var(--accent-fg);
   opacity: 0; transition: opacity .15s var(--ease);
 }
 .glyph:hover .redraw { opacity: 1; }
@@ -1276,7 +1427,7 @@ main { flex: 1; }
 .chip {
   padding: .4rem .8rem; border-radius: 999px; cursor: pointer;
   background: var(--surface-2); border: 1px solid var(--border);
-  color: var(--text-2); font-size: .84rem;
+  color: var(--text-2); font-size: .88rem;
   transition: color .15s var(--ease), border-color .15s var(--ease);
 }
 .chip:hover { color: var(--text); border-color: var(--border-strong); }
@@ -1284,7 +1435,7 @@ main { flex: 1; }
 .controls .field { display: grid; gap: .45rem; margin-bottom: 1.1rem; }
 .controls .field:last-of-type { margin-bottom: 0; }
 .field > span { display: flex; justify-content: space-between; font-size: .88rem; color: var(--text-2); }
-.field output { font-family: 'Geist Mono', monospace; font-size: .82rem; color: var(--text); }
+.field output { font-family: 'Geist Mono', monospace; font-size: .87rem; color: var(--text); }
 .field-inline { display: flex !important; align-items: center; gap: .7rem; margin: 0 !important; }
 .field-inline > span { font-size: .85rem; }
 .field-inline input { width: 130px; }
@@ -1744,10 +1895,10 @@ input[type=range]:focus-visible {
 .finding.is-warn svg { color: var(--warn); }
 .finding.is-info svg { color: var(--text-3); }
 .finding b { display: block; font-size: .88rem; font-weight: 600; }
-.finding p { font-size: .84rem; color: var(--text-2); margin-top: .15rem; }
+.finding p { font-size: .88rem; color: var(--text-2); margin-top: .15rem; }
 .finding .chars {
   display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .45rem;
-  font-family: 'Geist Mono', monospace; font-size: .82rem;
+  font-family: 'Geist Mono', monospace; font-size: .87rem;
 }
 .finding .chars span { padding: .05rem .35rem; border-radius: 4px; background: rgb(128 128 128 / .18); }
 
@@ -1774,7 +1925,7 @@ input[type=range]:focus-visible {
 }
 .dl-item:hover { border-color: var(--accent); }
 .dl-item b { font-weight: 500; font-size: .93rem; }
-.dl-item span { font-size: .78rem; color: var(--text-3); font-family: 'Geist Mono', monospace; }
+.dl-item span { font-size: .86rem; color: var(--text-3); font-family: 'Geist Mono', monospace; }
 
 .install-steps { padding-left: 1.15rem; display: grid; gap: .5rem; font-size: .93rem; color: var(--text-2); }
 .install-steps li::marker { color: var(--accent); font-weight: 600; }
@@ -1785,7 +1936,7 @@ input[type=range]:focus-visible {
 
 .code {
   background: var(--bg-deep); border: 1px solid var(--border); border-radius: var(--r-md);
-  padding: .85rem; font-size: .76rem; line-height: 1.55; overflow-x: auto;
+  padding: .85rem; font-size: .86rem; line-height: 1.55; overflow-x: auto;
   max-height: 190px; color: var(--text-2); white-space: pre;
 }
 
@@ -1831,7 +1982,7 @@ input[type=range]:focus-visible {
   font-size: .85rem; color: var(--text-2); margin-top: .7rem;
   min-height: 1.3em; /* reserved, so the panel does not jump when it appears */
 }
-.busy-note { font-size: .83rem; color: var(--text-3); margin-top: .5rem; }
+.busy-note { font-size: .87rem; color: var(--text-3); margin-top: .5rem; }
 
 .bar { height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
 .bar-fill { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .25s var(--ease); }

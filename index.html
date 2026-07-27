@@ -50,6 +50,7 @@
     <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
     <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 6V4h16v2"/><path d="M12 4v16"/><path d="M9 20h6"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-1 1.47V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.46-1.05 1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.77.32H9a1.6 1.6 0 0 0 1-1.47V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.77V9a1.6 1.6 0 0 0 1.47 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></symbol>
   </defs>
 </svg>
 
@@ -92,6 +93,11 @@
     <button class="btn btn-ghost" id="open-guide" type="button">
       <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-book"/></svg>
       <span>Guide</span>
+    </button>
+
+    <button class="btn btn-ghost" id="open-settings" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-settings"/></svg>
+      <span>Settings</span>
     </button>
   </div>
 </header>
@@ -631,6 +637,59 @@
     <div class="modal-body">
       <div class="seg seg-wide" id="legal-tabs" role="group" aria-label="Document"></div>
       <div id="legal-body"></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-modal" id="settings" hidden>
+  <div class="sheet-modal-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <header class="modal-head">
+      <h2 id="settings-title">Settings</h2>
+      <button class="btn btn-icon" id="close-settings" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <div class="setting">
+        <label class="setting-text" for="set-theme">
+          <b>Dark theme</b>
+          <span>Off follows your system. The sun and moon in the header does the same thing.</span>
+        </label>
+        <span class="switch">
+          <input type="checkbox" id="set-theme">
+          <span class="switch__track" aria-hidden="true"></span>
+        </span>
+      </div>
+
+      <div class="setting">
+        <label class="setting-text" for="set-textsize">
+          <b>Larger text</b>
+          <span>Grows the type, the spacing and the buttons together, by about a fifth.</span>
+        </label>
+        <span class="switch">
+          <input type="checkbox" id="set-textsize">
+          <span class="switch__track" aria-hidden="true"></span>
+        </span>
+      </div>
+
+      <div class="setting">
+        <label class="setting-text" for="set-lite">
+          <b>Lite mode</b>
+          <span>Drops the blurs, glows and animation. Useful on an older phone, which is
+            already working hard on your photographs. It does not change the font it makes —
+            tracing precision, variants and spacing are identical either way.</span>
+        </label>
+        <span class="switch">
+          <input type="checkbox" id="set-lite">
+          <span class="switch__track" aria-hidden="true"></span>
+        </span>
+      </div>
+
+      <p class="privacy" style="margin-top:1.5rem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg>
+        These choices are written to this browser's own storage and nowhere else.
+        <a href="#privacy" data-legal="privacy">Everything that gets stored</a>.
+      </p>
     </div>
   </div>
 </div>
