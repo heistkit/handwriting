@@ -4621,3 +4621,165 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 }
 :root[data-lite='on'] .contbtn__specks,
 :root[data-decor='off'] .contbtn__specks { display: none; }
+
+
+/* ── The folder ─────────────────────────────────────────────────────────
+   Adapted from a Uiverse.io folder by Nykolas94 (MIT). It sits beside the
+   per-style downloads, because "open it and see the separate files" is what
+   that row actually offers. The zip's own card keeps the parcel, which is tied
+   to real packaging progress; this one is a picture of the contents.
+
+   The best-built snippet of the batch — it already had a reduced-motion guard,
+   a real focusable checkbox rather than `display: none`, a focus ring, and
+   spans throughout. Four things still had to change.
+
+   `.paper`, `.paper--1`, `.paper--2`, `.paper--3` would have collided head-on.
+   This app already renders `.paper` elements for the character sheets on the
+   Write step, styles them across six rules, and lists `.paper` in TARGETS in
+   src/reveal.js — so the snippet would have quietly restyled the sheets you
+   copy your handwriting from. Renamed to .folder__paper.
+
+   `rotateX(-32deg)` with no `perspective` anywhere in the original. Without
+   one the rotation is orthographic: the flap does not tilt towards you, it
+   just squashes vertically. A perspective on the shape is what makes it open.
+
+   `--ring: #1d6cf5` is a blue that appears nowhere in this app; the focus ring
+   is the accent, like every other ring in this sheet.
+
+   `font-size: 16px` pinned it against --ui-scale, so it was the one element on
+   the screen that would not grow with the Larger text setting. In rem now.
+
+   The original's count read "13,037,486+37,115e Items", which is placeholder
+   nonsense. renderExport writes the real number of styles.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.dl-separate {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem 1.25rem;
+  align-items: center;
+}
+.dl-separate .dl-row { grid-column: 1 / -1; }
+@media (max-width: 560px) {
+  .dl-separate { grid-template-columns: minmax(0, 1fr); }
+}
+
+.folder {
+  --folder-back-1: light-dark(#f7c14b, #b8862c);
+  --folder-back-2: light-dark(#e9a52f, #9a6f22);
+  --folder-front-1: light-dark(#ffd970, #cf9a35);
+  --folder-front-2: light-dark(#fbc548, #b8862c);
+  --folder-edge: light-dark(#d68f23, #7d5a1c);
+  --folder-paper: light-dark(#fdfdfb, #ece7db);
+  --folder-paper-2: light-dark(#f1f0ea, #d8d2c4);
+  --folder-radius: .875em;
+
+  position: relative;
+  display: inline-block;
+  width: 5.5rem;
+  font-size: .8rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Visually gone, still focusable and still announced — the sr-only pattern,
+   not `display: none`. This is one of the few snippets that got that right. */
+.folder__toggle {
+  position: absolute;
+  width: 1px; height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.folder__shape {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 4;
+  /* The declaration the original was missing. Without it rotateX squashes
+     rather than tilts, and the folder never appears to open. */
+  perspective: 42em;
+  transition: transform .45s var(--ease);
+}
+
+.folder__back {
+  position: absolute;
+  inset: 14% 0 0 0;
+  background: linear-gradient(135deg, var(--folder-back-1), var(--folder-back-2));
+  border-radius: .25em var(--folder-radius) var(--folder-radius) var(--folder-radius);
+}
+.folder__back::before {
+  content: '';
+  position: absolute;
+  top: -13%; left: 0;
+  width: 46%; height: 16%;
+  background: linear-gradient(135deg, var(--folder-back-1), var(--folder-back-2));
+  border-radius: .375em .375em 0 0;
+  clip-path: polygon(0 0, 82% 0, 100% 100%, 0 100%);
+}
+
+.folder__papers { position: absolute; inset: 6% 8% 12% 8%; z-index: 2; display: block; }
+
+.folder__paper {
+  position: absolute;
+  left: 50%; bottom: 0;
+  width: 86%; height: 78%;
+  translate: -50% 0;
+  background: var(--folder-paper);
+  border-radius: .375em;
+  transition: transform .45s var(--ease);
+  overflow: hidden;
+}
+/* Two ruled lines, so each sheet reads as a document rather than a blank. */
+.folder__paper::before,
+.folder__paper::after {
+  content: '';
+  position: absolute;
+  left: 14%; right: 24%;
+  height: 6%;
+  border-radius: .2em;
+  background: var(--folder-paper-2);
+}
+.folder__paper::before { top: 22%; }
+.folder__paper::after { top: 40%; right: 40%; }
+
+.folder__paper--1 { width: 78%; height: 70%; }
+.folder__paper--2 { width: 82%; height: 74%; }
+
+.folder__front {
+  position: absolute;
+  inset: 38% 0 0 0;
+  z-index: 3;
+  background: linear-gradient(150deg, var(--folder-front-1), var(--folder-front-2));
+  border-radius: var(--folder-radius);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .35), 0 -1px 0 var(--folder-edge);
+  transform-origin: bottom center;
+  transition: transform .45s var(--ease);
+}
+
+@media (hover: hover) {
+  .folder:hover .folder__shape { transform: translateY(-.375em); }
+  .folder:hover .folder__front { transform: rotateX(-32deg); }
+  .folder:hover .folder__paper { transform: translateY(-26%); }
+  .folder:hover .folder__paper--1 { transform: translate(-26%, -18%) rotate(-7deg); }
+  .folder:hover .folder__paper--2 { transform: translate(22%, -22%) rotate(6deg); }
+}
+
+/* The checkbox is what makes this work without a hover — a tap opens it. */
+.folder__toggle:checked ~ .folder__shape { transform: translateY(-.375em); }
+.folder__toggle:checked ~ .folder__shape .folder__front { transform: rotateX(-32deg); }
+.folder__toggle:checked ~ .folder__shape .folder__paper { transform: translateY(-26%); }
+.folder__toggle:checked ~ .folder__shape .folder__paper--1 { transform: translate(-26%, -18%) rotate(-7deg); }
+.folder__toggle:checked ~ .folder__shape .folder__paper--2 { transform: translate(22%, -22%) rotate(6deg); }
+
+.folder__toggle:focus-visible ~ .folder__shape .folder__back {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--folder-radius);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folder__shape, .folder__front, .folder__paper { transition: none; }
+}
+:root[data-lite='on'] :is(.folder__shape, .folder__front, .folder__paper),
+:root[data-decor='off'] :is(.folder__shape, .folder__front, .folder__paper) { transition: none; }

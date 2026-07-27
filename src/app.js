@@ -1124,6 +1124,15 @@ function renderExport() {
   );
   stagger($('#dl-individual'));
 
+  // Written from what was actually built, so the folder beside it cannot claim
+  // a number of files the zip does not contain.
+  const sep = $('#dl-separate-count');
+  if (sep) {
+    sep.textContent = built.length
+      ? `${built.length} style${built.length === 1 ? '' : 's'}, as separate files.`
+      : 'The styles, as separate files.';
+  }
+
   const summary = $('#font-summary');
   summary.replaceChildren();
   const h = document.createElement('h3');
