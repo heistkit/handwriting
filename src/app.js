@@ -16,7 +16,7 @@
 import {
   capturePage, mergeCaptures, compile, serialise, packageFamily,
   registerPreviewFont, clearPreviewFonts, analyse, cssSnippet, slugify,
-  ALL_SHEETS, sheetById,
+  traceGlyph, ALL_SHEETS, sheetById,
 } from './pipeline.js';
 import { STYLES } from './fontbuild.js';
 import { glyphToCanvas } from './segment.js';
@@ -520,10 +520,21 @@ async function openDrawPad(ch) {
     mod.createDrawPad(body, {
       ch,
       onCommit: (glyph) => {
+        // The pad returns ink, not outlines. This used to read
+        // `contours: glyph.contours`, a key the pad has never returned, so every
+        // redrawn character went into state carrying `undefined` and broke the
+        // next build at normalizeGlyph. Traced here, at the same tolerances the
+        // scan path uses, so a repaired letter is no different in kind.
+        const contours = traceGlyph(glyph);
+        if (!contours) {
+          toast('That came out as too little ink to trace. Try a heavier stroke.', true);
+          return;
+        }
+
         // A redrawn glyph replaces any captured one and joins its own row, so
         // it is solved against its own baseline rather than a scanned row's.
         state.glyphs = state.glyphs.filter((g) => g.ch !== ch);
-        state.glyphs.push({ ...glyph, ch, row: 9000, col: 0, contours: glyph.contours });
+        state.glyphs.push({ ...glyph, ch, row: 9000, col: 0, contours });
         closeModal('#draw-modal');
         renderReview();
         toast(`Updated “${ch}”.`);

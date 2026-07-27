@@ -150,6 +150,32 @@ export function mergeCaptures(captures) {
  * @param {object} settings   { familyName, spacingFactor, boldStrength, italicAngle,
  *                              variantCount, straighten, kerning }
  */
+/**
+ * Trace a glyph that arrived from the drawing pad rather than from a scan.
+ *
+ * The pad returns the same shape `extractGlyph` does — an ink bitmap and its
+ * page bounds — and deliberately no outlines, because rasterising is its job
+ * and vectorising is this file's. The redraw path in the review grid was
+ * pushing the pad's output straight into `state.glyphs` with
+ * `contours: glyph.contours`, which is a key the pad has never returned. Every
+ * redrawn character therefore reached `normalizeGlyph`, which opens with
+ * `extracted.contours.map(...)`, carrying `undefined` — so repairing a single
+ * character broke the build for the whole font.
+ *
+ * It lives here, beside the scan path's own call, so the two cannot drift: a
+ * redrawn 'a' has to be traced at exactly the tolerances a photographed one is,
+ * or it would carry a different fidelity into the same font.
+ *
+ * @param {{bitmap: Uint8Array, w: number, h: number}} glyph
+ * @param {object} [trace] same options object capturePage takes
+ * @returns {Array|null} contours, or null if there was too little ink to trace
+ */
+export function traceGlyph(glyph, trace = {}) {
+  if (!glyph?.bitmap) return null;
+  const { contours } = vectorize(glyph.bitmap, glyph.w, glyph.h, trace);
+  return contours.length ? contours : null;
+}
+
 export function compile(glyphs, settings = {}) {
   const {
     familyName = 'My Handwriting',

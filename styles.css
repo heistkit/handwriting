@@ -59,9 +59,15 @@
    * both, on the privacy assurances, the footer, the legal version line and the
    * file-size labels. "Quiet" is a tone, not permission to be faint, and this is
    * the tier the instruction to make everything readable at a glance was aimed
-   * at. Now 4.80:1 and 4.89:1.
+   * at.
+   *
+   * Graded against --surface-2, not --bg. Fixing it against the page background
+   * alone left it passing there and failing everywhere it is actually most
+   * used: 4.48:1 on --surface, where the download list's file sizes live, and
+   * 4.08:1 on --surface-2. A token has to clear the floor on the darkest
+   * surface it is put on, not on the one it was first noticed against.
    */
-  --text-3: light-dark(#656d76, #7d858f);
+  --text-3: light-dark(#656d76, #8a929c);
 
   /*
    * The light green is darker than the dark-theme one. At #2da44e the primary
@@ -2070,7 +2076,17 @@ input[type=range]:focus-visible {
   width: 100%; padding: .55rem .75rem; border-radius: var(--r-md);
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
 }
-.input:focus { border-color: var(--accent); outline: none; }
+/*
+ * `outline: none` was here, which meant the app's only two text fields — the
+ * font name and the feedback box — were the two controls with no focus ring.
+ * A border that changes colour is not a substitute: it is one pixel, it is the
+ * same colour as several resting states elsewhere, and it disappears entirely
+ * for anyone who has forced their own colours on.
+ *
+ * :focus-visible rather than :focus, so the ring appears for the keyboard and
+ * not for a mouse click that has already told the user where they are.
+ */
+.input:focus { border-color: var(--accent); }
 
 /* ── Morphing checkbox ──────────────────────────────────────────────────
    Adapted from a Uiverse.io checkbox by SelfMadeSystem (MIT).
