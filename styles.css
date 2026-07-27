@@ -1207,18 +1207,81 @@ main { flex: 1; }
 .field-inline > span { font-size: .85rem; }
 .field-inline input { width: 130px; }
 
+/* ── Sliders ────────────────────────────────────────────────────────────
+   Filled track and hover-grow adapted from a Uiverse.io slider by Galahhad
+   (MIT). Applied to input[type=range] directly rather than through the
+   original's `.slider` class, which is generic enough to collide with almost
+   anything, and which would have meant rewriting all five controls' markup.
+
+   The fill is a nice trick: the thumb is collapsed to zero and given an
+   enormous one-sided box-shadow, which `overflow: hidden` then clips to the
+   track. Everything left of the thumb is shadow.
+
+   It is also WebKit-only. Firefox does not clip a ::-moz-range-thumb shadow
+   this way, so in the original the fill simply does not appear there — the
+   track is uniformly grey and nothing indicates the value. Firefox has
+   ::-moz-range-progress for exactly this, so both engines are handled and the
+   result matches.
+
+   Other changes: the fill was pure white and takes the accent instead; the
+   volume icon is dropped, since it means nothing next to "Italic slant"; and
+   a focus ring was added, because `appearance: none` removes the platform one
+   and the original never put anything back.
+   ─────────────────────────────────────────────────────────────────────── */
+
 input[type=range] {
-  -webkit-appearance: none; appearance: none;
-  width: 100%; height: 4px; border-radius: 999px;
-  background: var(--surface-3); cursor: pointer;
+  --track: 6px;
+
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--track);
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden; /* clips the shadow that forms the fill */
+  cursor: pointer;
+  transition: height .12s var(--ease);
 }
+
+/* WebKit and Blink: zero-width thumb casting the fill behind itself. */
 input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 17px; height: 17px; border-radius: 50%;
-  background: var(--accent); border: 3px solid var(--bg); box-shadow: var(--shadow-1);
+  -webkit-appearance: none;
+  width: 0;
+  height: var(--track);
+  box-shadow: -240px 0 0 240px var(--accent);
+}
+
+/* Firefox: the same result, natively. */
+input[type=range]::-moz-range-progress {
+  height: var(--track);
+  background: var(--accent);
+  border-radius: 999px;
 }
 input[type=range]::-moz-range-thumb {
-  width: 17px; height: 17px; border-radius: 50%; border: 3px solid var(--bg);
-  background: var(--accent); box-shadow: var(--shadow-1);
+  width: 0;
+  height: var(--track);
+  border: 0;
+  background: transparent;
+}
+
+input[type=range]:hover,
+input[type=range]:focus-visible { --track: 12px; }
+
+input[type=range]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/*
+ * Hover cannot be relied on for size, and a 6px target fails every touch
+ * guideline going. On a coarse pointer the track is simply always thick.
+ */
+@media (pointer: coarse) {
+  input[type=range] { --track: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input[type=range] { transition: none; }
 }
 
 .input {
