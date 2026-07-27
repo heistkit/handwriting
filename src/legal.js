@@ -34,7 +34,7 @@ export const OPERATOR = {
 };
 
 /** Bump when the substance changes, not for typos. Shown to the user. */
-export const LEGAL_VERSION = '1.1';
+export const LEGAL_VERSION = '1.2';
 export const LEGAL_UPDATED = '2026-07-27';
 
 /** Kept in sync with ratelimit.js and middleware.js — see the Terms. */
@@ -88,9 +88,11 @@ export const PRIVACY = {
     {
       heading: 'What is stored on your device',
       body: [
-        `One item, and only in service of the rate limit described in the Terms. The app stores a short random string and a list of recent timestamps in your browser\'s local storage, so that it can tell how many fonts have been built in the last minute and enforce the limit of ${LIMITS.perDevicePerMinute} per minute.`,
-        'The random string is generated on your device by your browser\'s cryptographic random number generator. It is not derived from your hardware, your browser configuration, your network, or anything else about you — two people on identical machines get different values, and the same person gets a new one in a fresh browser profile. It cannot be used to recognise you on any other site, and it is never transmitted anywhere.',
-        'You can erase it at any time by clearing site data for this domain, and doing so has no effect other than resetting the counter. Nothing else is written to local storage, session storage, IndexedDB, or cookies.',
+        'Two things, both in your browser\'s local storage, and nothing else. No session storage, no IndexedDB, no cookies.',
+        `First, the rate limit described in the Terms. The app keeps a short random string and a list of recent timestamps, so it can tell how many fonts have been built in the last minute and hold you to ${LIMITS.perDevicePerMinute} per minute.`,
+        'That random string is generated on your device by your browser\'s cryptographic random number generator. It is not derived from your hardware, your browser configuration, your network, or anything else about you — two people on identical machines get different values, and the same person gets a new one in a fresh browser profile. It cannot be used to recognise you on any other site, and it is never transmitted anywhere.',
+        'Second, your choice of light or dark theme, if you make one. Until you touch the switch nothing is stored and the app simply follows your system setting.',
+        'You can erase both at any time by clearing site data for this domain. Doing so resets the counter and returns the theme to following your system; there is no other effect.',
       ],
     },
     {

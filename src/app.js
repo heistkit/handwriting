@@ -26,6 +26,7 @@ import { download } from './export.js';
 import { FALLBACK_LESSONS, FALLBACK_INSTALL, FALLBACK_FAQ } from './content.js';
 import { DOCUMENTS, documentById, LEGAL_VERSION, LEGAL_UPDATED } from './legal.js';
 import { limiter, describeWait } from './ratelimit.js';
+import { bindToggle } from './theme.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -975,6 +976,8 @@ function init() {
   renderSamples();
   renderFAQ();
   bindControls();
+
+  bindToggle($('#theme-toggle'));
 
   $('#brand-home').addEventListener('click', () => goto('start'));
 

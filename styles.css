@@ -26,28 +26,53 @@
   font-display: swap;
 }
 
+/*
+ * Colour tokens.
+ *
+ * Each token is declared once with light-dark(), so the two palettes sit on the
+ * same line and cannot drift apart. Which branch resolves is decided entirely
+ * by the used `color-scheme` on :root, set in the three rules below.
+ *
+ * The alternative — a light palette duplicated inside a media query and again
+ * under [data-theme='light'] — means every colour is written twice and a later
+ * edit can silently change one copy. That is the failure this avoids.
+ *
+ * Setting `color-scheme` also fixes native scrollbars, form controls and the
+ * default canvas for free, which a custom-property swap alone cannot do.
+ */
 :root {
-  --bg: #14161a;
-  --bg-deep: #101216;
-  --surface: #1a1e24;
-  --surface-2: #21262d;
-  --surface-3: #2a3038;
-  --border: #2a3038;
-  --border-strong: #3a424c;
+  color-scheme: dark;
 
-  --text: #e4e9ef;
-  --text-2: #a5adb8;
-  --text-3: #757d88;
+  --bg: light-dark(#f4f5f7, #14161a);
+  --bg-deep: light-dark(#eaecef, #101216);
+  --surface: light-dark(#fbfcfd, #1a1e24);
+  --surface-2: light-dark(#f0f2f5, #21262d);
+  --surface-3: light-dark(#e6e9ed, #2a3038);
+  --border: light-dark(#dce0e5, #2a3038);
+  --border-strong: light-dark(#c4cad2, #3a424c);
 
-  --accent: #3fb950;
-  --accent-hover: #4ac45c;
-  --accent-quiet: #1c3324;
-  --accent-fg: #0c1116;
+  --text: light-dark(#1c2128, #e4e9ef);
+  --text-2: light-dark(#57606a, #a5adb8);
+  --text-3: light-dark(#848d97, #757d88);
 
-  --warn: #d9a441;
-  --warn-quiet: #33280f;
-  --danger: #f0685e;
-  --danger-quiet: #3a1c1a;
+  /*
+   * The light green is darker than the dark-theme one. At #2da44e the primary
+   * button rendered white-on-green at 3.13:1 and accent-coloured text on the
+   * page background at 2.86:1 — both below the 4.5:1 floor. Darkening only the
+   * light branch lifts them to 5.0:1 and 4.6:1 without touching dark, where the
+   * brighter green is already correct against a near-black field.
+   */
+  --accent: light-dark(#1a7f37, #3fb950);
+  --accent-hover: light-dark(#15682d, #4ac45c);
+  /* Lightened from #dcf5e3: the step numbers sit accent-on-accent-quiet and
+     landed at 4.44:1, just under the floor. This clears it at 4.60:1. */
+  --accent-quiet: light-dark(#e6f7ec, #1c3324);
+  --accent-fg: light-dark(#fbfcfd, #0c1116);
+
+  --warn: light-dark(#9a6700, #d9a441);
+  --warn-quiet: light-dark(#fbf1d4, #33280f);
+  --danger: light-dark(#cf222e, #f0685e);
+  --danger-quiet: light-dark(#ffe6e4, #3a1c1a);
 
   /* The colour of paper in previews — warm, so ink reads as ink. */
   --paper: #f4f1e9;
@@ -58,43 +83,27 @@
   --r-lg: 16px;
   --r-xl: 22px;
 
-  --shadow-1: 0 1px 2px rgb(0 0 0 / .3);
-  --shadow-2: 0 4px 16px -4px rgb(0 0 0 / .45);
-  --shadow-3: 0 18px 50px -12px rgb(0 0 0 / .6);
+  --shadow-1: light-dark(0 1px 2px rgb(20 25 35 / .07), 0 1px 2px rgb(0 0 0 / .3));
+  --shadow-2: light-dark(0 4px 16px -4px rgb(20 25 35 / .12), 0 4px 16px -4px rgb(0 0 0 / .45));
+  --shadow-3: light-dark(0 18px 50px -12px rgb(20 25 35 / .18), 0 18px 50px -12px rgb(0 0 0 / .6));
 
   --wrap: 1180px;
   --ease: cubic-bezier(.22, .68, .36, 1);
 }
 
+/*
+ * Follow the system unless the visitor has explicitly chosen. The :not() is
+ * what makes an explicit choice win over the operating system; without it a
+ * visitor on a light desktop could never select dark.
+ *
+ * The explicit rules come after the media query deliberately — they have the
+ * same specificity, so source order is what settles a tie.
+ */
 @media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f4f5f7;
-    --bg-deep: #eaecef;
-    --surface: #fbfcfd;
-    --surface-2: #f0f2f5;
-    --surface-3: #e6e9ed;
-    --border: #dce0e5;
-    --border-strong: #c4cad2;
-
-    --text: #1c2128;
-    --text-2: #57606a;
-    --text-3: #848d97;
-
-    --accent: #2da44e;
-    --accent-hover: #2c974b;
-    --accent-quiet: #dcf5e3;
-    --accent-fg: #fbfcfd;
-
-    --warn: #9a6700;
-    --warn-quiet: #fbf1d4;
-    --danger: #cf222e;
-    --danger-quiet: #ffe6e4;
-
-    --shadow-1: 0 1px 2px rgb(20 25 35 / .07);
-    --shadow-2: 0 4px 16px -4px rgb(20 25 35 / .12);
-    --shadow-3: 0 18px 50px -12px rgb(20 25 35 / .18);
-  }
+  :root:not([data-theme='dark']) { color-scheme: light; }
 }
+:root[data-theme='light'] { color-scheme: light; }
+:root[data-theme='dark'] { color-scheme: dark; }
 
 /* ── Reset ──────────────────────────────────────────────────────────── */
 
@@ -269,6 +278,223 @@ main { flex: 1; }
 .feature-grid h3 { margin-bottom: .45rem; }
 .feature-grid p { font-size: .93rem; color: var(--text-2); }
 
+/* ── Theme switch ───────────────────────────────────────────────────────
+   Adapted from a Uiverse.io toggle by Galahhad (MIT).
+
+   Changes from the original, beyond re-colouring onto our tokens:
+
+   - The checkbox was `display: none`, which drops it out of the accessibility
+     tree and makes the control unreachable by keyboard. It is now visually
+     hidden but still focusable, with a visible focus ring on the container.
+   - Added a reduced-motion branch. The clouds and stars sweep a long distance
+     on a spring curve, which is exactly the kind of motion that setting exists
+     to suppress.
+   - Stars and clouds were pure white; softened to the warm off-white we use for
+     paper, so the toggle sits in the same light as the rest of the interface.
+   - Sized down from 30px to 13px. At the original size the control was 169px
+     wide and dominated the header.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.theme-switch {
+  --toggle-size: 13px;
+  --container-width: 5.625em;
+  --container-height: 2.5em;
+  --container-radius: 6.25em;
+
+  --container-light-bg: #4b86b4;
+  --container-night-bg: #1b2029;
+  --circle-container-diameter: 3.375em;
+  --sun-moon-diameter: 2.125em;
+  --sun-bg: #e0a938;
+  --moon-bg: #c9ced6;
+  --spot-color: #959db1;
+  --circle-container-offset: calc((var(--circle-container-diameter) - var(--container-height)) / 2 * -1);
+  --stars-color: var(--paper);
+  --clouds-color: #f7f4ec;
+  --back-clouds-color: #a8c4d8;
+  --transition: .5s cubic-bezier(0, -0.02, 0.4, 1.25);
+  --circle-transition: .3s cubic-bezier(0, -0.02, 0.35, 1.17);
+
+  display: inline-flex;
+  flex: none;
+}
+
+.theme-switch, .theme-switch *, .theme-switch *::before, .theme-switch *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-size: var(--toggle-size);
+}
+
+/* Visually hidden, but still in the accessibility tree and still focusable. */
+.theme-switch__checkbox {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.theme-switch__container {
+  width: var(--container-width);
+  height: var(--container-height);
+  background-color: var(--container-light-bg);
+  border-radius: var(--container-radius);
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0em -0.062em 0.062em rgb(0 0 0 / .25), 0em 0.062em 0.125em rgb(255 255 255 / .94);
+  transition: var(--transition);
+  position: relative;
+}
+
+.theme-switch__checkbox:focus-visible + .theme-switch__container {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.theme-switch__container::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  box-shadow: 0em 0.05em 0.187em rgb(0 0 0 / .25) inset, 0em 0.05em 0.187em rgb(0 0 0 / .25) inset;
+  border-radius: var(--container-radius);
+}
+
+.theme-switch__circle-container {
+  width: var(--circle-container-diameter);
+  height: var(--circle-container-diameter);
+  background-color: rgb(255 255 255 / .1);
+  position: absolute;
+  left: var(--circle-container-offset);
+  top: var(--circle-container-offset);
+  border-radius: var(--container-radius);
+  box-shadow:
+    inset 0 0 0 3.375em rgb(255 255 255 / .1),
+    inset 0 0 0 3.375em rgb(255 255 255 / .1),
+    0 0 0 0.625em rgb(255 255 255 / .1),
+    0 0 0 1.25em rgb(255 255 255 / .1);
+  display: flex;
+  transition: var(--circle-transition);
+  pointer-events: none;
+}
+
+.theme-switch__sun-moon-container {
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
+  width: var(--sun-moon-diameter);
+  height: var(--sun-moon-diameter);
+  margin: auto;
+  border-radius: var(--container-radius);
+  background-color: var(--sun-bg);
+  box-shadow: 0.062em 0.062em 0.062em 0em rgb(254 255 239 / .61) inset, 0em -0.062em 0.062em 0em #a1872a inset;
+  filter: drop-shadow(0.062em 0.125em 0.125em rgb(0 0 0 / .25)) drop-shadow(0em 0.062em 0.125em rgb(0 0 0 / .25));
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.theme-switch__moon {
+  transform: translateX(100%);
+  width: 100%;
+  height: 100%;
+  background-color: var(--moon-bg);
+  border-radius: inherit;
+  box-shadow: 0.062em 0.062em 0.062em 0em rgb(254 255 239 / .61) inset, 0em -0.062em 0.062em 0em #969696 inset;
+  transition: var(--transition);
+  position: relative;
+}
+
+.theme-switch__spot {
+  position: absolute;
+  top: 0.75em;
+  left: 0.312em;
+  width: 0.75em;
+  height: 0.75em;
+  border-radius: var(--container-radius);
+  background-color: var(--spot-color);
+  box-shadow: 0em 0.0312em 0.062em rgb(0 0 0 / .25) inset;
+}
+
+.theme-switch__spot:nth-of-type(2) {
+  width: 0.375em;
+  height: 0.375em;
+  top: 0.937em;
+  left: 1.375em;
+}
+
+.theme-switch__spot:nth-last-of-type(3) {
+  width: 0.25em;
+  height: 0.25em;
+  top: 0.312em;
+  left: 0.812em;
+}
+
+.theme-switch__clouds {
+  width: 1.25em;
+  height: 1.25em;
+  background-color: var(--clouds-color);
+  border-radius: var(--container-radius);
+  position: absolute;
+  bottom: -0.625em;
+  left: 0.312em;
+  box-shadow:
+    0.937em 0.312em var(--clouds-color), -0.312em -0.312em var(--back-clouds-color),
+    1.437em 0.375em var(--clouds-color), 0.5em -0.125em var(--back-clouds-color),
+    2.187em 0 var(--clouds-color), 1.25em -0.062em var(--back-clouds-color),
+    2.937em 0.312em var(--clouds-color), 2em -0.312em var(--back-clouds-color),
+    3.625em -0.062em var(--clouds-color), 2.625em 0em var(--back-clouds-color),
+    4.5em -0.312em var(--clouds-color), 3.375em -0.437em var(--back-clouds-color),
+    4.625em -1.75em 0 0.437em var(--clouds-color), 4em -0.625em var(--back-clouds-color),
+    4.125em -2.125em 0 0.437em var(--back-clouds-color);
+  transition: .5s cubic-bezier(0, -0.02, 0.4, 1.25);
+}
+
+.theme-switch__stars-container {
+  position: absolute;
+  color: var(--stars-color);
+  top: -100%;
+  left: 0.312em;
+  width: 2.75em;
+  height: auto;
+  transition: var(--transition);
+}
+
+.theme-switch__stars-container svg { width: 100%; height: auto; display: block; }
+
+/* actions */
+
+.theme-switch__checkbox:checked + .theme-switch__container { background-color: var(--container-night-bg); }
+
+.theme-switch__checkbox:checked + .theme-switch__container .theme-switch__circle-container {
+  left: calc(100% - var(--circle-container-offset) - var(--circle-container-diameter));
+}
+
+.theme-switch__checkbox:checked + .theme-switch__container .theme-switch__circle-container:hover {
+  left: calc(100% - var(--circle-container-offset) - var(--circle-container-diameter) - 0.187em);
+}
+
+.theme-switch__circle-container:hover { left: calc(var(--circle-container-offset) + 0.187em); }
+
+.theme-switch__checkbox:checked + .theme-switch__container .theme-switch__moon { transform: translate(0); }
+.theme-switch__checkbox:checked + .theme-switch__container .theme-switch__clouds { bottom: -4.062em; }
+
+.theme-switch__checkbox:checked + .theme-switch__container .theme-switch__stars-container {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-switch {
+    --transition: 0s;
+    --circle-transition: 0s;
+  }
+  .theme-switch__clouds { transition: none; }
+}
+
 /* ── Landing bands ──────────────────────────────────────────────────── */
 
 .band { padding-block: clamp(3.5rem, 9vw, 6.5rem); border-top: 1px solid var(--border); margin-top: clamp(3.5rem, 9vw, 6rem); }
@@ -322,7 +548,9 @@ main { flex: 1; }
 /* ── Legal ──────────────────────────────────────────────────────────── */
 
 .footer-links { display: flex; flex-wrap: wrap; gap: 1.1rem; margin-top: .6rem; }
-.footer-links a { color: var(--text-3); font-size: .85rem; text-decoration: none; }
+/* --text-3 gave 3.09:1 here. These are small standalone links, not muted
+   supporting copy, so they take the stronger secondary tone. */
+.footer-links a { color: var(--text-2); font-size: .85rem; text-decoration: none; }
 .footer-links a:hover { color: var(--accent); text-decoration: underline; }
 
 .legal-summary {
