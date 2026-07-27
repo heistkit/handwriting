@@ -99,6 +99,7 @@ const state = {
     familyName: 'My Handwriting',
     spacingFactor: 0.3,
     boldStrength: 0.02,
+    strokeWeight: 0,
     italicAngle: 11,
     variantCount: 3,
     straighten: false,
@@ -2444,6 +2445,11 @@ function bindControls() {
   mountSliders();
 
   bind('#ctl-spacing', 'spacing', (v) => `${Math.round(v * 100)}%`);
+  // Whole units of the 1000-unit em, because that is the number a reader can
+  // relate to the preview beside it. Zero reads as "as written" rather than
+  // "0 units", since the whole point of the default is that nothing was added.
+  bind('#ctl-stroke', 'stroke', (v) =>
+    Number(v) === 0 ? 'as written' : `+${(v * 1000).toFixed(0)} units`);
   bind('#ctl-bold', 'bold', (v) => `${(v * 1000).toFixed(0)} units`);
   bind('#ctl-italic', 'italic', (v) => `${v}°`);
   bind('#ctl-variants', 'variants', (v) => (v === '1' ? 'off' : `${v} per letter`));
@@ -2486,6 +2492,7 @@ function mapKey(key) {
   return {
     spacing: 'spacingFactor',
     bold: 'boldStrength',
+    stroke: 'strokeWeight',
     italic: 'italicAngle',
   }[key] ?? key;
 }

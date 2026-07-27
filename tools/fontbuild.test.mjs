@@ -68,7 +68,7 @@ function makeGlyph(ch, { width = 400, height = TARGET_X_HEIGHT, lsb = 60, rsb = 
 
 const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('');
 
-export function run() {
+export async function run() {
   console.log('\nfontbuild.js + gpos.js + sfnt.js');
 
   const glyphs = LETTERS.map((ch, i) =>
@@ -250,6 +250,52 @@ export function run() {
     check('italic sets head.macStyle bit 1', (pi.tables.head.macStyle & 0x02) === 2, `macStyle ${pi.tables.head.macStyle}`);
     check('italic declares its angle in post', pi.tables.post.italicAngle === -11, `${pi.tables.post.italicAngle}`);
     check('italic fsSelection bit 0 set', (pi.tables.os2.fsSelection & 0x01) === 1, `fsSelection ${pi.tables.os2.fsSelection}`);
+  }
+
+  // -- embolden thickens, whichever way the contour was wound ---------------
+  {
+    // The bug this pins: embolden assumed outer contours run counter-clockwise
+    // in font space. They do not — the tracer walks the boundary with y
+    // downward and normalizeGlyph flips y, which reverses winding — so every
+    // offset pointed inward and the function eroded. The Bold style of every
+    // font this app exported was THINNER than its Regular.
+    //
+    // Direction is now taken from the largest contour, so the test runs the
+    // same square both ways round and demands growth from both.
+    const { embolden, boundsOf } = await import('../src/fontbuild.js');
+
+    const square = (ccw) => {
+      const pts = [
+        { x: 100, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 400 }, { x: 100, y: 400 },
+      ];
+      const order = ccw ? pts : [...pts].reverse();
+      const curves = order.map((p, i) => {
+        const q = order[(i + 1) % order.length];
+        return [
+          { ...p },
+          { x: p.x + (q.x - p.x) / 3, y: p.y + (q.y - p.y) / 3 },
+          { x: p.x + (2 * (q.x - p.x)) / 3, y: p.y + (2 * (q.y - p.y)) / 3 },
+          { ...q },
+        ];
+      });
+      return [{ curves }];
+    };
+
+    for (const ccw of [true, false]) {
+      const before = boundsOf(square(ccw));
+      const after = boundsOf(embolden(square(ccw), 20));
+      const grewX = (after.x1 - after.x0) - (before.x1 - before.x0);
+      const grewY = (after.y1 - after.y0) - (before.y1 - before.y0);
+      check(`embolden grows a ${ccw ? 'counter-clockwise' : 'clockwise'} contour`,
+        grewX > 0 && grewY > 0, `width ${grewX.toFixed(1)}, height ${grewY.toFixed(1)}`);
+    }
+
+    // And a negative amount still thins, so the sign keeps its meaning.
+    const thinned = boundsOf(embolden(square(false), -10));
+    const plain = boundsOf(square(false));
+    check('a negative amount still thins',
+      (thinned.x1 - thinned.x0) < (plain.x1 - plain.x0),
+      `${(thinned.x1 - thinned.x0).toFixed(1)} vs ${(plain.x1 - plain.x0).toFixed(1)}`);
   }
 
   return results;

@@ -237,6 +237,7 @@ export function compile(glyphs, settings = {}) {
     familyName = 'My Handwriting',
     spacingFactor = 0.3,
     boldStrength = 0.02,
+    strokeWeight = 0,
     italicAngle = 11,
     variantCount = 3,
     straighten = false,
@@ -263,6 +264,7 @@ export function compile(glyphs, settings = {}) {
   const family = buildFamily(metrics.glyphs, metrics.spacing, metrics.kerning, {
     familyName,
     boldStrength,
+    strokeWeight,
     italicAngle: effectiveItalic,
     variantCount,
     styles,

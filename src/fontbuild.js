@@ -46,6 +46,24 @@ function mapPoints(contours, fn) {
   return contours.map((c) => ({ ...c, curves: c.curves.map((b) => b.map(fn)) }));
 }
 
+/**
+ * Twice the signed area of a contour, from its on-curve points.
+ *
+ * The sign is all that is wanted — which way round it goes — so the control
+ * points are ignored. They can bulge the true area either way but cannot flip
+ * the direction of a closed loop.
+ */
+function signedAreaOfContour(c) {
+  let a = 0;
+  const pts = c.curves.map((b) => b[0]);
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const q = pts[(i + 1) % pts.length];
+    a += p.x * q.y - q.x * p.y;
+  }
+  return a / 2;
+}
+
 export function boundsOf(contours) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const c of contours) {
@@ -64,11 +82,25 @@ export function boundsOf(contours) {
 /**
  * Thicken outlines by displacing every point along the local outward normal.
  *
- * The winding convention does the hard part. Outer contours run
- * counter-clockwise in font space and holes run clockwise, so the single
- * expression `normal = (ty, −tx)` points away from the ink on an outer contour
- * *and* into the ink on a hole — meaning one formula both grows the letter and
- * shrinks its counters, which is exactly what emboldening means.
+ * The winding convention does the hard part. Outer contours and their holes run
+ * in opposite directions, so the single expression `normal = (ty, −tx)` points
+ * away from the ink on one and into the ink on the other — meaning one formula
+ * both grows the letter and shrinks its counters, which is exactly what
+ * emboldening means.
+ *
+ * Which direction is outward is MEASURED, not assumed, and that is the whole
+ * point of the `dir` term below. The comment here used to assert that outer
+ * contours run counter-clockwise in font space. They do not: the tracer walks
+ * the boundary in bitmap space with y increasing downward, normalizeGlyph flips
+ * y to put the baseline at zero, and a flip reverses winding — so an outer
+ * contour arrives here with a signed area of about −23,500, clockwise. Every
+ * offset therefore pointed inward, and `embolden` eroded instead of thickening.
+ *
+ * That is not a subtle defect. It means the Bold style of every font this app
+ * has ever exported is *thinner* than its Regular, which is visible in the
+ * files: on one real export the Bold ink reached 876 units where the Regular
+ * reached 890. Taking the sign from the largest contour costs one pass over the
+ * points and cannot be wrong in the same way twice.
  *
  * Sharp corners can self-intersect slightly at larger weights. That is harmless
  * here: CFF fills by the non-zero winding rule, so overlapping ink of the same
@@ -76,6 +108,15 @@ export function boundsOf(contours) {
  */
 export function embolden(contours, amount) {
   if (!amount) return clone(contours);
+
+  // The largest contour is the outline of the letter; anything else is a
+  // counter inside it. Its winding is what "outward" means for this glyph.
+  const areas = contours.map(signedAreaOfContour);
+  let biggest = 0;
+  for (let i = 1; i < areas.length; i++) {
+    if (Math.abs(areas[i]) > Math.abs(areas[biggest])) biggest = i;
+  }
+  const dir = areas.length && areas[biggest] < 0 ? -1 : 1;
 
   return contours.map((c) => {
     // The control polygon, visited once: p0, c1, c2 of each curve in turn. The
@@ -99,7 +140,10 @@ export function embolden(contours, amount) {
       }
       const len = Math.hypot(tx, ty);
       if (len < 1e-6) return { x: p.x, y: p.y };
-      return { x: p.x + (ty / len) * amount, y: p.y + (-tx / len) * amount };
+      return {
+        x: p.x + dir * (ty / len) * amount,
+        y: p.y + dir * (-tx / len) * amount,
+      };
     });
 
     const curves = [];
@@ -720,6 +764,19 @@ export function buildFamily(glyphs, spacing, kerning, opts = {}) {
     boldStrength = 0.020,
     italicAngle = 11,
     variantCount = 3,
+    // Applied to every style, Regular included, in fractions of the em.
+    //
+    // A photograph loses a little of the stroke on the way in: binarisation has
+    // to put an edge somewhere, and the honest place is the middle of the ramp
+    // between paper and ink, which costs about half a pixel on each side. On a
+    // fine pen at arm's length that is a visible share of the stroke, and the
+    // font comes out thinner than the writing did. There is no way to recover
+    // the difference from the photograph — the evidence is gone — but the
+    // writer can see it, so they get the dial rather than a guess made for them.
+    //
+    // Default 0: whatever else this app does, the untouched setting has to be
+    // exactly the outline that was traced.
+    strokeWeight = 0,
     styles = STYLES,
   } = opts;
 
@@ -730,7 +787,10 @@ export function buildFamily(glyphs, spacing, kerning, opts = {}) {
   for (const style of styles) {
     const resolved = {
       ...style,
-      boldAmount: style.boldAmount * boldStrength * UNITS_PER_EM,
+      // Bold stays a step above Regular rather than being replaced by the
+      // dial: the two are added, so raising the weight thickens the whole
+      // family and keeps the difference between its styles.
+      boldAmount: (style.boldAmount * boldStrength + strokeWeight) * UNITS_PER_EM,
       slantDeg: style.slantDeg * italicAngle,
     };
     const { font, index, order } = buildStyle(defs, resolved, {
