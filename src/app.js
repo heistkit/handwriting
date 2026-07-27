@@ -350,6 +350,11 @@ function renderCaptureList() {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
+      // Hidden because the button beside it is the real control, but it still
+      // needs a name: a file input with none announces as "file, button" with
+      // no clue which of the five sheets it belongs to, and browsers surface
+      // these in their own file-picker chrome regardless of this attribute.
+      input.setAttribute('aria-label', `Photograph of the ${sheet.title} sheet`);
       input.hidden = true;
       input.addEventListener('change', () => {
         if (input.files?.[0]) handleFile(input.files[0], sheet.id);
@@ -1184,13 +1189,104 @@ function openLegal(id) {
 
 const LEGAL_IDS = DOCUMENTS.map((d) => d.id);
 
+/**
+ * Modal open/close, with the page behind made inert.
+ *
+ * Every dialogue already carried `aria-modal="true"`, which tells assistive
+ * technology that the rest of the page is unavailable — and does nothing at all
+ * about Tab. Seventeen controls behind each open dialogue were still reachable
+ * by keyboard, so tabbing out of the Settings panel walked into the page under
+ * it, invisibly, with the overlay still covering everything.
+ *
+ * `inert` is the honest fix rather than a keydown handler that cycles focus
+ * between the first and last elements: it removes the subtree from the tab
+ * order *and* the accessibility tree, so the two agree, and it needs no
+ * knowledge of which descendants happen to be focusable today.
+ *
+ * Focus is returned to whatever opened the dialogue. Without that, closing one
+ * drops focus onto <body> and the next Tab starts again from the top of the
+ * page — which for a keyboard user means losing their place every time they
+ * look something up.
+ */
+const INERT_WHILE_OPEN = ['.topbar', 'main', '.footer', '.skip'];
+
+/**
+ * Which dialogues are open, innermost last.
+ *
+ * A stack rather than a boolean because they nest: the Privacy link inside
+ * Settings opens the legal sheet on top of it. With only "is anything open?"
+ * to go on, the outer dialogue stayed tabbable underneath the inner one — two
+ * dialogues in the tab order at once, which is the same defect as the page
+ * being reachable, one level in.
+ */
+const modalStack = [];
+
+/** Whatever had focus before the outermost dialogue opened. */
+let returnFocusTo = null;
+
+/**
+ * Inert everything except the innermost open dialogue.
+ *
+ * `inert` rather than a keydown handler that cycles focus between the first and
+ * last focusable child: it takes the subtree out of the tab order *and* the
+ * accessibility tree, so the two agree, and it needs no knowledge of which
+ * descendants happen to be focusable today. Every dialogue already claimed
+ * `aria-modal="true"`, which says the rest of the page is unavailable and does
+ * nothing whatsoever about Tab.
+ */
+function applyInert() {
+  const top = modalStack[modalStack.length - 1] ?? null;
+
+  for (const sel of INERT_WHILE_OPEN) {
+    const el = $(sel);
+    if (!el) continue;
+    el.toggleAttribute('inert', Boolean(top));
+  }
+  for (const m of $$('.sheet-modal')) {
+    m.toggleAttribute('inert', m !== top);
+  }
+}
+
+/** The innermost open dialogue, or null. */
+const topModal = () => modalStack[modalStack.length - 1] ?? null;
+
+/** The innermost open dialogue that owns an address, or null. */
+const topRoutedModal = () =>
+  [...modalStack].reverse().find((m) => ['guide', 'legal', 'settings'].includes(m.id)) ?? null;
+
 function openModal(sel) {
   const el = $(sel);
+  if (!el || !el.hidden) return;
+  // Only the outermost open records the opener. An inner dialogue that recorded
+  // it would send focus, on close, to a control inside a dialogue that is still
+  // covered by nothing — but the outer one is what the reader came from.
+  if (!modalStack.length) returnFocusTo = document.activeElement;
   el.hidden = false;
+  modalStack.push(el);
+  applyInert();
   el.querySelector('.btn-icon')?.focus();
 }
+
 function closeModal(sel) {
-  $(sel).hidden = true;
+  const el = $(sel);
+  if (!el || el.hidden) return;
+  el.hidden = true;
+
+  const at = modalStack.indexOf(el);
+  if (at >= 0) modalStack.splice(at, 1);
+  applyInert();
+
+  if (modalStack.length) {
+    // Back to the dialogue underneath, not to the page.
+    modalStack[modalStack.length - 1].querySelector('.btn-icon')?.focus();
+    return;
+  }
+
+  // isConnected guards the case where the opener sat inside something since
+  // re-rendered — focusing a detached node silently does nothing, and leaves
+  // focus on <body> so the next Tab restarts from the top of the page.
+  if (returnFocusTo?.isConnected) returnFocusTo.focus();
+  returnFocusTo = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1588,13 +1684,17 @@ function init() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    // The two unrouted ones first: they hold unsaved input and own no address.
-    closeModal('#draw-modal');
-    closeModal('#feedback');
-    closeModal('#leaving');
-    const routed = ['#guide', '#legal', '#settings'].filter((s) => !$(s).hidden);
-    routed.forEach(closeModal);
-    if (routed.length) writeRoute({ step: state.step });
+    // One layer at a time. Dismissing the legal sheet that was opened *from*
+    // Settings should not also throw Settings away — Escape means "back out of
+    // this", not "close everything".
+    const top = topModal();
+    if (!top) return;
+    closeModal(`#${top.id}`);
+    // The address follows only if the thing just closed owned one, and only
+    // once nothing routed is left underneath it.
+    if (['guide', 'legal', 'settings'].includes(top.id) && !topRoutedModal()) {
+      writeRoute({ step: state.step });
+    }
   });
 
   $$('.sheet-modal').forEach((m) =>

@@ -2396,6 +2396,13 @@ input[type=range]:focus-visible {
   clip-path: inset(50%); white-space: nowrap;
 }
 
+.field-hint {
+  margin-top: .5rem;
+  font-size: .87rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .arcloader circle { animation: none; }
   .arcloader .front { stroke-dashoffset: 0; }

@@ -142,6 +142,11 @@
         </p>
       </div>
 
+      <!-- The four claims are h3s, which left the outline jumping straight from
+           the page title to level three. The heading that fixes it has nowhere
+           to go visually — the cards are the design — so it is announced and
+           not shown. -->
+      <h2 class="sr-only">What it does</h2>
       <ul class="feature-grid">
         <li>
           <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-type"/></svg>
@@ -405,8 +410,13 @@
 
         <aside class="controls">
           <div class="card">
-            <h3>Font name</h3>
-            <input type="text" id="family-name" class="input" value="My Handwriting" maxlength="40">
+            <h3 id="family-name-heading">Font name</h3>
+            <input type="text" id="family-name" class="input" value="My Handwriting" maxlength="40"
+                   aria-labelledby="family-name-heading"
+                   aria-describedby="family-name-hint">
+            <p class="field-hint" id="family-name-hint">
+              What the font is called once it is installed. All four styles share it.
+            </p>
           </div>
 
           <div class="card">
