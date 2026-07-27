@@ -19,6 +19,8 @@
  * the extraction helper be unit-tested with no DOM at all.
  */
 
+import { token, onPaletteChange } from './paint.js';
+
 const SCALE = 3;          // backing raster resolution, per the field spec
 const PAD = 2;            // transparent border around the ink, matching extractGlyph
 const INK_THRESHOLD = 0.5;
@@ -169,10 +171,16 @@ export function createDrawPad(mount, opts = {}) {
 
   const penWidth = Math.max(2.2, H * 0.012);
 
-  const ink = getVar('--text', '#e4e9ef');
-  const guideColor = getVar('--border-strong', '#3a424c');
-  const lineColor = getVar('--accent', '#3fb950');
-  const ghostColor = getVar('--text-3', '#757d88');
+  // Resolved through a probe element, not read off the custom property. The
+  // tokens are written with light-dark(), and getPropertyValue hands back the
+  // unresolved token stream — which a canvas rejects, silently, leaving every
+  // one of these black. See src/paint.js.
+  //
+  // Mutable, because the visitor can change the theme with the pad open.
+  let ink = token('--text', '#e4e9ef');
+  let guideColor = token('--border-strong', '#3a424c');
+  let lineColor = token('--accent', '#3fb950');
+  let ghostColor = token('--text-3', '#8a929c');
 
   // -- DOM ------------------------------------------------------------------
   const wrap = document.createElement('div');
@@ -271,7 +279,9 @@ export function createDrawPad(mount, opts = {}) {
     // The character being drawn, large and pale, so the writer knows the target.
     gctx.save();
     gctx.fillStyle = ghostColor;
-    gctx.globalAlpha = 0.16;
+    // 0.16 was tuned against a colour that was accidentally black; against the
+    // real quiet grey it left the target letter invisible, which defeats it.
+    gctx.globalAlpha = 0.3;
     gctx.textAlign = 'center';
     gctx.textBaseline = 'alphabetic';
     gctx.font = `${Math.round((yBase - yX) * 1.9)}px ui-sans-serif, system-ui, sans-serif`;
@@ -304,6 +314,17 @@ export function createDrawPad(mount, opts = {}) {
     ictx.lineCap = 'round';
     for (const stroke of strokes) strokeOnScreen(ictx, stroke, penWidth);
   }
+
+  // The theme can change while the pad is open — the switch is two clicks away
+  // in the header — and the canvas is a bitmap, so nothing repaints itself.
+  const stopWatchingPalette = onPaletteChange(() => {
+    ink = token('--text', '#e4e9ef');
+    guideColor = token('--border-strong', '#3a424c');
+    lineColor = token('--accent', '#3fb950');
+    ghostColor = token('--text-3', '#8a929c');
+    drawGuides();
+    redrawInk();
+  });
 
   // -- Actions --------------------------------------------------------------
   function undo() {
@@ -351,6 +372,7 @@ export function createDrawPad(mount, opts = {}) {
     inkCanvas.removeEventListener('pointerup', onPointerUp);
     inkCanvas.removeEventListener('pointercancel', onPointerUp);
     document.removeEventListener('keydown', onKeyDown);
+    stopWatchingPalette();
     wrap.remove();
   }
 
@@ -487,11 +509,3 @@ function iconSvg(id) {
   return svg;
 }
 
-function getVar(name, fallback) {
-  try {
-    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return v || fallback;
-  } catch {
-    return fallback;
-  }
-}

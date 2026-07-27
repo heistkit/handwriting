@@ -29,6 +29,15 @@
        the reader's eye. */
     if (localStorage.getItem('handwrite.textsize') === 'large')
       document.documentElement.dataset.textsize = 'large';
+
+    /* Decoration switches. Only the "off" answer is written, so a storage
+       that cannot be read leaves the defaults on — and the specimen in the
+       hero starts drawing on the first frame rather than after a module
+       has loaded and told it whether it is allowed to. */
+    if (localStorage.getItem('handwrite.fold') === 'off')
+      document.documentElement.dataset.fold = 'off';
+    if (localStorage.getItem('handwrite.decor') === 'off')
+      document.documentElement.dataset.decor = 'off';
   } catch (e) { /* private mode: fall back to the system preference */ }
 </script>
 <link rel="stylesheet" href="styles.css">
@@ -71,7 +80,15 @@
   <div class="wrap topbar-inner">
     <button class="brand" id="brand-home" type="button" aria-label="Handwrite — back to the start">
       <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pen"/></svg>
-      <span class="brand-name">Handwrite</span>
+      <span class="brand-word">
+        <span class="brand-name">Handwrite</span>
+        <!-- The pen draws this and rubs it out again, one per press. Purely a
+             flourish: the button's job is still to go back to the start, and
+             nothing here reports state. -->
+        <svg class="brand-trace" viewBox="0 0 120 10" preserveAspectRatio="none" aria-hidden="true">
+          <path pathLength="1" d="M2 6.5C17 2.6 32 8.6 47 5.2 62 1.8 77 7.8 93 4.4c9-1.9 18 1.4 25 .6"/>
+        </svg>
+      </span>
     </button>
 
     <nav class="steps" id="steps" aria-label="Progress">
@@ -116,6 +133,7 @@
   <!-- ── Step: Start ─────────────────────────────────────────────────── -->
   <section class="step is-active" data-step="start">
     <div class="wrap">
+     <div class="hero-row">
       <div class="hero">
         <p class="eyebrow">Your handwriting, as a real font</p>
         <h1>Write it once.<br>Type it forever.</h1>
@@ -142,6 +160,105 @@
           and this page works with the network switched off.
         </p>
       </div>
+
+      <!-- The specimen.
+
+           It draws itself once on load and then stops: ruled sheet, then the
+           letters written stroke by stroke, then the capture brackets, a scan,
+           and finally the outline nodes — which is the app's whole sequence in
+           one picture.
+
+           No script. Pure CSS on inline SVG, with pathLength="1" on every
+           stroke so one dashoffset rule drives paths of wildly different
+           lengths. A visitor with modules blocked still gets the finished
+           drawing, because the settled state is the element's base state and
+           the animation only reverses out of it.
+
+           The letters are hand-authored artwork, not tracer output, and the
+           caption says so. The real thing runs on the visitor's own ink in the
+           band below, and a picture that quietly implied otherwise would be
+           undercutting the one claim this page has to make. -->
+      <figure class="spec">
+        <div class="spec__sheet">
+          <svg class="spec__page" viewBox="0 26 500 260" aria-hidden="true" focusable="false">
+            <g class="spec__rules">
+              <path class="spec__rule spec__rule--faint" style="--i:0" pathLength="1" d="M28 96H472"/>
+              <path class="spec__rule spec__rule--faint" style="--i:1" pathLength="1" d="M28 136H472"/>
+              <path class="spec__rule spec__rule--base"  style="--i:2" pathLength="1" d="M28 196H472"/>
+              <path class="spec__rule spec__rule--faint" style="--i:3" pathLength="1" d="M28 240H472"/>
+            </g>
+
+            <!-- Each letter is its own group with a degree or so of rotation and
+                 its nodes inside it, so the nodes rotate with the ink instead of
+                 sitting a pixel and a half off it. The rotations are what keeps
+                 this from reading as a typeface: real writing does not sit
+                 square on the line. -->
+            <g class="spec__ink">
+              <g class="spec__letter" transform="rotate(-1.4 84 180)" style="--sw:7.9">
+                <path class="spec__stroke" style="--i:0" pathLength="1" d="M115 150C107 137 87 132 72 141C55 151 52 173 65 185C78 197 100 193 111 180"/>
+                <path class="spec__stroke" style="--i:1" pathLength="1" d="M117 140C117 172 119 206 115 226C111 246 88 252 70 244C61 240 56 233 55 226"/>
+                <circle class="spec__node" style="--i:0" cx="115" cy="150" r="4.5"/>
+                <circle class="spec__node" style="--i:1" cx="72" cy="141" r="4.5"/>
+                <circle class="spec__node" style="--i:2" cx="65" cy="185" r="4.5"/>
+                <circle class="spec__node" style="--i:3" cx="111" cy="180" r="4.5"/>
+                <circle class="spec__node" style="--i:4" cx="117" cy="140" r="4.5"/>
+                <circle class="spec__node" style="--i:5" cx="115" cy="226" r="4.5"/>
+                <circle class="spec__node" style="--i:6" cx="70" cy="244" r="4.5"/>
+                <circle class="spec__node" style="--i:7" cx="55" cy="226" r="4.5"/>
+              </g>
+              <g class="spec__letter" transform="rotate(1.1 160 170)" style="--sw:7.1">
+                <path class="spec__stroke" style="--i:2" pathLength="1" d="M142 138C141 160 139 180 141 196"/>
+                <path class="spec__stroke" style="--i:3" pathLength="1" d="M141 154C148 140 165 132 182 138"/>
+                <circle class="spec__node" style="--i:8" cx="142" cy="138" r="4.5"/>
+                <circle class="spec__node" style="--i:9" cx="141" cy="196" r="4.5"/>
+                <circle class="spec__node" style="--i:10" cx="182" cy="138" r="4.5"/>
+              </g>
+              <g class="spec__letter" transform="rotate(-0.8 236 170)" style="--sw:8.1">
+                <path class="spec__stroke" style="--i:4" pathLength="1" d="M266 148C258 136 236 132 222 141C206 151 204 173 217 185C230 197 252 192 263 180"/>
+                <path class="spec__stroke" style="--i:5" pathLength="1" d="M268 140C267 164 265 182 269 196"/>
+                <circle class="spec__node" style="--i:11" cx="266" cy="148" r="4.5"/>
+                <circle class="spec__node" style="--i:12" cx="222" cy="141" r="4.5"/>
+                <circle class="spec__node" style="--i:13" cx="217" cy="185" r="4.5"/>
+                <circle class="spec__node" style="--i:14" cx="263" cy="180" r="4.5"/>
+                <circle class="spec__node" style="--i:15" cx="268" cy="140" r="4.5"/>
+                <circle class="spec__node" style="--i:16" cx="269" cy="196" r="4.5"/>
+              </g>
+              <g class="spec__letter" transform="rotate(1.6 320 180)" style="--sw:7.3">
+                <path class="spec__stroke" style="--i:6" pathLength="1" d="M296 138C293 168 292 206 289 240"/>
+                <path class="spec__stroke" style="--i:7" pathLength="1" d="M295 152C304 138 326 133 340 143C354 153 355 176 341 186C327 196 305 192 296 180"/>
+                <circle class="spec__node" style="--i:17" cx="296" cy="138" r="4.5"/>
+                <circle class="spec__node" style="--i:18" cx="289" cy="240" r="4.5"/>
+                <circle class="spec__node" style="--i:19" cx="340" cy="143" r="4.5"/>
+                <circle class="spec__node" style="--i:20" cx="341" cy="186" r="4.5"/>
+                <circle class="spec__node" style="--i:21" cx="296" cy="180" r="4.5"/>
+              </g>
+              <g class="spec__letter" transform="rotate(-1.1 404 160)" style="--sw:7.6">
+                <path class="spec__stroke" style="--i:8" pathLength="1" d="M380 98C378 136 376 170 378 196"/>
+                <path class="spec__stroke" style="--i:9" pathLength="1" d="M378 152C386 137 407 130 421 140C432 148 432 168 431 182C430 190 431 193 431 196"/>
+                <circle class="spec__node" style="--i:22" cx="380" cy="98" r="4.5"/>
+                <circle class="spec__node" style="--i:23" cx="378" cy="196" r="4.5"/>
+                <circle class="spec__node" style="--i:24" cx="378" cy="152" r="4.5"/>
+                <circle class="spec__node" style="--i:25" cx="421" cy="140" r="4.5"/>
+                <circle class="spec__node" style="--i:26" cx="431" cy="182" r="4.5"/>
+                <circle class="spec__node" style="--i:27" cx="431" cy="196" r="4.5"/>
+              </g>
+            </g>
+
+            <g class="spec__frame">
+              <path style="--i:0" pathLength="1" d="M14 78V40h38"/>
+              <path style="--i:1" pathLength="1" d="M448 40h38v38"/>
+              <path style="--i:2" pathLength="1" d="M486 234v38h-38"/>
+              <path style="--i:3" pathLength="1" d="M52 272H14v-38"/>
+            </g>
+          </svg>
+          <span class="spec__scan" aria-hidden="true"></span>
+        </div>
+        <figcaption class="spec__cap">
+          Ink in, outlines out. This one is drawn — the real tracer runs on your own
+          letter a little further down.
+        </figcaption>
+      </figure>
+     </div>
 
       <!-- The four claims are h3s, which left the outline jumping straight from
            the page title to level three. The heading that fixes it has nowhere
@@ -727,40 +844,73 @@
       </button>
     </header>
     <div class="modal-body">
-      <div class="setting">
-        <label class="setting-text" for="set-theme">
-          <b>Dark theme</b>
-          <span>Off follows your system. The sun and moon in the header does the same thing.</span>
-        </label>
-        <span class="switch">
-          <input type="checkbox" id="set-theme">
-          <span class="switch__track" aria-hidden="true"></span>
-        </span>
-      </div>
+      <details class="setgroup" open>
+        <summary><span>Appearance</span></summary>
+        <div class="setting">
+          <label class="setting-text" for="set-theme">
+            <b>Dark theme</b>
+            <span>Off follows your system. The sun and moon in the header does the same thing.</span>
+          </label>
+          <span class="switch">
+            <input type="checkbox" id="set-theme">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </div>
 
-      <div class="setting">
-        <label class="setting-text" for="set-textsize">
-          <b>Larger text</b>
-          <span>Grows the type, the spacing and the buttons together, by about a fifth.</span>
-        </label>
-        <span class="switch">
-          <input type="checkbox" id="set-textsize">
-          <span class="switch__track" aria-hidden="true"></span>
-        </span>
-      </div>
+        <div class="setting">
+          <label class="setting-text" for="set-textsize">
+            <b>Larger text</b>
+            <span>Grows the type, the spacing and the buttons together, by about a fifth.</span>
+          </label>
+          <span class="switch">
+            <input type="checkbox" id="set-textsize">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </div>
+      </details>
 
-      <div class="setting">
-        <label class="setting-text" for="set-lite">
-          <b>Lite mode</b>
-          <span>Drops the blurs, glows and animation. Useful on an older phone, which is
-            already working hard on your photographs. It does not change the font it makes —
-            tracing precision, variants and spacing are identical either way.</span>
-        </label>
-        <span class="switch">
-          <input type="checkbox" id="set-lite">
-          <span class="switch__track" aria-hidden="true"></span>
-        </span>
-      </div>
+      <details class="setgroup" open>
+        <summary><span>Movement</span></summary>
+
+        <div class="setting">
+          <label class="setting-text" for="set-fold">
+            <b>Folding panels</b>
+            <span>Answers, groups and dialogs unfold rather than appear. Turn this off if the
+              page feels busy — nothing is hidden either way, it just stops moving.</span>
+          </label>
+          <span class="switch">
+            <input type="checkbox" id="set-fold">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </div>
+
+        <div class="setting">
+          <label class="setting-text" for="set-decor">
+            <b>Ambient drawing</b>
+            <span>The sheet of handwriting on the front page that writes itself, the trace under
+              the logo, and the padlock that shuts. Decoration only — no information is carried
+              by any of it.</span>
+          </label>
+          <span class="switch">
+            <input type="checkbox" id="set-decor">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </div>
+
+        <div class="setting">
+          <label class="setting-text" for="set-lite">
+            <b>Lite mode</b>
+            <span>Drops the blurs, glows and animation — everything above, and the expensive
+              parts the two switches above leave alone. Useful on an older phone, which is
+              already working hard on your photographs. It does not change the font it makes —
+              tracing precision, variants and spacing are identical either way.</span>
+          </label>
+          <span class="switch">
+            <input type="checkbox" id="set-lite">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </div>
+      </details>
 
       <p class="privacy" style="margin-top:1.5rem">
         <svg class="locklock" viewBox="0 0 24 24" aria-hidden="true"><rect class="locklock__body" x="4" y="10" width="16" height="11" rx="2"/><path class="locklock__shackle" d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>

@@ -24,8 +24,19 @@
 
 /** Selectors that get the treatment. Broad on purpose: "basically everything". */
 const TARGETS = [
-  '.band > .wrap > *',
+  // '.band > .wrap > *' used to be here, and matched nothing at all: the
+  // landing markup is .step > .wrap > .band, so the wrap is the band's
+  // ancestor, not its child. Every band on the front page — the demo, the four
+  // steps, the four detail articles, the questions — arrived with no animation
+  // whatever while the selector sat there looking like it covered them.
+  '.band-head > *',
   '.hero > *',
+  '.feature-grid li',
+  '.how-list li',
+  '.detail-grid article',
+  '.faq-item',
+  '.cta > *',
+  '.demo-mount',
   '.step-head',
   '.card',
   '.paper',

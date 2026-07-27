@@ -35,6 +35,8 @@ import {
 } from './lite.js';
 import { bindToggle as bindTextSize } from './textsize.js';
 import { observe as observeReveal, showAll as revealAll } from './reveal.js';
+import { enhance as enhanceFolds } from './fold.js';
+import { init as initFlourish, bindToggle as bindFlourish } from './flourish.js';
 import { read as readRoute, write as writeRoute } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
@@ -44,6 +46,23 @@ import { buildIndex, search as searchDocs, terms as searchTerms, highlight } fro
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+/**
+ * Number a freshly built list so its rows unfold one after another rather than
+ * all at once. Read by the `--fold-i` delay in styles.css.
+ *
+ * Capped, because past a dozen the stagger stops reading as sequence and starts
+ * reading as lag — a 120-glyph review grid would otherwise take four seconds to
+ * finish arriving, and the last row would be waiting on nothing but arithmetic.
+ */
+function stagger(container, cap = 11) {
+  if (!container) return;
+  let i = 0;
+  for (const el of container.children) {
+    el.style.setProperty('--fold-i', String(Math.min(i, cap)));
+    i += 1;
+  }
+}
 
 /** Internal family name for live preview, kept stable while the user renames. */
 const PREVIEW_FAMILY = 'HandwriteLivePreview';
@@ -539,6 +558,7 @@ function renderReview() {
       return cell;
     })
   );
+  stagger(grid);
 }
 
 function stat(value, label, cls = '') {
@@ -748,6 +768,7 @@ function renderHealth() {
     }
     list.append(li);
   }
+  stagger(list);
   card.append(list);
 }
 
@@ -807,6 +828,7 @@ function renderExport() {
       return b;
     })
   );
+  stagger($('#dl-individual'));
 
   const summary = $('#font-summary');
   summary.replaceChildren();
@@ -951,7 +973,8 @@ function guideFooter(query = '') {
 
 /** The whole guide, as shown when the search box is empty. */
 function renderLessons() {
-  $('#guide-body').replaceChildren(
+  const body = $('#guide-body');
+  body.replaceChildren(
     ...docLessons.map((lesson) => {
       const sec = document.createElement('section');
       sec.className = 'lesson';
@@ -976,6 +999,7 @@ function renderLessons() {
       return sec;
     })
   );
+  stagger($('#guide-body'));
   $('#guide-body').append(guideFooter());
   $('#doc-count').textContent = '';
 }
@@ -1028,6 +1052,7 @@ function renderResults(query) {
       return sec;
     })
   );
+  stagger(body);
   body.append(guideFooter(query));
 }
 
@@ -1186,9 +1211,13 @@ async function renderFAQ() {
       const p = document.createElement('p');
       p.textContent = item.a;
       d.append(s, p);
+      d.style.setProperty('--fold-i', String(Math.min(i, 8)));
       return d;
     })
   );
+  // Built after init() ran, so they were never wired.
+  enhanceFolds($('#faq-list'));
+  observeReveal($('#faq-list'));
 }
 
 /**
@@ -1568,6 +1597,24 @@ function init() {
   $('#set-lite').addEventListener('change', afterLite);
 
   bindTextSize($('#set-textsize'));
+
+  // The two decoration switches. Already applied pre-paint by the inline script
+  // in <head>; this call only normalises the case where storage was unreadable
+  // then and readable now, which costs nothing and keeps one source of truth.
+  initFlourish();
+  bindFlourish('fold', $('#set-fold'));
+  bindFlourish('decor', $('#set-decor'));
+
+  // Every <details> in the document, plus anything rendered later — renderFAQ,
+  // the guide and the health report each call this again for their own subtree.
+  enhanceFolds();
+
+  // The brand writes a line under itself, and rubs it out on the next press.
+  // Bound before the navigation handler below so a press does both.
+  const brand = $('#brand-home');
+  brand.addEventListener('click', () => {
+    brand.dataset.writing = brand.dataset.writing === 'on' ? 'off' : 'on';
+  });
 
   // Called straight out rather than from requestAnimationFrame. reveal.js reads
   // getBoundingClientRect, which forces layout itself, so there is nothing to
