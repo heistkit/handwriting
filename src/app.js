@@ -712,6 +712,27 @@ async function loadDocs() {
   });
 }
 
+/** Closing note offering a way out when the docs do not have the answer. */
+function guideFooter(query = '') {
+  const foot = document.createElement('div');
+  foot.className = 'guide-foot';
+
+  const p = document.createElement('p');
+  p.textContent = query
+    ? 'Not what you were after?'
+    : 'Something here unclear, or missing entirely?';
+
+  const btn = document.createElement('button');
+  btn.className = 'btn';
+  btn.type = 'button';
+  btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg>';
+  btn.append(Object.assign(document.createElement('span'), { textContent: 'Send feedback' }));
+  btn.addEventListener('click', () => feedbackFromGuide(query));
+
+  foot.append(p, btn);
+  return foot;
+}
+
 /** The whole guide, as shown when the search box is empty. */
 function renderLessons() {
   $('#guide-body').replaceChildren(
@@ -739,6 +760,7 @@ function renderLessons() {
       return sec;
     })
   );
+  $('#guide-body').append(guideFooter());
   $('#doc-count').textContent = '';
 }
 
@@ -756,7 +778,15 @@ function renderResults(query) {
     strong.textContent = `Nothing matches “${query.trim()}”`;
     const p = document.createElement('p');
     p.textContent = 'Try a single word — “lighting”, “pen”, “windows”, “spacing”.';
-    empty.append(strong, p);
+
+    const ask = document.createElement('button');
+    ask.className = 'btn';
+    ask.type = 'button';
+    ask.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg>';
+    ask.append(Object.assign(document.createElement('span'), { textContent: 'Ask about this' }));
+    ask.addEventListener('click', () => feedbackFromGuide(query));
+
+    empty.append(strong, p, ask);
     body.replaceChildren(empty);
     return;
   }
@@ -782,6 +812,7 @@ function renderResults(query) {
       return sec;
     })
   );
+  body.append(guideFooter(query));
 }
 
 function runDocSearch() {
@@ -856,10 +887,59 @@ function buildDiagnostics() {
   return lines.join('\n');
 }
 
-function openFeedback() {
+/**
+ * The last text we put in the box ourselves.
+ *
+ * This is what separates "a draft the user is writing" from "a leftover we
+ * generated". Without it, seeding the box once means every later visit opens
+ * showing a search the user made ten minutes ago — while unconditionally
+ * clearing it would throw away half-written reports.
+ */
+let lastAutofill = null;
+
+/**
+ * @param {string|null} [prefill] seed text, or null to leave the box alone
+ */
+function openFeedback(prefill = null) {
+  // Guard the seam anyway: this is one stray `addEventListener('click',
+  // openFeedback)` away from writing "[object PointerEvent]" into the box.
+  if (typeof prefill !== 'string') prefill = null;
+
   $('#fb-diagnostics').textContent = buildDiagnostics();
+  const text = $('#fb-text');
+  const ours = text.value === '' || text.value === lastAutofill;
+
+  if (prefill !== null && ours) {
+    text.value = prefill;
+    lastAutofill = prefill;
+  } else if (prefill === null && ours && lastAutofill !== null) {
+    text.value = '';
+    lastAutofill = null;
+  }
+  // Anything the user actually typed survives either branch.
+
   openModal('#feedback');
-  $('#fb-text').focus();
+  text.focus();
+  // Caret at the end, so a prefill reads as a starting point rather than
+  // something to clear before typing.
+  text.setSelectionRange(text.value.length, text.value.length);
+}
+
+/**
+ * Open feedback from inside the guide.
+ *
+ * A search that returns nothing is the most useful signal a help page can
+ * produce — it is a user telling you, in their own words, what the docs do not
+ * cover. Seeding the report with the failed query captures that wording before
+ * they rephrase it into something the docs already answer.
+ */
+function feedbackFromGuide(failedQuery = '') {
+  closeModal('#guide');
+  openFeedback(
+    failedQuery.trim()
+      ? `I searched the guide for "${failedQuery.trim()}" and did not find an answer.\n\nWhat I was trying to do:\n`
+      : ''
+  );
 }
 
 function feedbackReport() {
@@ -1122,7 +1202,9 @@ function init() {
   $('#dl-zip').addEventListener('click', downloadZip);
   $('#start-over').addEventListener('click', () => location.reload());
 
-  $('#open-feedback').addEventListener('click', openFeedback);
+  // Wrapped, not passed by reference: addEventListener hands the listener the
+  // event, which would arrive as the prefill argument.
+  $('#open-feedback').addEventListener('click', () => openFeedback());
   $('#close-feedback').addEventListener('click', () => closeModal('#feedback'));
 
   $('#fb-github').addEventListener('click', () => {

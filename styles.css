@@ -697,8 +697,21 @@ main { flex: 1; }
   padding: 0 .1em;
 }
 
-.doc-empty { padding: 2.5rem 0; text-align: center; color: var(--text-2); }
+.doc-empty { padding: 2.5rem 0 2rem; text-align: center; color: var(--text-2); }
 .doc-empty strong { color: var(--text); display: block; margin-bottom: .35rem; }
+.doc-empty .btn { margin-top: 1.25rem; }
+
+.guide-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2.25rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.guide-foot p { color: var(--text-2); font-size: .93rem; }
 
 /* ── Landing bands ──────────────────────────────────────────────────── */
 
