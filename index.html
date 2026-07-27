@@ -789,6 +789,22 @@
 
 <!-- Minified build for the browser; the readable one stays in vendor/ for the
      Node test suite, which requires it directly. -->
+<!-- Runs only in a browser with no ES module support, which is the browser
+     telling us rather than us inferring it from a flag that a content-security
+     policy could just as easily have suppressed. Deliberately ES5. -->
+<script nomodule>
+  document.documentElement.className += ' bgate-open';
+  document.write(
+    '<div class="bgate" role="alertdialog" aria-labelledby="bgate-nomod">' +
+      '<div class="bgate__panel">' +
+        '<h1 class="bgate__title" id="bgate-nomod">This browser is too old to run Handwrite</h1>' +
+        '<p class="bgate__lede">It does not support JavaScript modules, which every part of this app is written as. There is no version of the page that would work here.</p>' +
+        '<p class="bgate__advice">Any browser from 2018 onward has them. Updating is the whole fix.</p>' +
+      '</div>' +
+    '</div>'
+  );
+</script>
+
 <script src="vendor/opentype.min.js"></script>
 <script type="module" src="src/app.js"></script>
 </body>

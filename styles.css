@@ -941,6 +941,86 @@ main { flex: 1; }
   .contbtn:active:not(:disabled) { transform: none; }
 }
 
+/* ── Browser gate ───────────────────────────────────────────────────────
+   Shown when a capability the app has no fallback for is missing. See
+   src/browsergate.js for why it is a warning with a door rather than a wall.
+
+   Every colour here is stated twice: once from the tokens, and once as a
+   literal inside @supports not (color: light-dark(...)). The whole reason this
+   panel might be on screen is that light-dark() did not parse — in which case
+   every token in :root is invalid at computed-value time, and a panel styled
+   from them would render as unstyled text on a default background, or worse,
+   the same colour as it. The literals are the light palette's values, because
+   an unstyled page renders on white.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.bgate {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+/* The page behind keeps rendering — the app still initialises — so it must not
+   scroll under a panel that covers it. */
+:root.bgate-open, :root.bgate-open body { overflow: hidden; }
+
+.bgate__panel {
+  max-width: 34rem;
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+}
+
+.bgate__title { font-size: clamp(1.5rem, 4vw, 2rem); margin-bottom: .9rem; }
+.bgate__lede { color: var(--text-2); margin-bottom: 1.25rem; }
+
+.bgate__list { list-style: none; padding: 0; margin: 0 0 1.5rem; display: grid; gap: 1rem; }
+.bgate__list li {
+  padding: .9rem 1.1rem;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  border-left: 3px solid var(--warn);
+}
+.bgate__list b { display: block; margin-bottom: .25rem; }
+.bgate__list p { color: var(--text-2); font-size: .93rem; line-height: 1.5; }
+
+.bgate__advice { color: var(--text-2); font-size: .95rem; line-height: 1.6; }
+.bgate__actions { margin-top: 1.5rem; }
+
+/* Restated rather than reusing .btn, for the same reason the colours are
+   restated: .btn's own background is a token. */
+.bgate__go {
+  padding: .7rem 1.4rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bgate__go:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.bgate__go:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.bgate__note { margin-top: .9rem; color: var(--text-3); font-size: .87rem; }
+
+@supports not (color: light-dark(#000, #fff)) {
+  .bgate { background: #f4f5f7; color: #1c2128; }
+  .bgate__panel { background: #fbfcfd; border: 1px solid #dce0e5; border-radius: 16px; }
+  .bgate__lede, .bgate__advice, .bgate__list p { color: #57606a; }
+  .bgate__list li { background: #f0f2f5; border-left: 3px solid #9a6700; border-radius: 10px; }
+  .bgate__go { background: #1a7f37; border: 1px solid #1a7f37; color: #fbfcfd; border-radius: 10px; }
+  .bgate__go:hover { background: #15682d; border-color: #15682d; }
+  .bgate__note { color: #656d76; }
+}
+
 /* ── Landing demo ───────────────────────────────────────────────────────
    The one thing on the landing page a visitor can actually do. See src/demo.js
    for why it draws the real tracer rather than a canned example.

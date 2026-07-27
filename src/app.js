@@ -36,6 +36,7 @@ import {
 import { bindToggle as bindTextSize } from './textsize.js';
 import { observe as observeReveal, showAll as revealAll } from './reveal.js';
 import { read as readRoute, write as writeRoute } from './routes.js';
+import { run as runBrowserGate } from './browsergate.js';
 import { intercept as interceptExternal, describe as describeUrl } from './leaving.js';
 import { profile, createEstimator, describeEta, slowDeviceNote } from './eta.js';
 import { buildIndex, search as searchDocs, terms as searchTerms, highlight } from './docsearch.js';
@@ -1484,6 +1485,11 @@ function mapKey(key) {
 }
 
 function init() {
+  // First, and its result is deliberately ignored: the gate is a warning with a
+  // door, so the app sets itself up behind it either way. Anything the missing
+  // capability is needed for is guarded at its own call site.
+  runBrowserGate();
+
   renderSteps();
   renderSheets();
   renderCaptureList();
