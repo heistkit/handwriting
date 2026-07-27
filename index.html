@@ -473,7 +473,28 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
       </button>
     </header>
-    <div class="modal-body" id="guide-body"></div>
+    <div class="modal-body">
+      <div class="docsearch" id="docsearch">
+        <div class="docsearch__glow" aria-hidden="true"></div>
+        <div class="docsearch__ring" aria-hidden="true"></div>
+        <div class="docsearch__inner">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="22" y1="22" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="search" id="guide-search" autocomplete="off" spellcheck="false"
+                 placeholder="Search the guide, install steps and FAQ…"
+                 aria-label="Search the documentation"
+                 aria-describedby="doc-count">
+          <span class="docsearch__hint" aria-hidden="true">esc</span>
+          <button class="docsearch__clear" id="doc-clear" type="button" aria-label="Clear search" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+          </button>
+        </div>
+      </div>
+      <p class="doc-count" id="doc-count" role="status" aria-live="polite"></p>
+      <div id="guide-body"></div>
+    </div>
   </div>
 </div>
 

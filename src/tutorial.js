@@ -178,4 +178,20 @@ export const FAQ = [
     q: 'Do I have to write everything four times for the styles?',
     a: 'No. You write once. Bold and italic are synthesised geometrically from that single sample, so all four styles stay recognisably one hand.',
   },
+  {
+    q: 'How is letter spacing decided?',
+    a: 'It is measured, not guessed. Inkwell reads the ink profile down each side of every character and sets its bearings so the perceived gap between any two letters comes out even. A round o already carries space in its own curve where a flat H carries none, so giving them identical margins — which is what most handwriting fonts do — makes one look loose and the other cramped.',
+  },
+  {
+    q: 'What is kerning, and do I need it?',
+    a: 'Kerning is a per-pair correction on top of normal spacing, for combinations that collide or gape no matter how well each letter is spaced on its own — AV, To, Wa, r. and f) are the usual offenders. It is generated automatically and you can switch it off in the Refine step, though there is rarely a reason to.',
+  },
+  {
+    q: 'The spacing looks wrong. What do I change?',
+    a: 'Use the spacing slider in the Refine step and type a line with a lot of round letters next to straight ones. If only one or two characters look wrong rather than the whole line, the cause is usually that glyph itself — go back to Review and redraw it, since a stray speck or a clipped edge shifts where its bearings land.',
+  },
+  {
+    q: 'Why do the words run together, or sit too far apart?',
+    a: 'That is the width of the space character, which is derived from the width of your lowercase letters rather than written by hand. The spacing slider in the Refine step moves it along with everything else.',
+  },
 ];

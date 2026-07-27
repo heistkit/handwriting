@@ -495,6 +495,211 @@ main { flex: 1; }
   .theme-switch__clouds { transition: none; }
 }
 
+/* ── Docs search ────────────────────────────────────────────────────────
+   Adapted from a Uiverse.io search field by Lakshay-art (MIT).
+
+   The original is six absolutely-positioned layers at `z-index: -1`, which
+   only renders because nothing behind it paints a background. Dropped into a
+   modal it vanishes entirely — negative z-index puts those layers behind the
+   panel's own surface. Rebuilt here as a proper stacking context: an isolated
+   wrapper, the gradient ring as 1.5px of padding, and the field painted on top.
+   Six layers collapse to two.
+
+   Other changes:
+
+   - The source is SCSS pasted as CSS. Lines like `//animation: rotate 4s` are
+     not comments in CSS; the parser discards them as bad declarations. Removed
+     rather than left as litter.
+   - Its `#poda:hover` block is written twice, the second silently overriding
+     the first. Only one behaviour was ever reachable.
+   - `.filterBorder::before` rotated on an infinite loop with a blurred conic
+     gradient underneath — a permanent compositor job on every page that shows
+     the control. It now animates only on hover and focus, and not at all under
+     reduced-motion.
+   - Fixed 301px width and hard-coded icon offsets became a flex row, so it
+     survives a narrow modal.
+   - Indigo and magenta re-graded onto the palette's green and amber.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.docsearch {
+  --ring-speed: 9s;
+  /* The glow reads as light spill, which needs a dark field to be legible.
+     On a light background the same intensity just looks like a smudge. */
+  --glow-strength: light-dark(.3, .5);
+
+  position: relative;
+  isolation: isolate;
+  padding: 1.5px;
+  border-radius: 14px;
+  margin-bottom: 1.5rem;
+}
+
+.docsearch__ring,
+.docsearch__glow {
+  position: absolute;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.docsearch__ring { inset: 0; }
+
+.docsearch__glow {
+  inset: -10px;
+  border-radius: 24px;
+  filter: blur(16px);
+  opacity: var(--glow-strength);
+  transition: opacity .35s var(--ease);
+}
+
+.docsearch__ring::before,
+.docsearch__glow::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(0deg);
+  background: conic-gradient(
+    transparent 0%,
+    var(--accent) 11%,
+    transparent 25%,
+    transparent 52%,
+    var(--warn) 64%,
+    transparent 79%
+  );
+}
+
+/* At rest the gradient holds still. Motion is a response to the pointer or the
+   caret, not a thing the page does at everyone forever. */
+.docsearch:hover .docsearch__ring::before,
+.docsearch:hover .docsearch__glow::before {
+  animation: docsearch-spin var(--ring-speed) linear infinite;
+}
+
+.docsearch:focus-within {
+  --glow-strength: light-dark(.45, .75);
+  --ring-speed: 4s;
+}
+
+.docsearch:focus-within .docsearch__ring::before,
+.docsearch:focus-within .docsearch__glow::before {
+  animation: docsearch-spin var(--ring-speed) linear infinite;
+}
+
+@keyframes docsearch-spin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.docsearch__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  height: 50px;
+  padding: 0 .5rem 0 .9rem;
+  border-radius: 12.5px;
+  background: var(--bg-deep);
+}
+
+.docsearch__inner > svg {
+  flex: none;
+  width: 19px;
+  height: 19px;
+  stroke: var(--text-3);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke .25s var(--ease);
+}
+
+.docsearch:focus-within .docsearch__inner > svg { stroke: var(--accent); }
+
+.docsearch input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  height: 100%;
+}
+.docsearch input::placeholder { color: var(--text-3); }
+.docsearch input:focus { outline: none; }
+/* Safari draws its own clear affordance on type=search; ours is a real button. */
+.docsearch input::-webkit-search-decoration,
+.docsearch input::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+.docsearch__clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.docsearch__clear:hover { background: var(--surface-2); color: var(--text); }
+.docsearch__clear svg { width: 16px; height: 16px; }
+.docsearch__clear[hidden] { display: none; }
+
+.docsearch__hint {
+  flex: none;
+  font-family: 'Geist Mono', monospace;
+  font-size: .68rem;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: .12rem .34rem;
+  margin-right: .25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docsearch:hover .docsearch__ring::before,
+  .docsearch:hover .docsearch__glow::before,
+  .docsearch:focus-within .docsearch__ring::before,
+  .docsearch:focus-within .docsearch__glow::before { animation: none; }
+}
+
+/* ── Docs results ───────────────────────────────────────────────────── */
+
+.doc-count { font-size: .82rem; color: var(--text-3); margin-bottom: 1rem; }
+
+.doc-result { padding: 1rem 0; border-top: 1px solid var(--border); }
+.doc-result:first-of-type { border-top: 0; padding-top: 0; }
+.doc-result h3 { font-size: 1.02rem; margin-bottom: .3rem; }
+.doc-result p { font-size: .93rem; color: var(--text-2); max-width: 72ch; }
+
+.doc-kind {
+  display: inline-block;
+  font-size: .68rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-quiet);
+  border-radius: 4px;
+  padding: .1rem .38rem;
+  margin-bottom: .45rem;
+}
+
+.doc-result mark,
+.lesson mark {
+  background: var(--accent-quiet);
+  color: var(--accent);
+  border-radius: 3px;
+  padding: 0 .1em;
+}
+
+.doc-empty { padding: 2.5rem 0; text-align: center; color: var(--text-2); }
+.doc-empty strong { color: var(--text); display: block; margin-bottom: .35rem; }
+
 /* ── Landing bands ──────────────────────────────────────────────────── */
 
 .band { padding-block: clamp(3.5rem, 9vw, 6.5rem); border-top: 1px solid var(--border); margin-top: clamp(3.5rem, 9vw, 6rem); }

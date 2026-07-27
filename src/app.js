@@ -27,6 +27,7 @@ import { FALLBACK_LESSONS, FALLBACK_INSTALL, FALLBACK_FAQ } from './content.js';
 import { DOCUMENTS, documentById, LEGAL_VERSION, LEGAL_UPDATED } from './legal.js';
 import { limiter, describeWait } from './ratelimit.js';
 import { bindToggle } from './theme.js';
+import { buildIndex, search as searchDocs, terms as searchTerms, highlight } from './docsearch.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -696,12 +697,25 @@ async function downloadZip() {
 // Guide
 // ---------------------------------------------------------------------------
 
-async function openGuide() {
+/** Built once per session, on first open. */
+let docIndex = null;
+let docLessons = null;
+
+async function loadDocs() {
+  if (docIndex) return;
   const mod = await loadModule('tutorial', './tutorial.js');
-  const lessons = mod?.LESSONS ?? FALLBACK_LESSONS;
-  const body = $('#guide-body');
-  body.replaceChildren(
-    ...lessons.map((lesson) => {
+  docLessons = mod?.LESSONS ?? FALLBACK_LESSONS;
+  docIndex = buildIndex({
+    LESSONS: docLessons,
+    FAQ: mod?.FAQ ?? FALLBACK_FAQ,
+    INSTALL: mod?.INSTALL ?? FALLBACK_INSTALL,
+  });
+}
+
+/** The whole guide, as shown when the search box is empty. */
+function renderLessons() {
+  $('#guide-body').replaceChildren(
+    ...docLessons.map((lesson) => {
       const sec = document.createElement('section');
       sec.className = 'lesson';
       const h = document.createElement('h3');
@@ -725,7 +739,67 @@ async function openGuide() {
       return sec;
     })
   );
+  $('#doc-count').textContent = '';
+}
+
+function renderResults(query) {
+  const body = $('#guide-body');
+  const count = $('#doc-count');
+  const hits = searchDocs(docIndex, query);
+  const ts = searchTerms(query);
+
+  if (!hits.length) {
+    count.textContent = '';
+    const empty = document.createElement('div');
+    empty.className = 'doc-empty';
+    const strong = document.createElement('strong');
+    strong.textContent = `Nothing matches “${query.trim()}”`;
+    const p = document.createElement('p');
+    p.textContent = 'Try a single word — “lighting”, “pen”, “windows”, “spacing”.';
+    empty.append(strong, p);
+    body.replaceChildren(empty);
+    return;
+  }
+
+  count.textContent = `${hits.length} result${hits.length === 1 ? '' : 's'} for “${query.trim()}”`;
+
+  body.replaceChildren(
+    ...hits.map((hit) => {
+      const sec = document.createElement('article');
+      sec.className = 'doc-result';
+
+      const kind = document.createElement('span');
+      kind.className = 'doc-kind';
+      kind.textContent = hit.kindLabel;
+
+      const h = document.createElement('h3');
+      h.append(highlight(hit.title, ts));
+
+      const p = document.createElement('p');
+      p.append(highlight(hit.snippet, ts));
+
+      sec.append(kind, h, p);
+      return sec;
+    })
+  );
+}
+
+function runDocSearch() {
+  const input = $('#guide-search');
+  const q = input.value;
+  $('#doc-clear').hidden = !q;
+  if (!q.trim()) renderLessons();
+  else renderResults(q);
+}
+
+async function openGuide() {
+  await loadDocs();
+  const input = $('#guide-search');
+  input.value = '';
+  runDocSearch();
   openModal('#guide');
+  // The search box is the reason someone opened this; give it the caret.
+  input.focus();
 }
 
 // ---------------------------------------------------------------------------
@@ -978,6 +1052,23 @@ function init() {
   bindControls();
 
   bindToggle($('#theme-toggle'));
+
+  $('#guide-search').addEventListener('input', runDocSearch);
+  $('#guide-search').addEventListener('keydown', (e) => {
+    // Esc clears a query first, and only closes the modal when already empty —
+    // otherwise one keystroke throws away both the search and the page.
+    if (e.key === 'Escape' && e.target.value) {
+      e.stopPropagation();
+      e.target.value = '';
+      runDocSearch();
+    }
+  });
+  $('#doc-clear').addEventListener('click', () => {
+    const input = $('#guide-search');
+    input.value = '';
+    runDocSearch();
+    input.focus();
+  });
 
   $('#brand-home').addEventListener('click', () => goto('start'));
 

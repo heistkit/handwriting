@@ -10,6 +10,7 @@ const suites = [
   './draw.test.mjs',
   './ratelimit.test.mjs',
   './middleware.test.mjs',
+  './docsearch.test.mjs',
 ];
 
 let total = 0;
