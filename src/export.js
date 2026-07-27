@@ -248,6 +248,29 @@ export function makeZip(files) {
 
 const slug = (s) => s.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'Handwriting';
 
+/**
+ * Escape a value for use inside a CSS string literal.
+ *
+ * Not a security measure — nobody but the person at the keyboard can set the
+ * family name, and the output is a file they download. It is here because the
+ * ordinary case breaks: name a font `Jo's Handwriting` and the emitted
+ * `font-family: 'Jo's Handwriting';` tokenises as the string 'Jo', two idents,
+ * and an unterminated quote. The declaration is dropped, an @font-face with no
+ * font-family descriptor is ignored entirely, and the stylesheet silently does
+ * nothing. Possessives and Irish and French names hit this on the first try.
+ *
+ * Escaped rather than stripped, because fontbuild writes the apostrophe into
+ * the name table — removing it here would produce CSS referring to a family
+ * that does not match the font the user installed.
+ *
+ * The newline branch is unreachable through the interface (a single-line text
+ * input cannot hold one) and is kept only so this is correct for any caller.
+ */
+const cssString = (s) =>
+  String(s)
+    .replace(/[\\'"]/g, '\\$&')
+    .replace(/[\n\r\f]/g, (c) => `\\${c.charCodeAt(0).toString(16)} `);
+
 /** A ready-to-paste @font-face block covering all four styles. */
 export function cssSnippet(familyName, styles) {
   const base = slug(familyName);
@@ -255,7 +278,7 @@ export function cssSnippet(familyName, styles) {
     const weight = s.weightClass >= 700 ? 700 : 400;
     const style = s.italic ? 'italic' : 'normal';
     return `@font-face {
-  font-family: '${familyName}';
+  font-family: '${cssString(familyName)}';
   src: url('${base}-${slug(s.style)}.woff') format('woff');
   font-weight: ${weight};
   font-style: ${style};
@@ -267,7 +290,7 @@ export function cssSnippet(familyName, styles) {
 
 /* Then use it: */
 body {
-  font-family: '${familyName}', cursive;
+  font-family: '${cssString(familyName)}', cursive;
   /* Letter variants rotate automatically. To switch them off: */
   /* font-feature-settings: 'calt' 0; */
 }

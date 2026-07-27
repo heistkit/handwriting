@@ -131,7 +131,22 @@ function applyStep(stepId) {
   if (step) observeReveal(step);
 }
 
+/**
+ * Move to a screen.
+ *
+ * Export is special, and has to be: it is the only screen whose content does
+ * not exist until something expensive has run. The Download chip in the header
+ * walked straight onto it with state.serialised still null, and the screen
+ * renders regardless — "Your font is ready", zero characters, no download rows,
+ * and a button that failed when pressed. The [data-goto] buttons were gated and
+ * the chips were not, so the gate was in the wrong place. It is here now, where
+ * every route arrives.
+ */
 function goto(stepId) {
+  if (stepId === 'export' && !state.serialised?.length) {
+    prepareExport().then((ok) => { if (ok) goto('export'); });
+    return;
+  }
   if (!reachable(stepId)) return;
   // An overlay left open here would leave the address naming a step while the
   // screen shows a document — the two must not be able to disagree.
@@ -656,7 +671,11 @@ async function handleFile(file, sheetId) {
     refreshCaptureState();
   } catch (err) {
     console.error(err);
-    toast(`Could not read that photo: ${err.message}`, true);
+    // The exception text stays in the console, where a property path is
+      // useful to someone who can act on it. What reaches the reader has to be
+      // something they can do about it — and an iPhone photo is often HEIC,
+      // which is the commonest reason a picture will not decode in a browser.
+      toast('Could not read that photo. If it came from an iPhone it may be HEIC — export it as JPEG, or take the shot again.', true);
   } finally {
     busy(false);
   }
@@ -881,7 +900,7 @@ async function runCompile(previewOnly = false) {
     return true;
   } catch (err) {
     console.error(err);
-    toast(`Could not build the font: ${err.message}`, true);
+    toast('Could not build the font from these characters. Try redrawing any that look wrong on the Review screen.', true);
     return false;
   } finally {
     topload(false);
@@ -1229,7 +1248,7 @@ async function shareFont() {
   } catch (err) {
     console.error(err);
     settle('failed', 'Could not prepare the font to share.');
-    toast(`Could not package the font: ${err.message}`, true);
+    toast('Could not package the font for download.', true);
     return;
   }
 
@@ -1331,8 +1350,10 @@ async function downloadZip() {
   // a failed build produced "Cannot read properties of null (reading '0')" in
   // a red toast, which tells the reader nothing they can act on.
   if (!state.serialised?.length) {
-    toast('The font has not finished building yet.', true);
-    return;
+    // "Not finished yet" was untrue when no build had been started and none was
+    // going to be. Do the work the press was asking for.
+    const ok = await prepareExport();
+    if (!ok) return;
   }
   clearTimeout(dlResetTimer);
   dlState('working', 0);
@@ -1351,7 +1372,7 @@ async function downloadZip() {
     console.error(err);
     // Failure must not leave a checkmark on screen.
     dlState('idle', 0);
-    toast(`Could not package the font: ${err.message}`, true);
+    toast('Could not package the font for download.', true);
   }
 }
 
@@ -2309,7 +2330,21 @@ function init() {
     $('#share-font').hidden = false;
     $('#share-font').addEventListener('click', shareFont);
   }
-  $('#start-over').addEventListener('click', () => location.reload());
+  $('#start-over').addEventListener('click', () => {
+    // Nothing here is stored anywhere, so a reload is not a reset — it is a
+    // deletion, and it was happening on one press with no warning at all. The
+    // count is stated because "your work" is abstract and "118 characters" is
+    // not.
+    const n = state.glyphs.length;
+    if (n) {
+      const ok = confirm(
+        `Start again and lose the ${n} character${n === 1 ? '' : 's'} you have captured?\n\n`
+        + 'Nothing is saved anywhere — that is the point of this app — so there is no way to bring them back.'
+      );
+      if (!ok) return;
+    }
+    location.reload();
+  });
 
   // Wrapped, not passed by reference: addEventListener hands the listener the
   // event, which would arrive as the prefill argument.

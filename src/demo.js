@@ -180,13 +180,46 @@ export async function mountDemo(mount, { ch = 'a' } = {}) {
   const result = el('div', 'demo-result');
   stage.append(padMount, result);
 
-  const idle = el('p', 'demo-idle');
-  idle.append(
-    `Draw a lower-case ${ch} in the box, then press `,
-    el('b', null, 'Trace it'),
-    '. Nothing is sent anywhere — the tracer runs here, in this tab.'
-  );
-  result.append(idle);
+  /**
+   * What the panel shows before anything has been drawn.
+   *
+   * It used to be one sentence in an otherwise empty column, which read as a
+   * broken layout rather than a waiting one. These are the same two panels the
+   * result uses, in the same order and the same shape, so the space is already
+   * the size it will be and nothing jumps when the real thing arrives.
+   *
+   * Every line is written in the future tense on purpose. A placeholder that
+   * states a result would be claiming something about a letter that does not
+   * exist yet, and this band's whole argument is that its numbers are counted
+   * rather than asserted.
+   */
+  function idleState() {
+    const idle = el('p', 'demo-idle');
+    idle.append(
+      `Draw a lower-case ${ch} in the box, then press `,
+      el('b', null, 'Trace it'),
+      '. Nothing is sent anywhere — the tracer runs here, in this tab.'
+    );
+
+    const waiting = (label, note, count) => {
+      const box = el('figure', 'demo-panel is-waiting');
+      const row = el('div', 'demo-waiting');
+      for (let i = 0; i < count; i++) row.append(el('span', 'demo-waiting__slot'));
+      box.append(row);
+      const cap = el('figcaption');
+      cap.append(el('b', null, label), ` — ${note}`);
+      box.append(cap);
+      return box;
+    };
+
+    return [
+      idle,
+      waiting('Real outlines', 'your letter as cubic Bézier curves, with every node it found marked.', 1),
+      waiting('And it will not repeat', 'the same letter three ways, rotating as you type.', 6),
+    ];
+  }
+
+  result.append(...idleState());
 
   mount.replaceChildren(stage);
 
