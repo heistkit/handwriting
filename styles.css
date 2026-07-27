@@ -941,6 +941,157 @@ main { flex: 1; }
   .contbtn:active:not(:disabled) { transform: none; }
 }
 
+/* ── Inverting action ───────────────────────────────────────────────────
+   Adapted from a Uiverse.io button by kamehame-ha (MIT). On the one button in
+   the app that hands you to somebody else's server.
+
+   Every other filled button here is an internal action, and a control that
+   leaves the site should not look identical to one that does not. Filled at
+   rest, outlined on hover, is a distinct signature at no extra cost — and the
+   GitHub mark is the only icon in this batch that carries destination
+   information rather than direction. It sits in a dialogue whose entire subject
+   is what leaves your machine, where "who am I about to arrive at" is the
+   question actually being asked.
+
+   Changed from the original:
+   - Bare `.button`, `.text` and `.button svg path` selectors. There is no
+     `.button` in this sheet yet, which is exactly how that collision gets
+     shipped: the next component to arrive claims the name and both break.
+     A modifier on `.btn.btn-primary` instead, so it inherits the padding,
+     radius, disabled state and focus ring already agreed for every button.
+   - `outline: 3px solid #181717` with `outline-offset: -3px` is the original's
+     border, parked on the one property `:focus-visible` needs. A keyboard ring
+     would have *replaced* the visible edge rather than surrounding it, so
+     focusing the button would read as it losing its border. It is a border
+     here, identical in both states so nothing reflows, and outline is left free.
+   - `:hover { background: transparent }` assumes a light page behind it. On the
+     dark palette the original's `#181717` label would land on `--surface` at
+     about 1.05:1 — invisible. Inverted onto the accent instead, which is
+     legible in both directions and both themes.
+   - `transition: 400ms` with no property list, long enough that the button is
+     still changing after the pointer has gone. Named properties at .16s, the
+     duration every other button here uses.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.btn-invert {
+  border: 1px solid var(--accent);
+  transition: background .16s var(--ease), color .16s var(--ease), border-color .16s var(--ease);
+}
+.btn-invert:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* The mark is a filled path, so it opts out of the sheet's stroked icon
+   default; inheriting currentColor is what carries it through the inversion. */
+.btn-invert svg { fill: currentColor; stroke: none; }
+
+/* ── Closing call to action ─────────────────────────────────────────────
+   Adapted from a Uiverse.io button by mdanarul_9390 (MIT), colour-graded as
+   asked. Replaces the second copy of the hero's expanding button rather than
+   adding a fourth button pattern: the page ended with a literal duplicate of
+   the control it opened with, which reads as a template rather than an ending.
+
+   Changed from the original:
+   - Seven rainbow blobs on 3-8s loops. Five now, on the palette — accent,
+     accent-hover and the warm end of the warning tone — because seven colours
+     that are all green is just noise, and the original's `#ff007f` next to
+     `#00fff0` is not a decision this palette can absorb.
+   - Every offset was a percentage of the blob, which is 150px regardless of
+     the button, so the motion had no relationship to the thing it sat behind.
+     Sized in em and driven off the button's own box.
+   - `blur(10px)` on seven layers, animating `transform` on all of them,
+     permanently. Under lite mode and reduced motion the blobs stop and the fill
+     resolves to flat accent — the button has to still look like a button when
+     the decoration is gone, which is the test the original fails.
+   - The original's `.button::before` covers the blobs with opaque black at rest
+     and reveals them on hover, so the default state is a black pill. Reversed:
+     the colour is the resting state, and hover deepens it.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.inkbtn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: .85rem 2.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .34s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.inkbtn:active { transform: scale(.965); transition: transform .08s ease-out; }
+.inkbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.inkbtn__label { position: relative; z-index: 2; }
+
+.inkbtn__blobs {
+  position: absolute;
+  inset: -60%;
+  z-index: 1;
+  filter: blur(1.1em);
+  opacity: .85;
+}
+
+.inkbtn__blobs i {
+  position: absolute;
+  width: 6em;
+  height: 6em;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.inkbtn__blobs i:nth-child(1) { background: var(--accent-hover); top: -10%; left: -5%; animation: inkdrift-a 9s ease-in-out infinite; }
+.inkbtn__blobs i:nth-child(2) { background: var(--accent); top: 20%; left: 20%; animation: inkdrift-b 11s ease-in-out infinite -2s; }
+.inkbtn__blobs i:nth-child(3) { background: var(--warn); top: -20%; left: 45%; animation: inkdrift-c 13s ease-in-out infinite -5s; opacity: .55; }
+.inkbtn__blobs i:nth-child(4) { background: var(--accent-hover); top: 15%; left: 70%; animation: inkdrift-a 10s ease-in-out infinite -7s; }
+.inkbtn__blobs i:nth-child(5) { background: var(--accent); top: -25%; left: 85%; animation: inkdrift-b 12s ease-in-out infinite -3s; }
+
+/* Deepens on hover rather than revealing on it — the colour is the resting
+   state, so the button never sits there as a flat slab waiting to be noticed. */
+.inkbtn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity .4s var(--ease);
+}
+.inkbtn:hover::after { opacity: .55; }
+
+@keyframes inkdrift-a {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(2.2em, -1.4em); }
+  66% { transform: translate(-1.6em, 1.2em); }
+}
+@keyframes inkdrift-b {
+  0%, 100% { transform: translate(0, 0); }
+  40% { transform: translate(-2.4em, 1.1em); }
+  70% { transform: translate(1.8em, -.9em); }
+}
+@keyframes inkdrift-c {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(1.4em, 1.6em); }
+}
+
+/* With the blobs still, a blurred five-circle pile-up is muddier than the flat
+   fill it is standing in for — so they go entirely rather than freezing. */
+@media (prefers-reduced-motion: reduce) {
+  .inkbtn__blobs { display: none; }
+  .inkbtn:active { transform: none; }
+  .inkbtn::after { transition: none; }
+}
+
 /* ── Browser gate ───────────────────────────────────────────────────────
    Shown when a capability the app has no fallback for is missing. See
    src/browsergate.js for why it is a warning with a door rather than a wall.
@@ -2530,6 +2681,7 @@ input[type=range]:focus-visible {
 :root[data-lite='on'] .topbar { backdrop-filter: none; background: var(--bg); }
 :root[data-lite='on'] .shimmer__ch { opacity: 1; }
 :root[data-lite='on'] .arcloader .front { stroke-dashoffset: 0; }
+:root[data-lite='on'] .inkbtn__blobs { display: none; }
 
 /* With transitions cut to nothing the arrow would snap 5px sideways on hover
    instead of sliding. Lite mode is meant to be calmer, not twitchier. */
