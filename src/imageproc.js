@@ -543,6 +543,37 @@ export function downscaleGray(gray, w, h, maxDim) {
 }
 
 // ---------------------------------------------------------------------------
+// Yielding
+// ---------------------------------------------------------------------------
+
+/**
+ * Hand control back to the browser for long enough that it can paint.
+ *
+ * `await Promise.resolve()` cannot do this and never could: it queues a
+ * *microtask*, and the entire microtask queue is drained before the event loop
+ * reaches its rendering step, so the continuation runs with nothing painted in
+ * between. A timer callback is a *task*, and the browser is free to render
+ * between tasks. export.js already yields exactly this way between WOFF
+ * conversions — "Yield so the fill actually paints between conversions" — so
+ * this is the house idiom, kept in the module whose passes are the ones long
+ * enough to need it.
+ *
+ * setTimeout rather than requestAnimationFrame, for two reasons that both bite
+ * here: rAF does not exist in a Web Worker, which pipeline.js is written to be
+ * movable into unchanged, and rAF does not fire at all in a background tab — a
+ * capture started and then switched away from would stop dead rather than
+ * finish.
+ *
+ * Cost: HTML clamps a 0 ms timer to 4 ms once the nesting level passes five,
+ * and these are nested, so budget 4 ms per site. One capture reaches twelve
+ * sites — seven in preprocess, one before segmentSheet, four in the trace loop
+ * on the busiest sheet — so about 48 ms of added latency. That figure is
+ * arithmetic off the spec clamp, not a measurement; nothing here has been timed
+ * on a device.
+ */
+export const paintYield = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+// ---------------------------------------------------------------------------
 // The whole pipeline
 // ---------------------------------------------------------------------------
 
@@ -554,12 +585,39 @@ export function downscaleGray(gray, w, h, maxDim) {
  * copy costs almost nothing and keeps the expensive passes to one each.
  *
  * @param {File|Blob|string} source
- * @param {{dropBlue?: boolean, onProgress?: (stage: string, pct: number) => void}} opts
+ * @param {{dropBlue?: boolean, onProgress?: (stage: string, pct: number) => void,
+ *          signal?: AbortSignal}} opts
  */
 export async function preprocess(source, opts = {}) {
-  const { dropBlue = false, onProgress = () => {} } = opts;
+  const { dropBlue = false, onProgress = () => {}, signal = null } = opts;
 
-  onProgress('Reading image', 0.05);
+  /**
+   * Announce a stage, let it be seen, then decide whether to go on.
+   *
+   * Of the eight labels this function reports, the first ('Reading image') is
+   * followed by `await loadImageData`, which is a genuine task boundary, and
+   * the last ('Ready') has nothing after it. The six in between are each
+   * followed by a synchronous full-image pass with no await anywhere inside it,
+   * so the label naming a pass was only ever painted once that pass had
+   * finished — which is to say, while the next one was already running. Six
+   * labels, not one of them on screen at the moment it was true.
+   *
+   * The abort check sits here rather than inside the passes because a pass
+   * cannot be interrupted from outside: the click that sets the flag can only
+   * run during the yield on the line above, so immediately after that yield is
+   * the only place the flag can have changed. Stopping therefore takes effect
+   * at the next stage boundary, and the widest of those gaps is one stage —
+   * for estimateSlant's defaults (maxDeg 32, coarse 2, fine 0.25) that is
+   * 33 coarse scores plus 17 fine ones, fifty complete passes over the
+   * full-resolution mask, and it is the stage announced at 96%.
+   */
+  const stage = async (label, pct) => {
+    onProgress(label, pct);
+    await paintYield();
+    signal?.throwIfAborted();
+  };
+
+  await stage('Reading image', 0.05);
   // Reserve the rotation's headroom up front.
   //
   // loadImageData clamps the longest edge to MAX_WORKING_DIM, and then
@@ -572,28 +630,42 @@ export async function preprocess(source, opts = {}) {
   const rotationHeadroom = Math.cos(MAX_SKEW_RAD) + Math.sin(MAX_SKEW_RAD);
   const imageData = await loadImageData(source, Math.floor(MAX_WORKING_DIM / rotationHeadroom));
 
-  onProgress('Converting to grayscale', 0.2);
+  await stage('Converting to grayscale', 0.2);
   let { gray, w, h } = toGrayscale(imageData, { dropBlue });
 
-  onProgress('Measuring page angle', 0.35);
+  // Four passes behind one label: a downscale, a Sauvola binarize, a despeckle
+  // (which is itself a full labelComponents) and estimateSkew's 17 coarse plus
+  // 20 or 21 fine scores over the 1200px analysis copy. Twenty or twenty-one
+  // because 0.1 does not sum exactly in binary: for 6 of the 17 possible coarse
+  // winners the accumulated step overshoots `best + coarse` and the last score
+  // is skipped. Nothing depends on which, but the count is not a round number
+  // and should not be written as one.
+  await stage('Measuring page angle', 0.35);
   const small = downscaleGray(gray, w, h, ANALYSIS_DIM);
   const smallBin = sauvolaBinarize(small.gray, small.w, small.h);
   const angle = estimateSkew(despeckle(smallBin, small.w, small.h), small.w, small.h);
 
   if (Math.abs(angle) > 1e-4) {
-    onProgress('Straightening page', 0.5);
+    await stage('Straightening page', 0.5);
     ({ gray, w, h } = rotateGray(gray, w, h, angle));
   }
 
-  onProgress('Separating ink from paper', 0.7);
+  await stage('Separating ink from paper', 0.7);
   let bin = sauvolaBinarize(gray, w, h);
 
-  onProgress('Removing speckles', 0.9);
+  await stage('Removing speckles', 0.9);
   bin = despeckle(bin, w, h);
 
-  onProgress('Measuring your slant', 0.96);
+  // The bar reaches 96% here and then does the most work it has done all run:
+  // estimateSlant scores 33 coarse angles and 17 fine ones, fifty complete
+  // passes over the full-resolution mask. Announcing that honestly is the whole
+  // reason the yield has to come before it rather than after.
+  await stage('Measuring your slant', 0.96);
   const slant = estimateSlant(bin, w, h);
 
+  // Not a stage(): nothing follows it inside this function, and capturePage
+  // overwrites the label on its next line, so a yield here would only add a
+  // task between two labels the reader never sees separately.
   onProgress('Ready', 1);
   return { bin, gray, w, h, angle, slant, inkRatio: countInk(bin) / (w * h) };
 }

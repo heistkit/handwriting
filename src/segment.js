@@ -16,6 +16,7 @@
  */
 
 import { labelComponents } from './imageproc.js';
+import { BY_CHAR } from './charset.js';
 
 // ---------------------------------------------------------------------------
 // Geometry helpers
@@ -208,6 +209,58 @@ function splitAtWaist(group, bin, w, labels) {
 }
 
 // ---------------------------------------------------------------------------
+// Input bound
+// ---------------------------------------------------------------------------
+
+/**
+ * How many separate ink components this sheet could honestly produce.
+ *
+ * A clean photograph of a sheet cannot contain more components than the sum of
+ * its characters' declared `parts`. Summed over the sheets charset.js defines:
+ * Capitals 26, Lowercase 28 (i and j carry a dot), Numbers & punctuation 44
+ * (colon, semicolon, exclam, question and quotedbl carry 2, percent carries 3),
+ * Symbols & math 29 (equal, plusminus, lessequal and greaterequal carry 2,
+ * divide carries 3), Joined pairs 18. The busiest is 44.
+ */
+function expectedParts(expectedRows) {
+  let n = 0;
+  for (const row of expectedRows) {
+    for (const ch of row) n += BY_CHAR.get(ch)?.parts ?? 1;
+  }
+  return n;
+}
+
+/**
+ * How far past that a photograph may go before the page is refused.
+ *
+ * This multiplier is a policy choice and it is unmeasured. No sample
+ * photographs ship with this repo and nothing in it records how many stray
+ * marks a real one leaves, so where "grainy but usable" ends is not a number
+ * this codebase knows. despeckle is no help: its floor is `absolute = 6`
+ * pixels and its threshold is `Math.max(absolute, median * relative)`, so on a
+ * page whose components are mostly specks the median-relative arm collapses
+ * onto that floor and paper texture survives it.
+ *
+ * The cost being bounded is not a guess. mergeStacked restarts its scan at
+ * i = 0 after every merge; it makes at most n − 1 merges and each pass examines
+ * at most m(m − 1)/2 pairs, so total pair tests ≤ Σ_{m=2..n} m(m−1)/2 ≈ n³/6:
+ *
+ *     n =   528   = 12 × the busiest sheet's 44      ≈ 2.5e7 pair tests
+ *     n = 1,760   = 40 ×                             ≈ 9.1e8
+ *     n = 5,000   paper texture through despeckle    ≈ 2.1e10   ← the wedged tab
+ *
+ * How long one pair test costs on a given device is unmeasured; the ratios
+ * between those rows are arithmetic. 12 was chosen to land on the first row.
+ * The bound is on the page total, which bounds every band, because mergeStacked
+ * only ever sees one band's share of it.
+ *
+ * The right way to retune this is not to guess again: stats.components is
+ * already reported for every capture and carried out through capturePage, so
+ * the number a real photograph produces is observable the moment anyone looks.
+ */
+const MAX_COMPONENT_FACTOR = 12;
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -230,6 +283,32 @@ export function segmentSheet(bin, w, h, expectedRows) {
       rows: [],
       issues: [{ level: 'fatal', code: 'no-ink', message: 'No writing found on this page.' }],
       stats: { components: 0, bands: 0 },
+    };
+  }
+
+  // The other end of the same question, and the only bound on the work below.
+  // Nothing upstream limits how many components a photograph can produce, and
+  // mergeStacked restarts at i = 0 after every merge, so its cost grows with
+  // the cube of that count. A page too crowded to segment is refused here — at
+  // the same level, in the same shape and by the same early return as a page
+  // with no ink on it — rather than being allowed to wedge the tab.
+  //
+  // Named expectedPartCount, not parts: `parts` already means something else
+  // throughout this file — the array of constituent component boxes carried by
+  // unionBox and read as `g.parts.length` a hundred lines below.
+  const expectedPartCount = expectedParts(expectedRows);
+  if (boxes.length > expectedPartCount * MAX_COMPONENT_FACTOR) {
+    return {
+      rows: [],
+      issues: [{
+        level: 'fatal',
+        code: 'too-many-marks',
+        message:
+          `This page has ${boxes.length} separate marks on it, and this sheet accounts for ` +
+          `${expectedPartCount}. There is too much on it to sort into characters. Photograph ` +
+          `the sheet again on plain paper in even light, with nothing else in the frame.`,
+      }],
+      stats: { components: boxes.length, bands: bands.length },
     };
   }
 

@@ -116,7 +116,7 @@ export const PRIVACY = {
       heading: 'Third parties',
       body: [
         'No third-party service is contacted. The interface typeface is served from this same domain rather than from a font CDN, specifically so that loading the page does not disclose your visit to another company.',
-        'The one exception is entirely in your hands: if you choose to send feedback, a page opens on GitHub containing a report you have already read and can edit. Nothing is transmitted unless you post it yourself, and from that point GitHub\'s own privacy policy governs.',
+        'The one exception is entirely in your hands: if you choose to send feedback, the report is copied to your clipboard and an empty issue form opens on GitHub. Nothing of yours reaches GitHub until you paste it in and post it, and from that point GitHub\'s own privacy policy governs. Opening that page is itself a visit to github.com, which their logs record as they would any other visit.',
       ],
     },
     {

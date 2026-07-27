@@ -481,7 +481,20 @@ main { flex: 1; }
 
 /* ── Hero ───────────────────────────────────────────────────────────── */
 
-.hero { max-width: 40ch; padding-block: clamp(1rem, 5vw, 3.5rem); }
+/*
+ * No max-width here. `ch` is the advance of "0" in the element's own font, and
+ * .hero's own font is the body's 1.0625rem — 19.125px at the 18px root. The
+ * prose it was capping is .lede at 1.18rem (21.24px), which already declares
+ * its own measure of 54ch. 40 * 19.125 against 54 * 21.24 is 0.667: the parent
+ * clipped every line at two thirds of the measure the child asked for, so
+ * `.lede { max-width: 54ch }` could never once take effect and the rest of the
+ * hero grid track stood empty beside it.
+ *
+ * Every child already carries its own measure at its own size — .lede 54ch,
+ * .privacy 52ch, and the h1 breaks on a hard <br> — which is where a measure
+ * belongs, because that is the only place ch means anything.
+ */
+.hero { padding-block: clamp(1rem, 5vw, 3.5rem); }
 .eyebrow {
   display: inline-block; font-size: .87rem; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase; color: var(--accent);
@@ -499,11 +512,35 @@ main { flex: 1; }
 .privacy svg { flex: none; width: 2.1em; height: 2.1em; color: var(--accent); }
 .feature-grid .locklock { width: 34px; height: 34px; }
 
+/*
+ * Explicit column counts, not auto-fit.
+ *
+ * The separators here are `gap: 1px` over `background: var(--border)`, so an
+ * empty tail cell is not whitespace — it paints #dce0e5 / #2a3038 for the full
+ * height of the row, inside a card that is rounded and `overflow: hidden`. With
+ * auto-fit over minmax(240px, 1fr) the four cards sit at three columns for a
+ * ~250px band of viewports (grid content box 722px..962px, which at
+ * padding-inline clamp(18px, 4vw, 36px) is roughly 787px..1037px of viewport),
+ * and across that band two thirds of row two is that slab.
+ *
+ * 1, 2 and 4 all divide four exactly, so no width can leave a cell alone on a
+ * row. 3 is the only count that can, and it is the one auto-fit reaches first.
+ */
 .feature-grid {
   list-style: none; padding: 0; margin-top: clamp(3rem, 7vw, 5.5rem);
   display: grid; gap: 1px; background: var(--border);
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden;
+}
+/* Two columns need 2*240 + 1 = 481px of grid content. At 560px viewport the
+   padding is clamp(18px, 22.4px, 36px) = 22.4px a side, leaving 513.2px. */
+@media (min-width: 560px) {
+  .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Four need 4*240 + 3 = 963px. At 1060px the padding is capped at 36px a side,
+   leaving 986px. */
+@media (min-width: 1060px) {
+  .feature-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 .feature-grid li { background: var(--surface); padding: 1.6rem 1.5rem; }
 .feature-grid svg { width: 28px; height: 28px; color: var(--accent); margin-bottom: .9rem; }
@@ -993,6 +1030,14 @@ main { flex: 1; }
 .dlbtn:disabled { cursor: default; }
 .dlbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
+/* All three labels in one grid cell: the track is as wide as the widest, the
+   visible one is aligned to its start, and the button stops changing size when
+   dlState() rewrites the text. The sizers are `visibility: hidden` rather than
+   `display: none` precisely because they must still be measured. */
+.dlbtn__label { display: grid; justify-items: start; }
+.dlbtn__label > * { grid-area: 1 / 1; }
+.dlbtn__sizer { visibility: hidden; }
+
 .dlbtn__circle {
   position: relative;
   flex: none;
@@ -1243,7 +1288,29 @@ main { flex: 1; }
 
 .contbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-.contbtn:disabled { opacity: .45; cursor: not-allowed; }
+/*
+ * Not opacity. `opacity: .45` composites the whole subtree against whatever is
+ * behind it, and the label and the fill fade *together*, so their relationship
+ * to each other collapses along with their relationship to the page. On --bg it
+ * put --accent-fg on --accent at 1.92:1 light / 2.44:1 dark for the label, and
+ * the pill itself at 1.87:1 / 2.39:1 against the page — under both floors, in
+ * both themes, on the one control whose job is to say "not yet".
+ *
+ * Stated instead of faded: a flat outlined pill. Every colour is a token that
+ * is already opaque, so nothing composites and the figures hold.
+ *
+ *   label  --text-3 on --surface-2        4.68:1 light / 4.84:1 dark
+ *   shape  --text-3 border on --bg        4.81:1 light / 5.75:1 dark
+ *
+ * The border carries the shape deliberately: --surface-2 on --bg is 1.03:1 in
+ * light and could not carry it alone.
+ */
+.contbtn:disabled {
+  background: var(--surface-2);
+  border-color: var(--text-3);
+  color: var(--text-3);
+  cursor: not-allowed;
+}
 
 .contbtn svg {
   width: 1.75em;
@@ -2277,7 +2344,21 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
 .how-list h3 { margin-bottom: .35rem; }
 .how-list p { color: var(--text-2); font-size: .96rem; max-width: 68ch; }
 
-.detail-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); }
+/*
+ * Two columns or one, never three.
+ *
+ * auto-fit over minmax(310px, 1fr) fits three columns at 3*310 + 2*18 = 966px
+ * and four only at 1240 + 54 = 1294px. The widest this grid ever gets is the
+ * .wrap content box, 1108px — so above about 1038px of viewport it is locked at
+ * exactly three columns and the fourth article is orphaned at every desktop
+ * width there is, permanently, not just in a band.
+ */
+.detail-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+/* Two columns need 2*310 + 18 = 638px. At 760px viewport the padding is
+   clamp(18px, 30.4px, 36px) = 30.4px a side, leaving 699.2px. */
+@media (min-width: 760px) {
+  .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .detail-grid article { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 1.6rem 1.5rem; }
 .detail-grid h3 { margin-bottom: .7rem; color: var(--accent); }
 .detail-grid p { font-size: .95rem; color: var(--text-2); }
@@ -2469,7 +2550,6 @@ details.legal-section > summary:focus-visible {
   background: var(--surface-2); display: grid; place-items: center;
   color: var(--text-3); overflow: hidden;
 }
-.drop-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .drop-thumb svg { width: 24px; height: 24px; }
 .drop.is-done .drop-thumb { color: var(--accent); }
 
@@ -2512,9 +2592,13 @@ details.legal-section > summary:focus-visible {
   font-size: .85rem; font-family: 'Geist Mono', monospace; color: var(--text-3);
 }
 .glyph.is-missing { border-style: dashed; background: var(--surface-2); }
-.glyph.is-missing::after {
-  content: attr(data-ch); font-size: 1.5rem; color: var(--text-3); opacity: .5;
-}
+/* The ::after that used to echo attr(data-ch) here is gone, not the .label.
+   renderReview() appends a real <span class="label"> carrying the character to
+   every cell, present or missing, so the ghost was a second copy of text that
+   was already on screen — and at --text-3 over --surface-2 at half opacity it
+   composited to #abb0b6 / #565c65, 1.95:1 light and 2.26:1 dark, which is a
+   duplicate nobody could read anyway. The dashed border and --surface-2 fill
+   above are what say "missing"; the .label says which. */
 .glyph.is-flagged { border-color: var(--warn); }
 .glyph .redraw {
   position: absolute; inset: auto 0 0 0; padding: .2rem;
@@ -3167,6 +3251,17 @@ input[type=range]:focus-visible {
   font-family: 'Geist Mono', monospace; font-size: .9rem;
 }
 .finding .chars span { padding: .05rem .35rem; border-radius: 4px; background: rgb(128 128 128 / .18); }
+/* The "+N more" that finding() appends when the chip list is capped. Not a
+   chip: no tint, and out of the mono face the characters are set in, so it
+   reads as a note about the row rather than as one more character in it.
+   --text-2 clears the floor on all three finding tones — 5.70 / 6.72 on
+   --surface-2, and the sheet's own figures for --warn-quiet and --danger-quiet
+   are 5.67 / 6.39 and 5.38 / 6.81. */
+.finding .chars .chars__more {
+  background: none; padding-inline: .15rem;
+  font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--text-2);
+}
 
 /* The capture row is a three-column grid collapsing to two, so without this the
    list would land inside the 64px thumbnail column. 1 / -1 spans both shapes. */
@@ -3244,7 +3339,41 @@ input[type=range]:focus-visible {
 .modal-body[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .lesson + .lesson { margin-top: 1.75rem; padding-top: 1.75rem; border-top: 1px solid var(--border); }
+.lesson { scroll-margin-block-start: .75rem; }
 .lesson h3 { margin-bottom: .6rem; }
+
+/*
+ * A permalink beside each lesson heading, so /guide/pen is something a reader
+ * can obtain rather than only something the router understands.
+ *
+ * Always visible rather than revealed on hover: a control that exists only
+ * under a pointer does not exist at all on a touch screen. Because it neither
+ * appears nor moves, there is nothing in these rules for prefers-reduced-motion,
+ * :root[data-lite='on'] or :root[data-decor='off'] to suppress — the honest
+ * way to satisfy all three is to have no motion to switch off. The lesson it
+ * sits in still carries the existing `--enter: settle` entry animation, which
+ * those switches already handle above.
+ *
+ * Contrast, computed from the tokens against --surface, which is what
+ * .sheet-modal-panel is painted with. --text-3 #656d76 on #fbfcfd is 5.11:1;
+ * #8a929c on #1a1e24 is 5.32:1. The --accent hover state, #1a7f37 on #fbfcfd,
+ * is 4.94:1; #3fb950 on #1a1e24 is 6.59:1. All four clear the 4.5:1 text floor
+ * and so also the 3:1 floor that applies to the glyph as a graphic.
+ *
+ * text-decoration is cleared explicitly: there is no base `a` rule in this
+ * stylesheet, so an anchor otherwise arrives underlined and browser-blue.
+ */
+.lesson-link {
+  display: inline-flex;
+  align-items: center;
+  margin-left: .4rem;
+  color: var(--text-3);
+  text-decoration: none;
+  vertical-align: baseline;
+}
+.lesson-link svg { width: .78em; height: .78em; }
+.lesson-link:hover,
+.lesson-link:focus-visible { color: var(--accent); }
 .lesson p { font-size: .95rem; color: var(--text-2); }
 .lesson p + p { margin-top: .6rem; }
 .lesson .tips { margin-top: .9rem; }
@@ -3262,6 +3391,54 @@ input[type=range]:focus-visible {
   min-height: 1.3em; /* reserved, so the panel does not jump when it appears */
 }
 .busy-note { font-size: .87rem; color: var(--text-3); margin-top: .5rem; }
+
+/* The Stop control on the busy panel.
+ *
+ * It borrows .btn for its box and overrides one thing: the border. There is no
+ * card behind this panel, only the blurred page, and .btn's own --border edge
+ * measures 1.22:1 against --bg in light (#dce0e5 on #f4f5f7) and 1.36:1 in dark
+ * (#2a3038 on #14161a) — 1.18:1 and 1.14:1 against the button's own --surface-2
+ * fill. No boundary a reader could find, in either theme.
+ *
+ * --text-3 gives that edge 4.81:1 in light (#656d76 on #f4f5f7) and 5.76:1 in
+ * dark (#8a929c on #14161a), and 4.68:1 / 4.83:1 against the --surface-2 fill.
+ * The label is --text on --surface-2: 14.43:1 light, 12.47:1 dark.
+ *
+ * The :hover line is not cosmetic and must not be dropped. .btn:hover:not(
+ * :disabled) swaps the edge to --border-strong, which is 1.51:1 light and
+ * 1.78:1 dark against --bg, and 1.36:1 / 1.31:1 against the --surface-3 hover
+ * fill — the border would vanish at exactly the moment the pointer is on it.
+ * Holding --text-3 through hover keeps the edge at 4.31:1 light and 4.23:1 dark
+ * over --surface-3, and the label at 13.29:1 / 10.90:1. It has the same
+ * specificity as .btn:hover:not(:disabled) — (0,3,0) both — so it wins only by
+ * being later in this file. Do not move these rules above the button block.
+ *
+ * Every figure above is computed from the hex pairs in :root, both branches of
+ * every light-dark() involved. The overlay is
+ * color-mix(in srgb, var(--bg) 88%, transparent) over blurred page chrome, so
+ * the real composite behind this button is a few percent off --bg and is not
+ * something this sheet can state exactly — unmeasured, and the reason the
+ * border was taken well past 3:1 rather than to it.
+ *
+ * `display: none` has to be restated because .btn sets `display: inline-flex`,
+ * which beats the user-agent rule the `hidden` attribute relies on — the same
+ * reason `.busy[hidden]` exists a few lines above.
+ *
+ * Nothing here animates. The transition inherited from .btn is already clamped
+ * by the blanket `* { transition-duration: .01ms !important }` under
+ * prefers-reduced-motion, and by the :root[data-lite='on'] rule that carries
+ * the same transition-duration clamp alongside its animation caps. There is no
+ * decoration for :root[data-decor='off'] to remove.
+ */
+.busy-cancel { margin-top: 1.15rem; border-color: var(--text-3); }
+.busy-cancel:hover:not(:disabled) { border-color: var(--text-3); }
+.busy-cancel[hidden] { display: none; }
+
+/* Already pressed. Deliberately not dimmed: .btn:disabled's opacity: .45 would
+   pull the label off the ratios measured above, and it is the changed wording,
+   not a faded box, that says the press was heard. */
+.busy-cancel[aria-disabled='true'] { cursor: default; }
+.busy-cancel[aria-disabled='true']:hover { background: var(--surface-2); border-color: var(--text-3); }
 
 .bar { height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
 .bar-fill { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .25s var(--ease); }
@@ -3962,6 +4139,53 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 /* One big slot for the outline panel, six small ones for the variants. */
 .demo-waiting > .demo-waiting__slot:only-child { flex-basis: 8rem; max-width: 10rem; }
 .demo-panel.is-waiting figcaption { color: var(--text-3); }
+
+/* ── The notch ──────────────────────────────────────────────────────────
+   index.html asks for `viewport-fit=cover`, which is what lets the page paint
+   edge to edge — and which also means nothing keeps the page out from under the
+   hardware. Until now nothing in this sheet read a single safe-area inset, so
+   the sticky topbar sat under the notch, the footer under the home indicator,
+   and in landscape the .wrap padding was measured from the screen edge rather
+   than from the usable one.
+
+   Last in the sheet on purpose: .footer sets padding-block and .toasts sets
+   right/bottom earlier at equal specificity, so this has to come after them to
+   win. .topbar declares no padding at all today, so its line is an addition
+   rather than an override. Each declaration follows the one it adjusts, so a
+   browser without env() drops it and keeps the original value.
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* The bar is sticky at top: 0 and carries its own tinted, blurred background,
+   so padding rather than margin — the tint still fills the notch strip while
+   the row of controls sits below it. */
+.topbar { padding-top: env(safe-area-inset-top, 0px); }
+
+/* body is a flex column at min-height: 100dvh and .footer has margin-top: auto,
+   so this is the last thing above the home indicator. The 1.75rem repeats the
+   value from `.footer { padding-block: 1.75rem }` above — the two have to be
+   changed together. */
+.footer { padding-bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px)); }
+
+/* max() rather than addition: below the inset the gutter is unchanged, above it
+   the inset wins, and the text never ends up doubly indented on the safe side.
+   Both rules are inside the @supports because a browser with env() but without
+   max() would otherwise drop them — which for .toasts would send right/bottom
+   to `auto` and move the toasts out of the corner entirely, and for .wrap would
+   drop the gutter to nothing rather than fall back. */
+@supports (padding: max(0px)) {
+  /* Fixed to the bottom-right corner, which in landscape is the corner the
+     indicator and the curve both occupy. */
+  .toasts {
+    right: max(1rem, env(safe-area-inset-right, 0px));
+    bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  }
+  /* Landscape is where the notch eats one flank; .wrap is also the topbar's
+     inner row, so this moves the brand and the settings button too. */
+  .wrap {
+    padding-left: max(clamp(1rem, 4vw, 2rem), env(safe-area-inset-left));
+    padding-right: max(clamp(1rem, 4vw, 2rem), env(safe-area-inset-right));
+  }
+}
 
 /* ── Easter eggs ────────────────────────────────────────────────────────
    Decoration on decoration. Every one is gated on the same three switches as

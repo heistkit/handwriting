@@ -43,6 +43,25 @@ createServer(async (req, res) => {
       path = join(path, 'index.html');
       info = await stat(path).catch(() => null);
     }
+    // A lesson address is one segment deeper than every other screen —
+    // /guide/pen — so the browser resolves this document's relative assets
+    // against /guide/ rather than the root: styles.css, vendor/opentype.min.js
+    // and src/app.js from the document itself, and assets/fonts/*.woff2 from
+    // inside styles.css, whose own URL stays /guide/styles.css even once it is
+    // hoisted. Hoisting them back is what vercel.json does in production;
+    // without the same rule here the page loads unstyled and scriptless in
+    // development only, which is the worst place for the two to disagree.
+    // Extension-only, so /guide/pen itself still falls through to the route
+    // branch below and gets index.html.
+    if (!info && extname(url) && url.startsWith('/guide/')) {
+      const hoisted = join(ROOT, normalize(url.slice('/guide'.length)).replace(/^(\.\.[/\\])+/, ''));
+      const alt = await stat(hoisted).catch(() => null);
+      if (alt?.isFile()) {
+        path = hoisted;
+        info = alt;
+      }
+    }
+
     // Every screen has its own address — /write, /guide, /terms — and none of
     // them is a file. Anything without an extension that does not exist on disk
     // is a route, so it gets index.html and the router sorts it out. Requests

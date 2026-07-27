@@ -31,7 +31,7 @@ export const FALLBACK_LESSONS = [
     ],
   },
   {
-    id: 'writing',
+    id: 'natural',
     title: 'Write the way you actually write',
     body: [
       'People instinctively switch to careful block capitals the moment they know something is being recorded. Resist that. It produces a stiff, generic font that does not look like you.',
@@ -43,7 +43,7 @@ export const FALLBACK_LESSONS = [
     ],
   },
   {
-    id: 'gaps',
+    id: 'touching',
     title: 'Leave gaps between characters',
     illustration: 'spacing',
     body: [

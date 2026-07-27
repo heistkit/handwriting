@@ -42,7 +42,7 @@ import { loop as loopSpecimen } from './specimen.js';
 import { mount as mountStepshow } from './stepshow.js';
 import { mount as mountEggs } from './eggs.js';
 import { mount as mountSliders } from './slider.js';
-import { read as readRoute, write as writeRoute, base as routeBase } from './routes.js';
+import { read as readRoute, write as writeRoute, base as routeBase, overlayPath } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
 import { intercept as interceptExternal, describe as describeUrl } from './leaving.js';
@@ -269,6 +269,25 @@ let busyRun = null;
 let busyOpen = false;
 /** What had focus before the overlay took it. */
 let busyReturnFocus = null;
+/**
+ * What to run if the reader presses Stop, or null when the operation on screen
+ * has no way to be stopped.
+ *
+ * The button is shown only while this is set, and it is set only by the one
+ * caller that threads an abort signal all the way down. Compiling and
+ * packaging do not, so they offer nothing — a Stop that does not stop is the
+ * interface claiming something the code has not checked, which is the single
+ * thing this app is not allowed to do.
+ */
+let busyCancel = null;
+
+function offerCancel(fn) {
+  busyCancel = fn ?? null;
+  const btn = $('#busy-cancel');
+  btn.hidden = !busyCancel;
+  btn.textContent = 'Stop';
+  btn.removeAttribute('aria-disabled');
+}
 
 /**
  * The full-screen overlay shown while a font is being built.
@@ -311,10 +330,22 @@ function finding({ level = 'info', title, detail = '', chars = [] }) {
   if (chars.length) {
     const box = document.createElement('div');
     box.className = 'chars';
-    for (const ch of chars.slice(0, 14)) {
+    // The cap is a layout decision, so it has to be visible: several callers put
+    // the full count in the title — health.js builds "${missingLetters.length}
+    // letters missing" and hands over every one of them — and a title that says
+    // 26 above a row of 14 chips is the interface contradicting itself in one
+    // element. The overflow is stated rather than swallowed.
+    const SHOWN = 14;
+    for (const ch of chars.slice(0, SHOWN)) {
       const s = document.createElement('span');
       s.textContent = ch;
       box.append(s);
+    }
+    if (chars.length > SHOWN) {
+      const more = document.createElement('span');
+      more.className = 'chars__more';
+      more.textContent = `+${chars.length - SHOWN} more`;
+      box.append(more);
     }
     $('div', li).append(box);
   }
@@ -331,24 +362,36 @@ function findingList(items) {
 
 function busy(on, stage = '', pct = 0, op = null) {
   const el = $('#busy');
+  // Both focus moves below have to be gated on the *transition*, not on `on`.
+  // Progress calls busy(true, …) many times a run, and repeating them had two
+  // consequences: the second tick captured #busy itself as the element to
+  // return focus to (activeElement is #busy by then, not <body>), so the return
+  // went to a hidden element and landed on <body> anyway — and now that there
+  // is a Stop button in the panel, a repeat would drag focus straight back off
+  // it between one label and the next, leaving a control that can be reached
+  // and never pressed.
+  const opening = on && !busyOpen;
   el.hidden = !on;
 
   busyOpen = on;
-  if (on && document.activeElement && document.activeElement !== document.body) {
+  if (opening && document.activeElement && document.activeElement !== document.body) {
     busyReturnFocus = document.activeElement;
   }
   applyInert();
-  if (on) {
+  if (opening) {
     // Inert on an ancestor blurs whatever had focus and drops it on <body>, so
     // it is parked somewhere deliberate. #busy is not in INERT_WHILE_OPEN, so
-    // #busy-stage keeps announcing progress from its own live region.
-    el.focus?.();
-  } else if (busyReturnFocus?.isConnected) {
+    // #busy-stage keeps announcing progress from its own live region — and when
+    // the running operation can be stopped, focus goes to the control that
+    // stops it rather than to the panel, so it does not have to be hunted for.
+    (busyCancel ? $('#busy-cancel') : el).focus?.();
+  } else if (!on && busyReturnFocus?.isConnected) {
     busyReturnFocus.focus?.();
     busyReturnFocus = null;
   }
 
   if (!on) {
+    offerCancel(null);
     // Timed here rather than at each call site, because this is the one place
     // that knows the operation really finished. A build that threw goes through
     // runCompile's catch and reaches busy(false) too, so completion is recorded
@@ -654,9 +697,18 @@ async function handleFile(file, sheetId) {
     return;
   }
   if (!allowHeavyOp()) return;
+
+  // One controller per photograph, and the offer is made before the overlay
+  // goes up: busy() decides where focus lands from whether a Stop exists, so it
+  // has to exist by the time the panel appears. A button that arrives a tick
+  // later is a button that is not there when the reader first looks for it.
+  const controller = new AbortController();
+  offerCancel(() => controller.abort());
+
   try {
     busy(true, 'Reading image', 0.02, 'capture');
     const capture = await capturePage(file, sheetId, {
+      signal: controller.signal,
       onProgress: (stage, pct) => busy(true, stage, pct),
     });
     state.captures.set(sheetId, capture);
@@ -672,6 +724,17 @@ async function handleFile(file, sheetId) {
     }
     refreshCaptureState();
   } catch (err) {
+    // Stopping is not failing, and there is nothing to repair. The only write
+    // to state.captures on this path is the `set` above, which is downstream of
+    // the await that just threw — so the sheet is exactly as it was, including
+    // an earlier photograph of it if there was one, and no half-written capture
+    // exists to clean up. Saying so is the point: the reader pressed Stop on a
+    // panel that had been counting characters and is owed a plain statement
+    // that none of them were kept. No re-render, because nothing changed.
+    if (err?.name === 'AbortError') {
+      toast('Stopped. Nothing from that photo was kept.');
+      return;
+    }
     console.error(err);
     // The exception text stays in the console, where a property path is
       // useful to someone who can act on it. What reaches the reader has to be
@@ -835,7 +898,24 @@ async function openDrawPad(ch) {
 
 let recompileTimer = null;
 
+/**
+ * Queue a preview rebuild — and throw away the export build while doing it.
+ *
+ * runCompile(true) compiles only the style on screen and deliberately leaves
+ * state.serialised alone; `if (!previewOnly) state.serialised = built;` is its
+ * one writer. Every caller of this function has just changed a setting that
+ * compile() reads, so whatever sits in state.serialised was built from settings
+ * the reader has since moved away from. Leaving it there let goto('export')
+ * take its `!state.serialised?.length` branch as satisfied and skip
+ * prepareExport entirely — so the export screen kept its previous render and
+ * bundleNow zipped the previous fonts.
+ *
+ * Nulling here rather than at each control means a control added later cannot
+ * forget: anything that schedules a preview has, by definition, invalidated the
+ * export.
+ */
 function scheduleRecompile() {
+  state.serialised = null;
   clearTimeout(recompileTimer);
   recompileTimer = setTimeout(() => runCompile(true), 170);
 }
@@ -1418,6 +1498,26 @@ function guideFooter(query = '') {
   return foot;
 }
 
+/**
+ * Bring one lesson into view and put focus on it.
+ *
+ * 'instant' rather than 'smooth', which is how the step rail already does it:
+ * with no animation there is nothing for prefers-reduced-motion,
+ * :root[data-lite='on'] or :root[data-decor='off'] to suppress, so it is
+ * correct under all three without a second branch.
+ *
+ * getElementById rather than a selector, so a lesson id never has to be escaped
+ * for CSS on its way into a query.
+ */
+function showLesson(id) {
+  const sec = document.getElementById(`lesson-${id}`);
+  if (!sec) return;
+  sec.scrollIntoView({ block: 'start', behavior: 'instant' });
+  // preventScroll because the line above already chose the position; letting
+  // focus scroll as well would fight it.
+  sec.focus({ preventScroll: true });
+}
+
 /** The whole guide, as shown when the search box is empty. */
 function renderLessons() {
   const body = $('#guide-body');
@@ -1425,8 +1525,35 @@ function renderLessons() {
     ...docLessons.map((lesson) => {
       const sec = document.createElement('section');
       sec.className = 'lesson';
+      // A real element id so the lesson can be scrolled to and focused, and a
+      // prefix so an authored id as ordinary as `what` cannot collide with
+      // something else on the page that happens to use the same word.
+      sec.id = `lesson-${lesson.id}`;
+      // Focusable, so arriving from /guide/pen lands the caret on the lesson
+      // rather than leaving it on the dialogue and the reader's eye elsewhere.
+      sec.tabIndex = -1;
+
       const h = document.createElement('h3');
       h.textContent = lesson.title;
+
+      // A real href, because this is the only way a reader obtains the address:
+      // the bar says /guide until something writes the longer form, and the
+      // context menu's copy-link works on an href and nothing else. The click is
+      // intercepted — the guide is already open, and navigating would reload the
+      // entire app to show a dialogue that is on screen. Same-origin, so
+      // leaving.js does not treat it as an external link.
+      const link = document.createElement('a');
+      link.className = 'lesson-link';
+      link.href = overlayPath('guide', lesson.id);
+      link.setAttribute('aria-label', `Link to this section: ${lesson.title}`);
+      link.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-link"/></svg>';
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        writeRoute({ overlay: 'guide', section: lesson.id });
+        showLesson(lesson.id);
+      });
+      h.append(link);
+
       sec.append(h);
       for (const para of lesson.body) {
         const p = document.createElement('p');
@@ -1511,15 +1638,36 @@ function runDocSearch() {
   else renderResults(q);
 }
 
-async function openGuide({ route = true } = {}) {
+/**
+ * @param {object} [opts]
+ * @param {boolean} [opts.route] write the address; false when restoring one
+ * @param {string|null} [opts.section] lesson id, from `/guide/<id>`
+ * @returns {string|null} the lesson actually shown, or null for the top of the
+ *   guide. applyRoute corrects the address from this, so a section naming no
+ *   lesson never survives in the address bar.
+ */
+async function openGuide({ route = true, section = null } = {}) {
   await loadDocs();
   const input = $('#guide-search');
   input.value = '';
   runDocSearch();
   openModal('#guide');
-  if (route) writeRoute({ overlay: 'guide' });
-  // The search box is the reason someone opened this; give it the caret.
-  input.focus();
+
+  // Checked against the list that actually loaded, not against a copy of the
+  // ids kept here. tutorial.js and content.js do not name every lesson the
+  // same, and content.js is what ships when tutorial.js fails to arrive — so a
+  // hard-coded list would claim lessons that are not on the screen.
+  const landed = section && docLessons.some((l) => l.id === section) ? section : null;
+  if (route) writeRoute({ overlay: 'guide', section: landed });
+
+  // The search box is the reason someone opened this themselves; give it the
+  // caret. Someone who followed /guide/pen came for the lesson, so that gets it
+  // instead — otherwise the address puts them at a heading and the keyboard
+  // puts them somewhere else.
+  if (landed) showLesson(landed);
+  else input.focus();
+
+  return landed;
 }
 
 // ---------------------------------------------------------------------------
@@ -1569,10 +1717,13 @@ window.addEventListener('unhandledrejection', (e) => {
 /**
  * Assemble the diagnostic block.
  *
- * Deliberately contains no image data, no glyph outlines and no font bytes —
- * only counts and settings. The user can read every line of it before deciding
- * to send, which is the only way a feedback button belongs in an app that
- * promises nothing leaves the device.
+ * Deliberately contains no image data, no glyph outlines and no font bytes. It
+ * does contain more than counts and settings: the browser's user-agent string,
+ * two capability booleans, the current step and sheet ids, and up to six recent
+ * error messages — which is why the dialogue lists those rather than claiming
+ * "only the numbers". The user can read every line of it before deciding to
+ * send, which is the only way a feedback button belongs in an app that promises
+ * nothing leaves the device.
  */
 function buildDiagnostics() {
   const s = state.settings;
@@ -1611,8 +1762,11 @@ let lastAutofill = null;
 
 /**
  * @param {string|null} [prefill] seed text, or null to leave the box alone
+ * @param {object} [opts]
+ * @param {boolean} [opts.route] write `/feedback`; false when the router is
+ *   restoring that address and must not push a second entry for it
  */
-function openFeedback(prefill = null) {
+function openFeedback(prefill = null, { route = true } = {}) {
   // Guard the seam anyway: this is one stray `addEventListener('click',
   // openFeedback)` away from writing "[object PointerEvent]" into the box.
   if (typeof prefill !== 'string') prefill = null;
@@ -1631,6 +1785,7 @@ function openFeedback(prefill = null) {
   // Anything the user actually typed survives either branch.
 
   openModal('#feedback');
+  if (route) writeRoute({ overlay: 'feedback' });
   text.focus();
   // Caret at the end, so a prefill reads as a starting point rather than
   // something to clear before typing.
@@ -1647,11 +1802,10 @@ function openFeedback(prefill = null) {
  */
 function feedbackFromGuide(failedQuery = '') {
   closeModal('#guide');
-  // The guide owns an address and feedback does not, so the address has to come
-  // back to the step. Without this the reader ends on their own step with
-  // `/guide` in the bar, and a reload restores the guide and silently discards
-  // the half-written report.
-  writeRoute({ step: state.step });
+  // No detour through the step: openFeedback moves the address straight from
+  // /guide to /feedback, so Back from the report is the guide the reader came
+  // from. The draft survives that — closeModal only hides the dialogue, and
+  // openFeedback leaves the box alone once it holds anything the reader typed.
   openFeedback(
     failedQuery.trim()
       ? `I searched the guide for "${failedQuery.trim()}" and did not find an answer.\n\nWhat I was trying to do:\n`
@@ -1911,9 +2065,21 @@ function applyInert() {
 /** The innermost open dialogue, or null. */
 const topModal = () => modalStack[modalStack.length - 1] ?? null;
 
+/**
+ * The DOM ids of the dialogues that own an address.
+ *
+ * Not derivable from ROUTED_OVERLAYS below: that list is route ids, and the
+ * three legal documents share one `#legal` element between them. Kept as one
+ * constant because this set is consulted in four places — closing them all,
+ * finding the innermost one that owns an address, Escape, and a backdrop click
+ * — and the failure mode of four literals is a dialogue added to three of them,
+ * which closes without its address following it.
+ */
+const ROUTED_MODAL_IDS = ['guide', 'legal', 'settings', 'feedback'];
+
 /** The innermost open dialogue that owns an address, or null. */
 const topRoutedModal = () =>
-  [...modalStack].reverse().find((m) => ['guide', 'legal', 'settings'].includes(m.id)) ?? null;
+  [...modalStack].reverse().find((m) => ROUTED_MODAL_IDS.includes(m.id)) ?? null;
 
 function openModal(sel) {
   const el = $(sel);
@@ -1966,12 +2132,22 @@ function closeModal(sel) {
 // ---------------------------------------------------------------------------
 
 /**
- * Overlays that own an address. Feedback and the redraw canvas deliberately do
- * not: both hold unsaved input, and a link that reopens one would either
- * restore an empty version of something the reader had already written, or
- * promise to restore a draft that was never stored.
+ * Overlays that own an address, by route id.
+ *
+ * The redraw canvas still does not, and should not: it is a scratch surface
+ * bound to one glyph selected on the Review screen, and an address that reopened
+ * it would name a pad for a glyph that does not exist on a cold load.
+ *
+ * Feedback used to be excluded on the same grounds — that it holds unsaved
+ * input. That reasoning does not survive reading the code it describes.
+ * closeModal hides the dialogue and never touches its fields, and openFeedback
+ * treats `#fb-text` as the reader's the moment it holds anything other than
+ * what we put there (`const ours = text.value === '' || text.value === lastAutofill;`),
+ * so closing and reopening restores the draft rather than replacing it. What
+ * the exclusion actually bought was one dialogue where Back does nothing while
+ * Back closes every other one, and no way to link to it at all.
  */
-const ROUTED_OVERLAYS = ['guide', 'settings', ...LEGAL_IDS];
+const ROUTED_OVERLAYS = ['guide', 'settings', 'feedback', ...LEGAL_IDS];
 
 function closeRoutedOverlays() {
   // Through closeModal, never by writing `.hidden`. Hiding a dialogue behind
@@ -1980,7 +2156,7 @@ function closeRoutedOverlays() {
   // input as well as focus. The page goes dead with nothing on screen to
   // explain it, and no route out from inside the app, because closeModal
   // early-returns on an already-hidden element so the entry can never drain.
-  for (const sel of ['#guide', '#settings', '#legal']) closeModal(sel);
+  for (const id of ROUTED_MODAL_IDS) closeModal(`#${id}`);
 }
 
 /**
@@ -1989,19 +2165,27 @@ function closeRoutedOverlays() {
  * it is *replaced* so Back does not bounce off the rejected entry forever.
  */
 async function applyRoute() {
-  const { step, overlay, fromHash } = readRoute();
+  const { step, overlay, section, fromHash } = readRoute();
 
   closeRoutedOverlays();
 
   if (overlay && ROUTED_OVERLAYS.includes(overlay)) {
-    if (overlay === 'guide') await openGuide({ route: false });
+    // What the dialogue could actually show, which is null everywhere except a
+    // guide address whose section names a lesson that loaded.
+    let landed = null;
+    if (overlay === 'guide') landed = await openGuide({ route: false, section });
     else if (overlay === 'settings') openModal('#settings');
+    else if (overlay === 'feedback') openFeedback(null, { route: false });
     else {
       renderLegal(overlay);
       openModal('#legal');
     }
-    // Upgrade a shared #privacy link to /privacy in place.
-    if (fromHash) writeRoute({ overlay, replace: true });
+    // Upgrade a shared #privacy link to /privacy in place, and drop a section
+    // that names no lesson: /guide/nonsense is the guide, at the top, reading
+    // /guide. Replaced rather than pushed, for the same reason the step branch
+    // below replaces — a pushed correction makes Back return to the address
+    // that was just rejected and bounce forward again.
+    if (fromHash || landed !== section) writeRoute({ overlay, section: landed, replace: true });
     return;
   }
 
@@ -2013,7 +2197,18 @@ async function applyRoute() {
   // Nothing about a session is stored, so /refine on a cold load has no font to
   // show. Landing on the furthest screen that does work is honest; rendering an
   // empty Refine and letting the reader wonder what broke is not.
-  const landed = reachable(wanted) ? wanted : furthestReachable();
+  // Export is gated twice, and reachable() can only answer the first half: it
+  // knows a font was compiled at some point, not that the compiled font matches
+  // the settings on screen. goto() asks the same second question and can fix a
+  // 'no' by building; this path cannot, because it also runs during init and on
+  // every popstate, where a multi-second four-style build is not something the
+  // reader asked for. So it lands on the furthest honest screen and rewrites the
+  // address to match — the same treatment every other unreachable step gets two
+  // lines below.
+  const canLand = wanted === 'export'
+    ? reachable(wanted) && !!state.serialised?.length
+    : reachable(wanted);
+  const landed = canLand ? wanted : furthestReachable();
   applyStep(landed);
   if (landed !== wanted || !named || fromHash) writeRoute({ step: landed, replace: true });
 }
@@ -2114,6 +2309,12 @@ function bindControls() {
   });
   $('#family-name').addEventListener('input', (e) => {
     state.settings.familyName = e.target.value.trim() || 'My Handwriting';
+    // No preview rebuild — the name is nowhere in the specimen — but the name IS
+    // compiled into every style's name table, so the built font is stale all the
+    // same. Without this line, renaming after a full build produced a zip, a CSS
+    // snippet and a README all carrying the new name, wrapped around four .otf
+    // files that still introduced themselves to the font menu by the old one.
+    state.serialised = null;
   });
 
   $('#preview-size').addEventListener('input', (e) => {
@@ -2398,18 +2599,46 @@ function init() {
   // Wrapped, not passed by reference: addEventListener hands the listener the
   // event, which would arrive as the prefill argument.
   $('#open-feedback').addEventListener('click', () => openFeedback());
-  $('#close-feedback').addEventListener('click', () => closeModal('#feedback'));
+  $('#close-feedback').addEventListener('click', () => closeOverlay('#feedback'));
 
-  $('#fb-github').addEventListener('click', () => {
-    const title = encodeURIComponent(
-      ($('#fb-text').value.trim().split('\n')[0] || 'Feedback').slice(0, 70)
-    );
-    const body = encodeURIComponent(feedbackReport());
-    window.open(
-      `https://github.com/${REPO}/issues/new?title=${title}&body=${body}`,
-      '_blank',
-      'noopener'
-    );
+  /**
+   * Copy the report, then open an EMPTY issue form.
+   *
+   * The report used to ride in the query string of `issues/new?title=…&body=…`.
+   * A query string is part of the request, so the whole report — settings,
+   * error messages, user agent — was in GitHub's server logs the instant the
+   * tab opened, whether or not the reader ever pressed Submit, and whether or
+   * not they changed their mind on the way there. The dialogue said "Nothing is
+   * sent automatically" and the privacy policy said "Nothing is transmitted
+   * unless you post it yourself". Neither was true, and this is the only place
+   * in the app where the central claim was false.
+   *
+   * The clipboard write is started and the window opened in the same
+   * synchronous run of the handler, before any await. Both need the click's
+   * transient activation and an await spends it — copy, await, then open is how
+   * this turns into a blocked popup.
+   *
+   * 'noopener,noreferrer' matches the only other window.open in this file, the
+   * one in the leaving.js interstitial. The URL now carries no user data at
+   * all, which is why it is safe to open without that interstitial — but the
+   * referrer is still a disclosure the app does not need to make.
+   */
+  $('#fb-github').addEventListener('click', async () => {
+    let copying;
+    try {
+      copying = navigator.clipboard.writeText(feedbackReport());
+    } catch {
+      // No clipboard API at all, or a synchronous throw. Handled below, and
+      // attached before the microtask checkpoint, so it is never unhandled.
+      copying = Promise.reject(new Error('clipboard unavailable'));
+    }
+    window.open(`https://github.com/${REPO}/issues/new`, '_blank', 'noopener,noreferrer');
+    try {
+      await copying;
+      toast('Report copied. Paste it into the issue and post it when you are ready.');
+    } catch {
+      toast('Could not copy — select what you wrote and the details beside it, and copy them by hand.', true);
+    }
   });
 
   $('#fb-copy').addEventListener('click', async () => {
@@ -2468,8 +2697,35 @@ function init() {
     }
   });
 
+  $('#busy-cancel').addEventListener('click', () => {
+    const stop = busyCancel;
+    if (!stop) return;
+    const btn = $('#busy-cancel');
+    // Not `disabled`. Disabling the element that was just pressed removes it
+    // from the accessibility tree and drops focus on <body> — for a keyboard
+    // user, the same disappearance the overlay already caused once. Clearing
+    // busyCancel is what makes a second press a no-op.
+    busyCancel = null;
+    btn.setAttribute('aria-disabled', 'true');
+    // The pipeline only learns of this at its next yield: the next group of
+    // twelve characters, or the end of the preprocess stage now running. "Stop"
+    // would then be describing something that has not happened yet.
+    btn.textContent = 'Stopping…';
+    stop();
+  });
+
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    // The overlay is above every dialogue and swallows the key whether or not
+    // there is anything to stop. .busy is z-index 80 and .sheet-modal is 60, so
+    // a dialogue open underneath is completely covered — backing out of
+    // something the reader cannot see would be worse than doing nothing at all.
+    // (applyInert leaves the topmost dialogue non-inert even while the overlay
+    // is up, so it is the stacking order doing this work, not inert.)
+    if (busyOpen) {
+      if (busyCancel) $('#busy-cancel').click();
+      return;
+    }
     // One layer at a time. Dismissing the legal sheet that was opened *from*
     // Settings should not also throw Settings away — Escape means "back out of
     // this", not "close everything".
@@ -2478,7 +2734,7 @@ function init() {
     closeModal(`#${top.id}`);
     // The address follows only if the thing just closed owned one, and only
     // once nothing routed is left underneath it.
-    if (!['guide', 'legal', 'settings'].includes(top.id)) return;
+    if (!ROUTED_MODAL_IDS.includes(top.id)) return;
     const beneath = topRoutedModal();
     // Peeling the legal sheet off Settings leaves Settings on screen, so the
     // address has to name Settings — not stay at /privacy, which a reload would
@@ -2492,7 +2748,7 @@ function init() {
       // Only a click on the backdrop itself, not one that bubbled from inside.
       if (e.target !== m) return;
       closeModal(`#${m.id}`);
-      if (['guide', 'legal', 'settings'].includes(m.id) && !topRoutedModal()) {
+      if (ROUTED_MODAL_IDS.includes(m.id) && !topRoutedModal()) {
         writeRoute({ step: state.step });
       }
     })

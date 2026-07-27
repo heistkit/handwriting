@@ -26,7 +26,7 @@
  * Web Worker unchanged.
  */
 
-import { preprocess, labelComponents } from './imageproc.js';
+import { preprocess, labelComponents, paintYield } from './imageproc.js';
 import { segmentSheet, extractGlyph } from './segment.js';
 import { vectorize } from './trace.js';
 import { buildMetrics, deriveSpaceWidth, TARGET_X_HEIGHT } from './metrics.js';
@@ -55,19 +55,27 @@ export const sheetById = (id) => ALL_SHEETS.find((s) => s.id === id);
  *
  * @param {File|Blob|string} source
  * @param {string} sheetId
- * @param {{onProgress?: (stage: string, pct: number) => void, dropBlue?: boolean}} opts
+ * @param {{onProgress?: (stage: string, pct: number) => void, dropBlue?: boolean,
+ *          signal?: AbortSignal}} opts
  */
 export async function capturePage(source, sheetId, opts = {}) {
-  const { onProgress = () => {}, dropBlue = false, trace = {} } = opts;
+  const { onProgress = () => {}, dropBlue = false, trace = {}, signal = null } = opts;
   const sheet = sheetById(sheetId);
   if (!sheet) throw new Error(`Unknown sheet: ${sheetId}`);
 
   const image = await preprocess(source, {
     dropBlue,
+    signal,
     onProgress: (stage, pct) => onProgress(stage, pct * 0.45),
   });
 
   onProgress('Finding your characters', 0.5);
+  // The seventh blind label. segmentSheet and the labelling under it are two
+  // more full-image passes with no await between them, so without this the
+  // reader is still looking at "Measuring your slant" while the characters are
+  // being found, and at "Finding your characters" while they are being traced.
+  await paintYield();
+  signal?.throwIfAborted();
   const segmentation = segmentSheet(image.bin, image.w, image.h, sheet.rows);
 
   // Labelling is repeated here rather than threaded out of segmentSheet because
@@ -79,6 +87,19 @@ export async function capturePage(source, sheetId, opts = {}) {
   const glyphs = [];
 
   for (let i = 0; i < cells.length; i++) {
+    // At the top of the body, not the bottom. Both `continue`s below skip
+    // everything after them, so on a page where most cells produce no ink and
+    // no contours the loop ran start to finish without yielding once — the
+    // exact page on which the overlay most needed to move.
+    //
+    // The abort check goes immediately after the yield, and nowhere else: the
+    // click that sets the flag can only have run during that yield, so a check
+    // anywhere else in this loop would be dead code.
+    if (i % 12 === 0) {
+      await paintYield();
+      signal?.throwIfAborted();
+    }
+
     const cell = cells[i];
     const extracted = extractGlyph(image.bin, labels, image.w, image.h, cell);
     if (!extracted) continue;
@@ -91,10 +112,6 @@ export async function capturePage(source, sheetId, opts = {}) {
     if (i % 4 === 0 || i === cells.length - 1) {
       onProgress('Tracing outlines', 0.5 + 0.5 * ((i + 1) / cells.length));
     }
-    // Let the event loop breathe so a progress bar can actually paint. Costs a
-    // few milliseconds in total and is the difference between a UI that updates
-    // and one that appears frozen.
-    if (i % 12 === 0) await Promise.resolve();
   }
 
   onProgress('Done', 1);

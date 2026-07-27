@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "trailingSlash": false,
   "rewrites": [
+    { "source": "/guide/styles.css", "destination": "/styles.css" },
+    { "source": "/guide/assets/:path*", "destination": "/assets/:path*" },
+    { "source": "/guide/vendor/:path*", "destination": "/vendor/:path*" },
+    { "source": "/guide/src/:path*", "destination": "/src/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
