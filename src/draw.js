@@ -45,6 +45,19 @@ const INK_THRESHOLD = 0.5;
  *          null when no ink was laid down.
  */
 export function rasterizeGlyph(strokes, { width, height, ch = '', pad = PAD, threshold = INK_THRESHOLD } = {}) {
+  // A fractional grid is not a rounding nuisance here, it is silent corruption.
+  // Every read and write below is `cov[y * width + x]`, and a typed array with a
+  // fractional index is not an element access at all: the write is discarded and
+  // the read gives undefined, with no error either way. With width 1063.17, only
+  // rows where y * 0.17 happens to land on a whole number survive, so the ink
+  // comes back as a scatter of specks — or, on a thin stroke, as nothing, and
+  // the caller sees a commit that quietly did nothing.
+  //
+  // The pad sizes itself from mount.clientWidth, which is fractional far more
+  // often than not, so this is the normal case rather than the edge one.
+  width = Math.max(1, Math.floor(width));
+  height = Math.max(1, Math.floor(height));
+
   const cov = new Float32Array(width * height);
   for (const stroke of strokes) stampStroke(cov, width, height, stroke.points);
 
@@ -183,7 +196,9 @@ export function createDrawPad(mount, opts = {}) {
   // the card. And when the pad is built inside a dialogue that is still
   // display:none, every measurement is 0 — the old fallback was a flat 360px,
   // which overflows a 375px phone once the card's padding is counted.
-  const W = Math.min(Math.max(availableWidth(mount), 260), 440);
+  // Rounded, and not only for tidiness: W is multiplied by SCALE and handed to
+  // rasterizeGlyph as a raster width, and a fractional raster loses the ink.
+  const W = Math.round(Math.min(Math.max(availableWidth(mount), 260), 440));
   const H = Math.round(W * 1.15);
   const dpr = window.devicePixelRatio || 1;
 
@@ -219,10 +234,15 @@ export function createDrawPad(mount, opts = {}) {
   // -- DOM ------------------------------------------------------------------
   const wrap = document.createElement('div');
   wrap.className = 'draw-pad';
-  Object.assign(wrap.style, { position: 'relative', width: `${W}px`, margin: '0 auto', touchAction: 'none' });
+  // Only the measured size stays inline; everything else is in styles.css, so
+  // the toolbar can be laid out by a stylesheet rather than by four properties
+  // an element style would always win over.
+  wrap.style.width = `${W}px`;
 
   const stage = document.createElement('div');
-  Object.assign(stage.style, { position: 'relative', width: `${W}px`, height: `${H}px` });
+  stage.className = 'draw-pad__stage';
+  stage.style.width = `${W}px`;
+  stage.style.height = `${H}px`;
 
   const guideCanvas = makeCanvas(W, H, dpr);
   const inkCanvas = makeCanvas(W, H, dpr);
@@ -232,7 +252,6 @@ export function createDrawPad(mount, opts = {}) {
 
   const toolbar = document.createElement('div');
   toolbar.className = 'draw-tools';
-  Object.assign(toolbar.style, { display: 'flex', gap: '.5rem', marginTop: '.75rem', justifyContent: 'flex-end' });
 
   const undoBtn = toolButton('i-refresh', 'Undo', () => undo());
   const clearBtn = toolButton('i-x', 'Clear', () => clear());

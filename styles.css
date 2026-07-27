@@ -1634,6 +1634,43 @@ main { flex: 1; }
   padding: 1.1rem;
 }
 
+/* ── The pad's own furniture ──
+   The pad sizes itself from the box it is dropped into, so its toolbar has to
+   survive being narrow. Laid out as three equal columns rather than a flex row
+   pushed to one end: a row leaves the widths to the labels, and at 354px the
+   longest one broke across two lines mid-phrase — "Trace / it" — which then
+   set the height of all three. Equal columns cannot do that, and the buttons
+   read as one control group instead of three loose chips. */
+.draw-pad {
+  position: relative; margin: 0 auto; touch-action: none;
+  /* The pad's width is set by the box it was dropped into, not by the viewport
+     — the same pad is 440px in a dialogue and 260px in a phone-width card on
+     the same screen. So the toolbar has to respond to the pad, not the page. */
+  container-type: inline-size;
+}
+.draw-pad__stage { position: relative; }
+.draw-tools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .5rem;
+  margin-top: .75rem;
+}
+/* Below roughly 340px a third of the row is narrower than the longest label.
+   Undo and Clear pair off and the primary action takes the full width, which is
+   the right emphasis on a phone anyway. A browser without container queries
+   keeps the three-up row, which is the layout this degrades from. */
+@container (max-width: 340px) {
+  .draw-tools { grid-template-columns: 1fr 1fr; }
+  .draw-tools .btn-primary { grid-column: 1 / -1; }
+}
+.draw-tools .btn {
+  /* A label is a phrase, not a paragraph. If it genuinely cannot fit it should
+     run past its column, where it is obvious, rather than fold in half. */
+  white-space: nowrap;
+  padding-inline: .7rem;
+  min-width: 0;
+}
+
 .demo-result { display: grid; gap: 1.75rem; min-width: 0; }
 
 .demo-idle { color: var(--text-2); max-width: 46ch; }

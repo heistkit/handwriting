@@ -20,6 +20,7 @@ const suites = [
   './filetype.test.mjs',
   './salvage.test.mjs',
   './health.test.mjs',
+  './markup.test.mjs',
 ];
 
 let total = 0;

@@ -86,6 +86,34 @@ export function run() {
     check('cross bitmap length still w*h', glyph.bitmap.length === glyph.w * glyph.h);
   }
 
+  // -- 4. a fractional raster size must not lose the ink --------------------
+  {
+    // The pad sizes its canvas from mount.clientWidth, which is a fractional
+    // CSS pixel far more often than not — 354.390625 is a real measurement off
+    // the landing page. Multiplied by SCALE it reached rasterizeGlyph as a
+    // fractional width, and every `cov[y * width + x]` became a fractional
+    // typed-array index: writes silently discarded, reads silently undefined.
+    // Only rows where y * the fraction landed on a whole number survived, so
+    // the ink came back as a scatter of specks, or on a thin stroke as nothing
+    // at all — which is how the landing demo's Trace it button came to be a
+    // button that did nothing, with no error anywhere.
+    const stroke = lineStroke(120, 120, 260, 300, 5);
+    const whole = rasterizeGlyph([stroke], { width: 400, height: 460, ch: 'a' });
+    const frac = rasterizeGlyph([stroke], { width: 400.390625, height: 460.7, ch: 'a' });
+
+    check('a fractional raster still produces a glyph', frac != null);
+    const inkWhole = whole.bitmap.reduce((n, v) => n + v, 0);
+    const inkFrac = frac ? frac.bitmap.reduce((n, v) => n + v, 0) : 0;
+    // Flooring the grid can only change which pixels exist at the far edge, and
+    // this stroke is nowhere near it, so the two must agree exactly.
+    check('and the same amount of ink as a whole one', inkFrac === inkWhole,
+      `${inkFrac} vs ${inkWhole}`);
+    check('and the same bounds', frac && whole.page.x0 === frac.page.x0 && whole.page.y1 === frac.page.y1,
+      `${JSON.stringify(frac?.page)} vs ${JSON.stringify(whole.page)}`);
+    check('and a bitmap whose length is still w*h',
+      frac != null && frac.bitmap.length === frac.w * frac.h);
+  }
+
   return results;
 }
 
