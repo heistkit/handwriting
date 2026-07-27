@@ -976,6 +976,38 @@ function scheduleRecompile() {
  * hollow — "Your font is ready", zero characters, no download rows, and a
  * Download button that threw a raw TypeError when pressed.
  */
+/**
+ * Wait for one painted frame — but never for one that is not coming.
+ *
+ * requestAnimationFrame is the accurate signal here: it resolves after the
+ * browser has had its chance to render, which is the whole point of the pause
+ * before a synchronous compile takes the main thread for several seconds.
+ *
+ * It is also a signal that stops arriving entirely when the tab is hidden. Not
+ * throttled — stopped. And "press Build, then switch tabs while it works" is
+ * not an edge case, it is what a reasonable person does with a job that takes
+ * half a minute. The frame was requested, the tab went to the background, the
+ * callback was never called, and the build sat on this line without having
+ * started: the overlay up, the progress bar still, and nothing under way. The
+ * reader comes back to a spinner that has been lying to them the whole time.
+ *
+ * imageproc.js already reasons this out for the capture pass and uses a timer
+ * for exactly this reason. This is the same hazard on the compile path, so it
+ * gets the same answer: take whichever comes first. In a visible tab that is
+ * the frame, and nothing changes; in a hidden one the timer falls through and
+ * the work simply runs unobserved, which is what the reader wanted.
+ */
+function nextPaint(timeout = 120) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => { if (!settled) { settled = true; resolve(); } };
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => setTimeout(done, 0));
+    }
+    setTimeout(done, timeout);
+  });
+}
+
 async function runCompile(previewOnly = false) {
   if (!state.glyphs.length) return false;
   // Preview recompiles are exempt — see allowHeavyOp for why.
@@ -990,7 +1022,7 @@ async function runCompile(previewOnly = false) {
   // Hand the browser a frame before starting. compile() is synchronous and
   // holds the main thread, so without this neither the bar nor the placeholder
   // would paint until after the work they exist to cover had finished.
-  await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+  await nextPaint();
 
   try {
     const styles = previewOnly
