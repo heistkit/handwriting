@@ -4240,3 +4240,147 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 :root[data-decor='off'] .mascot__stage { cursor: default; }
 :root[data-lite='on'] :is(.is-poked .mascot__blob, .is-delighted .mascot__blob, .is-delighted .mascot__shadow),
 :root[data-decor='off'] :is(.is-poked .mascot__blob, .is-delighted .mascot__blob, .is-delighted .mascot__shadow) { animation: none; }
+
+
+/* ── The press ──────────────────────────────────────────────────────────
+   An isometric printing press, adapted from a Uiverse.io loader by preet_7613
+   (MIT). Twelve empty elements, each a face of the same object, built out of
+   layered gradients and rotated into place. It sits beside "Print a template",
+   which is the one place in this app where paper genuinely goes through a
+   printer.
+
+   Changes from the original, and the reasons:
+
+   `.press *` was a scoped reset — border, margin, padding, box-sizing on every
+   descendant. Dropped: the children are named now, so the reset had nothing to
+   do except wait to stomp something added later.
+
+   The palette was five hard-coded values, three of them near-black, on a
+   cornflower field that appears nowhere in this app. On our tokens the frame
+   is --surface-3, the paper --paper, the ink --ink, and the field is the card
+   it sits in, so it follows the theme instead of fighting it.
+
+   `height: 600px` and `font-size: 16px`. The whole thing is em-based, so one
+   font-size governs its scale — it is 9px here, in a card, and the height
+   comes from that rather than from a constant. The fixed 16px also ignored
+   --ui-scale, so it was the one element on the page that did not grow with the
+   Larger text setting.
+
+   No reduced-motion guard on an infinite animation. There is one now, and lite
+   mode and the decoration switch stop it too. When it stops it stops mid-sheet
+   rather than vanishing, because the press is still a picture of a press.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.press {
+  /* One lever for the whole assembly. In rem, so it follows --ui-scale. */
+  font-size: .56rem;
+  position: relative;
+  width: 100%;
+  height: 13em;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.press__sheet, .press__roll {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+.press__sheet { width: 4em; height: 6em; overflow: hidden; }
+
+/* The printed page: rules and a block of text, drawn entirely in gradients and
+   scrolled upward to look like it is feeding through. */
+.press__sheet::before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: -6em;
+  left: 0;
+  width: 100%;
+  height: calc(100% + 6em);
+  background:
+    linear-gradient(#0000 5.2em, currentColor 5.2em 5.3em, #0000 5.3em 5.5em) .4em 0 / 3.2em 6em,
+    linear-gradient(#0000 5.5em, currentColor 5.5em 5.7em, #0000 5.7em) .6em 0 / 2.8em 6em,
+    linear-gradient(90deg, var(--paper) .4em, #0000 .4em 1.9em, var(--paper) 1.9em 2.1em,
+      #0000 2.1em 3.6em, var(--paper) 3.6em) 0 0 / 4em 6em,
+    repeating-linear-gradient(var(--paper) 0 .4em, #0000 .4em 5em, var(--paper) 5em 6em, #0000 6em) 0 0 / 4em 6em,
+    linear-gradient(#0000 3.4em, currentColor 3.4em) 100% 0 / 50% 6em,
+    repeating-linear-gradient(currentColor 0 .2em, var(--paper) .2em .4em) 0 0 / 4em 6em;
+  background-repeat: repeat-y;
+  animation: press-feed .5s linear infinite;
+}
+
+/* The two sheets furthest from the eye are the ones already stacked, so they
+   are quieter than the page currently being printed. */
+.press__sheet:nth-child(1)::before,
+.press__sheet:nth-child(5)::before { color: var(--border-strong); }
+
+.press__sheet:nth-child(n + 7):nth-child(-n + 9) { height: .4em; }
+
+.press__sheet:nth-child(1) {
+  height: 42em;
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-17.4em, 9.4em) rotateX(-90deg);
+}
+.press__sheet:nth-child(3) {
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-2.5em, -2.5em);
+}
+.press__sheet:nth-child(5) {
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-.5em, -.7em) rotateX(-75deg);
+}
+.press__sheet:nth-child(7) {
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(1.7em, -1.85em) rotateX(-15deg);
+}
+.press__sheet:nth-child(7)::before { background-position-y: 5.2em; }
+.press__sheet:nth-child(8) {
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(1.7em, -1.5em) rotateX(15deg);
+}
+.press__sheet:nth-child(8)::before { background-position-y: 4.8em; }
+.press__sheet:nth-child(9) {
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(1.6em, -1.05em) rotateX(45deg);
+}
+.press__sheet:nth-child(9)::before { background-position-y: 4.4em; }
+.press__sheet:nth-child(10)::before,
+.press__sheet:nth-child(11)::before { background-position-y: 4em; }
+.press__sheet:nth-child(10) {
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-.5em, 1.95em) rotateX(75deg);
+}
+.press__sheet:nth-child(11) {
+  height: 29em;
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-2.5em, 19.25em);
+}
+
+.press__roll {
+  width: 8em;
+  height: 2em;
+  border-radius: .5em / 1em;
+  background-color: var(--surface-3);
+  background-image: radial-gradient(1em 2em at .5em 50%, var(--ink) 49%, #0000 50%);
+}
+.press__roll:nth-child(2) {
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-3em, -4.5em) skewX(-22.5deg);
+}
+.press__roll:nth-child(4) {
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-2em, -.5em) skewX(-22.5deg);
+}
+.press__roll:nth-child(6) {
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(1em, -1em) skewX(-22.5deg);
+}
+.press__roll:nth-child(12) {
+  transform: translate(-50%, -50%) rotateX(-45deg) rotateZ(-45deg) translate(-2em, 4.45em) skewX(-22.5deg);
+}
+
+@keyframes press-feed {
+  from { transform: translateY(0); }
+  to { transform: translateY(6em); }
+}
+
+/* Stopped, not hidden. A still press is still a picture of a press; the paper
+   simply is not moving through it. */
+@media (prefers-reduced-motion: reduce) {
+  .press__sheet::before { animation: none; }
+}
+:root[data-lite='on'] .press__sheet::before,
+:root[data-decor='off'] .press__sheet::before { animation: none; }

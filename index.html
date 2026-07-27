@@ -492,6 +492,17 @@
             <ul class="tips" id="write-tips"><!-- populated --></ul>
           </div>
           <div class="card">
+            <!-- Twelve empty divs, and every one of them is a face of the same
+                 isometric press. Decoration: the card says what the button does
+                 without it, and it is aria-hidden. -->
+            <div class="press" aria-hidden="true">
+              <i class="press__sheet"></i><i class="press__roll"></i>
+              <i class="press__sheet"></i><i class="press__roll"></i>
+              <i class="press__sheet"></i><i class="press__roll"></i>
+              <i class="press__sheet"></i><i class="press__sheet"></i>
+              <i class="press__sheet"></i><i class="press__sheet"></i>
+              <i class="press__sheet"></i><i class="press__roll"></i>
+            </div>
             <h3>Prefer guide boxes?</h3>
             <p class="muted">Print a sheet with a box for every character. The blue guides disappear automatically when the photo is processed.</p>
             <button class="btn btn-block" id="print-template" type="button">
