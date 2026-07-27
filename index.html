@@ -797,36 +797,49 @@
       </button>
     </header>
     <div class="modal-body">
-      <p class="muted" style="margin-bottom:1rem">
-        Nothing is sent automatically. Write what happened, check the details
-        below, and the report opens in GitHub for you to post — or copy it and
-        send it however you like.
-      </p>
+      <div class="fb-split">
 
-      <label class="field">
-        <span>What happened?</span>
-        <textarea class="input" id="fb-text" rows="5" placeholder="What you expected, and what you got instead."></textarea>
-      </label>
+        <div class="fb-split__form">
+          <p class="fb-split__lede">
+            Nothing is sent automatically. Write what happened, check the details
+            beside this, and the report opens in GitHub for you to post — or copy
+            it and send it however you like.
+          </p>
 
-      <details class="fb-details">
-        <summary>Details that will be included</summary>
-        <pre class="code" id="fb-diagnostics"></pre>
-      </details>
+          <label class="field">
+            <span>What happened?</span>
+            <textarea class="input" id="fb-text" rows="5" placeholder="What you expected, and what you got instead."></textarea>
+          </label>
 
-      <p class="privacy" style="margin-top:1rem">
-        <svg class="locklock" viewBox="0 0 24 24" aria-hidden="true"><rect class="locklock__body" x="4" y="10" width="16" height="11" rx="2"/><path class="locklock__shackle" d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-        No handwriting, images or font files are included — only the numbers shown above.
-      </p>
+          <div class="fb-actions">
+            <button class="btn btn-primary btn-invert" id="fb-github" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-github"/></svg>
+              <span>Open a GitHub issue</span>
+            </button>
+            <button class="btn" id="fb-copy" type="button"><span>Copy report</span></button>
+          </div>
+        </div>
 
-      <div class="fb-actions">
-        <button class="btn btn-primary btn-invert" id="fb-github" type="button">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-github"/></svg>
-          <span>Open a GitHub issue</span>
-        </button>
-        <button class="btn" id="fb-copy" type="button"><span>Copy report</span></button>
+        <!-- A parallel column, not a later step, which is why the actions above
+             may precede it in the tab order. The privacy line sits directly
+             under the disclosure and says "shown above", so the order inside
+             this column is not negotiable. -->
+        <aside class="fb-split__aside" aria-labelledby="fb-aside-title">
+          <h3 class="fb-split__aside-title" id="fb-aside-title">What gets sent</h3>
+
+          <details class="fb-details">
+            <summary>Details that will be included</summary>
+            <pre class="code" id="fb-diagnostics"></pre>
+          </details>
+
+          <p class="privacy">
+            <svg class="locklock" viewBox="0 0 24 24" aria-hidden="true"><rect class="locklock__body" x="4" y="10" width="16" height="11" rx="2"/><path class="locklock__shackle" d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            No handwriting, images or font files are included — only the numbers shown above.
+          </p>
+        </aside>
+
       </div>
-    </div>
-  </div>
+      </div>
 </div>
 
 <div class="sheet-modal" id="legal" hidden>

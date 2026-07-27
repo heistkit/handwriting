@@ -3484,3 +3484,68 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 :root[data-lite='on'] .xdel__label {
   max-inline-size: 12ch; padding-inline: .35rem .15rem; opacity: 1;
 }
+
+/* ── Split form panel ───────────────────────────────────────────────────
+   Adapted from a Uiverse.io login form by zanina-yassine (MIT).
+
+   There is no sign-in in this app and there is no server, so none of the login
+   half comes across: no <form>, no fields added, no password input, no submit.
+   What is borrowed is the two-panel container — a form column beside a
+   supporting column, sharing one radius and meeting at a seam — and the tint
+   that tells them apart. The testimonial, its avatar and its attributed quote
+   are dropped because they were placeholder text about a person who does not
+   exist.
+
+   The original's `.input_field:focus { border: 1px solid transparent;
+   box-shadow: 0 0 0 2px #115DFC }` is dropped rather than adapted: it is the
+   same ring-instead-of-outline trick this sheet's `.input` comment was written
+   about. Field chrome belongs to the anniekoop input.
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* The columns carry their own padding so the aside's tint reaches the panel
+   edge. The panel already has overflow:hidden and a radius, so the tint is
+   clipped to its corners for free. */
+#feedback .modal-body { padding: 0; }
+
+.fb-split { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); }
+.fb-split__form { padding: 1.35rem; min-width: 0; }
+.fb-split__lede { font-size: .93rem; color: var(--text-2); margin-bottom: 1rem; max-width: 46ch; }
+
+/*
+ * The seam does the structural work; the wash does the tonal work. The wash
+ * ceiling is a measurement rather than a preference: `.privacy` is --text-3,
+ * and mixing --accent into --surface pushes it to 4.49:1 light / 4.52:1 dark
+ * at 10% and through the 4.5:1 floor just past that. At 8% it holds at 4.59:1
+ * and 4.72:1, so 8% is both the ceiling and the value.
+ *
+ * This is also why --accent-quiet is not reused here: at #e6f7ec / #1c3324 it
+ * drops --text-3 to 4.31:1 in dark. That token is a fill for accent-coloured
+ * text, not for body copy.
+ */
+.fb-split__aside {
+  padding: 1.35rem;
+  min-width: 0;
+  align-content: start;
+  border-inline-start: 1px solid var(--border);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 8%, var(--surface)) 0%,
+    var(--surface) 100%);
+}
+.fb-split__aside-title { font-size: .95rem; color: var(--text); margin-bottom: .75rem; }
+/* Last in its column with the disclosure directly above it, so the base
+   `.privacy { margin-top: 2rem }` is too much here. */
+.fb-split__aside .privacy { margin-top: 1rem; }
+
+/* --bg-deep is 1.04:1 from the 8% wash in light and would read as a hole
+   rather than a block. --border-strong at 1.44:1 / 1.46:1 is the strongest
+   edge the palette offers against it; a container edge, not a control part, so
+   the 3:1 floor does not apply. Descendant selector deliberately — src/fold.js
+   injects a .fold-body wrapper between .fb-details and this <pre> at runtime. */
+.fb-split__aside .code { border-color: var(--border-strong); }
+
+/* Form first, support after: the reading order is the source order, and the
+   seam becomes a rule across the top. */
+@media (max-width: 700px) {
+  .fb-split { grid-template-columns: 1fr; }
+  .fb-split__aside { border-inline-start: 0; border-block-start: 1px solid var(--border); }
+}
