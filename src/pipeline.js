@@ -27,7 +27,7 @@
  */
 
 import { preprocess, labelComponents, paintYield } from './imageproc.js';
-import { segmentSheet, extractGlyph } from './segment.js';
+import { segmentSheet, extractGlyph, identifySheet } from './segment.js';
 import { vectorize } from './trace.js';
 import { buildMetrics, deriveSpaceWidth, TARGET_X_HEIGHT } from './metrics.js';
 import { buildFamily, STYLES } from './fontbuild.js';
@@ -77,6 +77,45 @@ export async function capturePage(source, sheetId, opts = {}) {
   await paintYield();
   signal?.throwIfAborted();
   const segmentation = segmentSheet(image.bin, image.w, image.h, sheet.rows);
+
+  // Is this the sheet we were asked for?
+  //
+  // Segmentation pairs bands to rows from the top and never asks. Put the
+  // capitals photograph in the everyday slot and it does exactly as designed:
+  // 'A' is written into the font as 'a', 'B' as 'b', straight down. Every
+  // character is found. The review grid shows a tidy grid of capitals under
+  // lowercase labels, and the only way to notice is to recognise the letters —
+  // which is the one thing this app never does.
+  //
+  // Refused rather than warned about. A warning is right when the font will be
+  // slightly wrong; this one is wrong in every character it contains, and going
+  // on to build it wastes the reader's time and then hands them something they
+  // have to work out for themselves.
+  {
+    const asked = identifySheet(segmentation.stats, [sheet]);
+    if (!asked || asked.score < 0.75) {
+      const looksLike = identifySheet(segmentation.stats, ALL_SHEETS.filter((s) => s.id !== sheetId));
+      if (looksLike && looksLike.score >= 0.75) {
+        return {
+          sheetId,
+          glyphs: [],
+          issues: [{
+            level: 'fatal',
+            code: 'wrong-sheet',
+            message:
+              `This looks like the “${looksLike.title}” sheet rather than “${sheet.title}”. ` +
+              'Nothing has been read from it — reading it here would have written every ' +
+              `character under the wrong name. Drop it on the “${looksLike.title}” row instead.`,
+            suggest: looksLike.id,
+          }],
+          stats: segmentation.stats,
+          slant: image.slant,
+          angle: image.angle,
+          page: { w: image.w, h: image.h, bin: image.bin },
+        };
+      }
+    }
+  }
 
   // Labelling is repeated here rather than threaded out of segmentSheet because
   // extraction needs to know which component each pixel belongs to, so that a
@@ -287,6 +326,12 @@ export function serialise(family) {
       weightClass: s.weightClass,
       otf,
       glyphCount: s.order.length,
+      // What a reader means by "characters": the ones they can type. `order`
+      // also holds .notdef, space, and two alternates for every letter, so it
+      // came to about three times this — and the export screen, the details
+      // table and the README all called that number "Characters". A font of 112
+      // characters was described as having 346 of them.
+      charCount: s.order.filter((n) => !n.includes('.alt') && n !== '.notdef').length,
       kernCount: s.kerning.length,
     };
   });
@@ -295,7 +340,7 @@ export function serialise(family) {
 /** Build the downloadable zip for a compiled family. */
 export async function packageFamily(familyName, serialised, extra = {}, onProgress) {
   return bundleFamily(familyName, serialised, {
-    glyphCount: serialised[0]?.glyphCount,
+    glyphCount: serialised[0]?.charCount,
     kernCount: serialised[0]?.kernCount,
     ...extra,
   }, onProgress);

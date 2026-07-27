@@ -229,6 +229,37 @@ export async function run() {
     check('the variant substitution table is present', !!font.tables.gsub);
     check('the vertical metrics are the right way round',
       font.ascender > 0 && font.descender < 0, `${font.ascender} / ${font.descender}`);
+
+    // The declared metrics must contain the ink, in every style.
+    //
+    // On a real export they did not: usWinAscent 815 against a true extreme of
+    // 817, usWinDescent 216 against −218. Two units is exactly the margin that
+    // clips a terminal in some Windows applications and nowhere else, so it
+    // survives being looked at. The cause was measuring the outlines BEFORE
+    // each style's embolden and slant, and skipping .notdef entirely — and
+    // emboldening is what makes it matter, because it grows the ink outward on
+    // every side, so Bold reaches furthest of all.
+    for (const s of built) {
+      const bytes = s.otf;
+      const ab = bytes instanceof ArrayBuffer
+        ? bytes
+        : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      const f = opentype.parse(ab);
+
+      let top = -Infinity, bottom = Infinity;
+      for (let i = 0; i < f.glyphs.length; i++) {
+        const g = f.glyphs.get(i);
+        if (!g.path.commands.length) continue;
+        const bb = g.path.getBoundingBox();
+        if (bb.y2 > top) top = bb.y2;
+        if (bb.y1 < bottom) bottom = bb.y1;
+      }
+      const win = f.tables.os2;
+      check(`${s.style}: usWinAscent contains the tallest ink`,
+        win.usWinAscent >= Math.ceil(top), `${win.usWinAscent} vs ${Math.ceil(top)}`);
+      check(`${s.style}: usWinDescent contains the deepest ink`,
+        win.usWinDescent >= Math.ceil(-bottom), `${win.usWinDescent} vs ${Math.ceil(-bottom)}`);
+    }
   }
 
   // --- the health report survives a real build ------------------------------

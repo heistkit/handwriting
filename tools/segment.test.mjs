@@ -135,13 +135,38 @@ export async function run() {
   // --- a row split in two by the smoother ----------------------------------
   {
     // Two bands very close together where one row was expected: capitals with
-    // no descenders can break like this. Fusing beats discarding.
+    // no descenders can break like this. Fusing beats discarding — and the
+    // halves are each sparse, which is what makes it safe to fuse them.
     const bin = new Uint8Array(W * H);
-    inkRow(bin, 300, 13, { height: 40 });
-    inkRow(bin, 360, 13, { height: 40 });
+    inkRow(bin, 300, 6, { height: 40, gap: 60 });
+    inkRow(bin, 360, 7, { height: 40, gap: 60 });
     const seg = segmentSheet(bin, W, H, [ALPHA]);
-    check('two adjacent bands for one row are read as one row',
+    check('two adjacent sparse bands for one row are read as one row',
       seg.rows.length === 1, `${seg.rows.length}`);
+  }
+
+  // --- two REAL rows are never one row -------------------------------------
+  {
+    // The regression this guards. When the fusing step had no density guard, a
+    // noisy page with more bands than rows fused the two full rows of writing
+    // into one — and then mergeStacked, whose job is to join marks that sit
+    // above and below one another, joined every letter to the one beneath it.
+    // The A cell held an A stacked on an N, the B cell a B on an O, across the
+    // whole alphabet.
+    const bin = new Uint8Array(W * H);
+    box(bin, 40, 40, 320, 58);        // stray above
+    inkRow(bin, 300, 13);             // real row 1
+    inkRow(bin, 600, 13);             // real row 2
+    box(bin, 40, 840, 400, 858);      // stray below
+    box(bin, 900, 860, 1200, 876);    // and another
+
+    const seg = segmentSheet(bin, W, H, [ALPHA, BETA]);
+    check('a noisy page still yields two rows', seg.rows.length === 2, `${seg.rows.length}`);
+    check('and each cell holds one character, not two stacked',
+      seg.rows.every((r) => r.cells.every((c) => c.missing || c.parts <= 1)),
+      JSON.stringify(seg.rows.map((r) => r.cells.map((c) => c.parts))));
+    check('and the labels are still right',
+      labelled(seg).join('') === 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', labelled(seg).join(''));
   }
 
   // --- a mark far from every row is not adopted into one -------------------
@@ -200,6 +225,73 @@ export async function run() {
     const noIds = extractGlyph(bin, labels, W, H, { ...cell, partIds: [] });
     const inkAll = noIds.bitmap.reduce((n, v) => n + v, 0);
     check('a cell with no ids still yields a glyph', inkAll > 100 * 100, `${inkAll} px`);
+  }
+
+  // --- telling one sheet from another, without reading a letter -------------
+  {
+    // The failure this prevents is silent and total. Drop the capitals
+    // photograph into the everyday slot and segmentation pairs bands to rows
+    // from the top exactly as designed: 'A' becomes 'a', 'B' becomes 'b',
+    // straight down. Every character is found, the review grid looks tidy, and
+    // the only way to notice is to recognise the letters — the one thing this
+    // app never does.
+    const { identifySheet } = await import('../src/segment.js');
+    const { SHEETS } = await import('../src/charset.js');
+
+    const everyday = SHEETS.find((s) => s.id === 'everyday');
+    const capitals = SHEETS.find((s) => s.id === 'capitals');
+    check('the fixture sheets have different silhouettes',
+      JSON.stringify(everyday.rows.map((r) => r.length)) !==
+      JSON.stringify(capitals.rows.map((r) => r.length)),
+      `${everyday.rows.map((r) => r.length)} vs ${capitals.rows.map((r) => r.length)}`);
+
+    // A photograph of the capitals sheet: two rows of thirteen.
+    const asCapitals = { observedPerRow: [13, 13], observedBands: 2 };
+    check('a two-row page is recognised as the capitals sheet',
+      identifySheet(asCapitals, SHEETS)?.id === 'capitals',
+      identifySheet(asCapitals, SHEETS)?.id);
+    check('and does not pass as the everyday sheet',
+      (identifySheet(asCapitals, [everyday])?.score ?? 0) < 0.75,
+      String(identifySheet(asCapitals, [everyday])?.score));
+
+    // The real everyday sheet: 13, 13, 6.
+    const asEveryday = {
+      observedPerRow: everyday.rows.map((r) => r.length),
+      observedBands: everyday.rows.length,
+    };
+    check('the right sheet in the right slot is accepted',
+      (identifySheet(asEveryday, [everyday])?.score ?? 0) >= 0.75,
+      String(identifySheet(asEveryday, [everyday])?.score));
+
+    // A character or two lost to a bad photograph must not read as a different
+    // sheet — this has to tolerate ordinary imperfection or it becomes noise.
+    const slightlyOff = {
+      observedPerRow: everyday.rows.map((r, i) => r.length - (i === 0 ? 1 : 0)),
+      observedBands: everyday.rows.length,
+    };
+    check('one missing character is still the same sheet',
+      (identifySheet(slightlyOff, [everyday])?.score ?? 0) >= 0.75,
+      String(identifySheet(slightlyOff, [everyday])?.score));
+
+    check('an unrecognisable page matches nothing',
+      identifySheet({ observedPerRow: [3], observedBands: 1 }, SHEETS) === null ||
+      identifySheet({ observedPerRow: [3], observedBands: 1 }, SHEETS).score < 0.75);
+    check('no observation at all yields no claim',
+      identifySheet({}, SHEETS) === null);
+  }
+
+  // --- and segmentSheet reports the shape it actually saw -------------------
+  {
+    const bin = new Uint8Array(W * H);
+    inkRow(bin, 250, 13);
+    inkRow(bin, 550, 13);
+    // Asked for a three-row sheet, given a two-row page.
+    const seg = segmentSheet(bin, W, H, [ALPHA, BETA, ['+', '-', '=']]);
+    check('the observed row shape is reported, not the hoped-for one',
+      JSON.stringify(seg.stats.observedPerRow) === '[13,13]',
+      JSON.stringify(seg.stats.observedPerRow));
+    check('and the band count with it', seg.stats.observedBands === 2,
+      String(seg.stats.observedBands));
   }
 
   return results;

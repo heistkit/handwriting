@@ -1194,6 +1194,29 @@
   );
 </script>
 
+<!--
+  The four modules app.js loads on demand, fetched during load instead.
+
+  Privacy says "after the page has finished loading it makes no further network
+  requests at all — you can disconnect from the internet and every remaining
+  feature still works", and that was not true. Four modules were imported
+  lazily, so going offline and then clicking a character to redraw it produced
+  "The drawing pad did not load", and asking for the printable sheet produced
+  "The printable template is not available in this build". Both are advertised
+  features, and the network tab did not stay empty either.
+
+  Preloading is the answer rather than softening the sentence, because the
+  sentence describes something worth having. modulepreload is low priority and
+  does not block rendering, the four together are about 55KB beside app.js's
+  118KB, and the lazy import() calls stay exactly as they are — they simply
+  become cache hits. A browser that does not support modulepreload ignores
+  these and behaves as before.
+-->
+<link rel="modulepreload" href="src/draw.js">
+<link rel="modulepreload" href="src/template.js">
+<link rel="modulepreload" href="src/tutorial.js">
+<link rel="modulepreload" href="src/demo.js">
+
 <script src="vendor/opentype.min.js"></script>
 <script type="module" src="src/app.js"></script>
 </body>

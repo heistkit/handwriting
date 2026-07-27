@@ -47,7 +47,7 @@ export const PRIVACY = {
   id: 'privacy',
   title: 'Privacy',
   summary:
-    'Nothing you write, photograph, or create is sent anywhere. There is no server to send it to. Five small things are stored on your device — a counter, your three display settings, and a handful of stopwatch readings — and every one of them is described in full below.',
+    'Nothing you write, photograph, or create is sent anywhere. There is no server to send it to. Seven small things are stored on your device — a counter, your five display settings, and a handful of stopwatch readings — and every one of them is described in full below.',
   sections: [
     {
       heading: 'The short version',
@@ -88,14 +88,14 @@ export const PRIVACY = {
     {
       heading: 'What is stored on your device',
       body: [
-        'Five things, all in your browser\'s local storage, and nothing else. No session storage, no IndexedDB, no cookies.',
+        'Seven things, all in your browser\'s local storage, and nothing else. No session storage, no IndexedDB, no cookies.',
         `First, the rate limit described in the Terms. The app keeps a short random string and a list of recent timestamps, so it can tell how many fonts have been built in the last minute and hold you to ${LIMITS.perDevicePerMinute} per minute.`,
         'That random string is generated on your device by your browser\'s cryptographic random number generator. It is not derived from your hardware, your browser configuration, your network, or anything else about you — two people on identical machines get different values, and the same person gets a new one in a fresh browser profile. It cannot be used to recognise you on any other site, and it is never transmitted anywhere.',
-        'The other three are the settings you can see in the Settings panel: your choice of light or dark theme, whether lite mode is on, and whether you have asked for larger text. Each is written only once you have actually chosen it. Until then nothing is stored, and the app follows your system settings.',
-        'Fifth, how long the last few operations took on this device. When you build a font the app times three things — reading a photograph, rebuilding the preview, and building all four styles — and keeps up to eight durations for each, oldest discarded. That is the whole record: at most twenty-four numbers, each one a count of milliseconds.',
+        'The next five are the settings you can see in the Settings panel: your choice of light or dark theme, whether lite mode is on, whether you have asked for larger text, whether panels fold open and shut, and whether the decorative movement runs. Each is written only once you have actually chosen it — and only the answer that differs from the default, so a switch you have never touched leaves nothing behind at all. Until then nothing is stored, and the app follows your system settings.',
+        'Seventh, how long the last few operations took on this device. When you build a font the app times three things — reading a photograph, rebuilding the preview, and building all four styles — and keeps up to eight durations for each, oldest discarded. That is the whole record: at most twenty-four numbers, each one a count of milliseconds.',
         'It exists so that the estimate on screen has something to say in the first few seconds, before there is enough progress to measure the run in front of you. An estimate drawn from this history is labelled as such, so you always know whether you are reading a measurement or a memory.',
         'Durations only, deliberately. The obvious design also stores how much work each run covered — characters traced, cells on the sheet — which would make the estimate better and would also mean writing down how far through your own font you are. That is a fact about what you wrote, so it is not recorded. Nothing here is derived from your handwriting, your images, or the contents of your font.',
-        'You can erase all five at any time by clearing site data for this domain. Doing so resets the counter, returns the display settings to following your system, and forgets the timings; there is no other effect.',
+        'You can erase all seven at any time by clearing site data for this domain. Doing so resets the counter, returns the display settings to following your system, and forgets the timings; there is no other effect.',
       ],
     },
     {

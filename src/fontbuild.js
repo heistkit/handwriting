@@ -362,7 +362,20 @@ function toPath(contours, offsetX = 0) {
   return path;
 }
 
-const round = (n) => Math.round(n * 10) / 10;
+/**
+ * Outline coordinates, rounded to whole font units.
+ *
+ * CFF charstrings hold integers, so a fractional coordinate is rounded during
+ * encoding no matter what — but opentype.js derives usWinAscent and usWinDescent
+ * from the path BEFORE that rounding happens. A glyph reaching 889.6 was
+ * therefore written into the file at 890 and declared at 889, and a font whose
+ * declared height sits one unit inside its own ink clips a terminal in some
+ * Windows applications and nowhere else. It was 0.1-unit precision here, which
+ * on a 1000-unit em is a tenth of nothing and bought exactly this.
+ *
+ * Rounding first makes the two agree by construction.
+ */
+const round = (n) => Math.round(n);
 
 function notdefGlyph(advance) {
   const { Glyph, Path } = ot();
@@ -391,9 +404,26 @@ export function buildStyle(defs, style, opts = {}) {
   const order = [];
   const glyphList = [];
 
+  // The real vertical extremes, accumulated from the outlines actually written
+  // rather than measured separately afterwards. See the note where they are
+  // used: measuring anything other than these exact paths is how the declared
+  // metrics came to sit two units inside the ink they are supposed to contain.
+  let yMax = 0;
+  let yMin = 0;
+  const cover = (b) => {
+    if (!b) return;
+    if (b.y1 > yMax) yMax = b.y1;
+    if (b.y0 < yMin) yMin = b.y0;
+  };
+
   // Index 0 must be .notdef; index 1 is space by long-standing convention.
-  glyphList.push(notdefGlyph(spaceWidth * 1.4));
+  const notdef = notdefGlyph(spaceWidth * 1.4);
+  glyphList.push(notdef);
   order.push('.notdef');
+  {
+    const bb = notdef.path.getBoundingBox();
+    cover({ x0: bb.x1, y0: bb.y1, x1: bb.x2, y1: bb.y2 });
+  }
 
   glyphList.push(
     new Glyph({ name: 'space', unicode: 32, advanceWidth: Math.round(spaceWidth), path: new (ot().Path)() })
@@ -411,6 +441,7 @@ export function buildStyle(defs, style, opts = {}) {
 
     const b = boundsOf(contours);
     if (!b) continue;
+    cover(b);
 
     // Emboldening grows the ink on both sides; re-anchoring here keeps the
     // bearings meaningful instead of letting the extra weight eat into them.
@@ -430,15 +461,25 @@ export function buildStyle(defs, style, opts = {}) {
   }
 
   // Vertical metrics from the real extremes, padded, so nothing ever clips.
-  let yMax = 0, yMin = 0;
-  for (const def of defs.values()) {
-    const b = boundsOf(def.contours);
-    if (!b) continue;
-    if (b.y1 > yMax) yMax = b.y1;
-    if (b.y0 < yMin) yMin = b.y0;
-  }
-  const ascender = Math.round(Math.max(yMax * 1.06, TARGET_X_HEIGHT * 1.5));
-  const descender = Math.round(Math.min(yMin * 1.06, -TARGET_X_HEIGHT * 0.4));
+  //
+  // The extremes are now accumulated in the loop above, from the same contours
+  // that became the paths. They used to be measured here in a separate pass
+  // over `def.contours` — the outlines BEFORE this style's embolden and slant —
+  // and that pass skipped .notdef, which is not in `defs` at all. So the number
+  // describing the ink was taken from something other than the ink: on a real
+  // export, usWinAscent came out 815 against a true extreme of 817, and
+  // usWinDescent 216 against −218. Two units, which is exactly the kind of
+  // margin that clips a terminal in some Windows applications and nowhere else,
+  // so it survives every test that renders the font somewhere reasonable.
+  //
+  // Emboldening is the reason it is not merely tidier to measure late: it grows
+  // the ink outward on every side, so the Bold styles genuinely reach further
+  // than the outlines the old pass was looking at.
+  //
+  // Math.ceil rather than round on both, so the padded value can only ever land
+  // outside the ink it is padding.
+  const ascender = Math.max(Math.ceil(yMax * 1.06), Math.round(TARGET_X_HEIGHT * 1.5));
+  const descender = Math.min(Math.floor(yMin * 1.06), -Math.round(TARGET_X_HEIGHT * 0.4));
 
   const postScriptName = `${familyName.replace(/[^A-Za-z0-9]/g, '')}-${style.name.replace(/\s/g, '')}`;
 

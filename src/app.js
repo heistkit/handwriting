@@ -1235,7 +1235,7 @@ function renderExport() {
   const built = state.serialised ?? [];
 
   $('#export-sub').textContent =
-    `${name} — four styles, ${built[0]?.glyphCount ?? 0} characters, built entirely on this device.`;
+    `${name} — four styles, ${built[0]?.charCount ?? 0} characters, built entirely on this device.`;
   $('#download-title').textContent = `${name}.zip`;
 
   $('#dl-individual').replaceChildren(
@@ -1272,7 +1272,7 @@ function renderExport() {
   h.textContent = 'Summary';
   const dl = document.createElement('dl');
   const rows = [
-    ['Characters', String(built[0]?.glyphCount ?? 0)],
+    ['Characters', String(built[0]?.charCount ?? 0)],
     ['Kerning pairs', String(built[0]?.kernCount ?? 0)],
     ['Variants per letter', String(state.settings.variantCount)],
     ['Natural slant', `${Math.round(state.naturalSlant)}°`],

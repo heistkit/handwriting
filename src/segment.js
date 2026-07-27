@@ -327,43 +327,73 @@ function reconcileBands(bands, boxes, expectedRows, issues) {
     boxes.reduce((n, b) => n + (b.cy >= band.y0 && b.cy < band.y1 ? 1 : 0), 0);
 
   let items = bands.map((b) => ({ ...b, n: countIn(b) }));
+  const want = expectedRows.length;
 
-  // A quarter of the sparsest row the sheet asks for. Sparsest, not average:
-  // the symbols sheet ends on a short row, and a threshold set by the long
-  // rows would throw that one away.
+  // The sparsest row the sheet asks for. Sparsest, not average: the symbols
+  // sheet ends on a short row, and a threshold taken from the long rows would
+  // throw that one away.
   const sparsest = Math.min(...expectedRows.map((r) => r.length));
-  const floor = Math.max(1, Math.ceil(sparsest * 0.25));
 
-  const strong = items.filter((b) => b.n >= floor);
-  if (strong.length >= expectedRows.length && strong.length < items.length) {
-    const dropped = items.length - strong.length;
+  // -- 1. Fuse halves of a row that the smoother split ----------------------
+  //
+  // Order matters: fusing comes first, because a split row is two SPARSE bands
+  // and step 2 would otherwise discard one of the halves.
+  //
+  // Two guards, and both are load-bearing. The gap has to be small beside a
+  // band's own height — real rows are separated by much more than that — and
+  // at least one of the pair has to be too sparse to be a row on its own.
+  // Without the second guard this fused two full rows of thirteen into one, and
+  // then mergeStacked, whose whole job is to join things that sit above and
+  // below each other, dutifully joined every letter to the one beneath it: the
+  // A cell held an A stacked on an N, the B cell a B on an O, all the way
+  // across. Two real rows are never one row, however close together they sit.
+  let fused = 0;
+  while (items.length > want) {
+    const h = median(items.map((b) => b.y1 - b.y0)) ?? 0;
+    let at = -1;
+    let best = Infinity;
+    for (let i = 0; i + 1 < items.length; i++) {
+      const a = items[i], b = items[i + 1];
+      if (a.n >= sparsest - 1 && b.n >= sparsest - 1) continue;
+      const gap = b.y0 - a.y1;
+      if (gap < best) { best = gap; at = i; }
+    }
+    if (at < 0 || best > h * 0.45) break;
+    items.splice(at, 2, { y0: items[at].y0, y1: items[at + 1].y1, n: items[at].n + items[at + 1].n });
+    fused++;
+  }
+  if (fused) {
+    issues.push({
+      level: 'info',
+      code: 'merged-band',
+      message: `Two bands of writing sat close enough to be one row, and were read as one.`,
+    });
+  }
+
+  // -- 2. Keep the bands that look most like rows ---------------------------
+  //
+  // By count, not by position. A row of writing holds about as many marks as it
+  // has characters and a crease or a margin note holds one or two, so the count
+  // separates them without anything having to recognise a letter — and the
+  // expected count is already known, because it is what the sheet asked for.
+  //
+  // Taking the first `want` bands instead, which is what happened before any of
+  // this existed, is what renamed an entire alphabet: one stray mark above the
+  // writing became row 0, so the first written row paired with the second row
+  // of expected characters and A was compiled as N.
+  if (items.length > want) {
+    const dropped = items.length - want;
+    const keep = new Set(
+      [...items].sort((a, b) => b.n - a.n).slice(0, want)
+    );
+    items = items.filter((b) => keep.has(b));
     issues.push({
       level: 'info',
       code: 'stray-band',
       message:
-        `Ignored ${dropped} stray mark${dropped === 1 ? '' : 's'} above or below the writing. ` +
+        `Ignored ${dropped} band${dropped === 1 ? '' : 's'} of stray marks around the writing. ` +
         'If a whole row is missing on the next screen, photograph the sheet again with nothing ' +
         'but the paper in frame.',
-    });
-    items = strong;
-  }
-
-  // Still too many: fuse the closest vertical neighbours until the count fits.
-  while (items.length > expectedRows.length) {
-    let at = 0, best = Infinity;
-    for (let i = 0; i + 1 < items.length; i++) {
-      const gap = items[i + 1].y0 - items[i].y1;
-      if (gap < best) { best = gap; at = i; }
-    }
-    items.splice(at, 2, {
-      y0: items[at].y0,
-      y1: items[at + 1].y1,
-      n: items[at].n + items[at + 1].n,
-    });
-    issues.push({
-      level: 'info',
-      code: 'merged-band',
-      message: 'Two bands of writing were close enough to be one row, and were read as one.',
     });
   }
 
@@ -452,9 +482,17 @@ export function segmentSheet(bin, w, h, expectedRows) {
   const rows = [];
   const pairCount = Math.min(chosen.length, expectedRows.length);
 
+  // What the page actually looks like, before any of it is bent to fit what
+  // was asked for. Everything below splits and fuses groups toward
+  // `expected.length`, so by the end the counts describe the sheet we hoped
+  // for rather than the one in front of us. Recorded here, once, so the caller
+  // can ask whether this photograph is of a different sheet entirely.
+  const observedPerRow = [];
+
   for (let r = 0; r < pairCount; r++) {
     const expected = expectedRows[r];
     let groups = mergeStacked(perBand[r]);
+    observedPerRow.push(groups.length);
 
     // Short row: try splitting touching characters before giving up.
     let guard = 0;
@@ -526,8 +564,60 @@ export function segmentSheet(bin, w, h, expectedRows) {
       bands: bands.length,
       found: rows.reduce((n, r) => n + r.cells.filter((c) => !c.missing).length, 0),
       total: expectedRows.reduce((n, r) => n + r.length, 0),
+      // The shape of the page as found, not as hoped for. See `identifySheet`.
+      observedPerRow,
+      observedBands: chosen.length,
     },
   };
+}
+
+/**
+ * Which sheet does this page look like?
+ *
+ * Nothing here reads a letter. Every sheet has a distinct silhouette — how many
+ * rows, and how many characters in each — and that is enough to tell them
+ * apart: the everyday sheet is 13, 13, 6; the capitals are 13, 13; the symbols
+ * are 13, 7, 3. A photograph that produced two rows of thirteen is not the
+ * everyday sheet however much we would like it to be.
+ *
+ * This exists because the failure it catches is silent and total. Drop the
+ * capitals photograph into the everyday slot and segmentation pairs bands to
+ * rows from the top exactly as designed: 'A' is written into the font as 'a',
+ * 'B' as 'b', all the way down. Every character is found, the count reads 26 of
+ * 32, and the review grid shows a tidy grid of capitals sitting under lowercase
+ * labels. The only clue is that the reader has to recognise the letters
+ * themselves — which is the one thing the app never does.
+ *
+ * @param {{observedPerRow: number[], observedBands: number}} stats
+ * @param {Array<{id: string, title: string, rows: string[][]}>} sheets
+ * @returns {{id: string, title: string, score: number}|null} best match, or null
+ */
+export function identifySheet(stats, sheets) {
+  const observed = stats?.observedPerRow;
+  if (!Array.isArray(observed) || !observed.length) return null;
+
+  // Rows are found top-down and a sheet's rows are written top-down, so the
+  // comparison is positional. A row is "agreed" when the counts are within
+  // one — a joined pair or a split character moves a count by one routinely,
+  // and demanding exactness would make this fire on good photographs.
+  const scoreOf = (sheet) => {
+    const want = sheet.rows.map((r) => r.length);
+    if (want.length !== stats.observedBands) return 0;
+    let agreed = 0;
+    for (let i = 0; i < want.length; i++) {
+      if (Math.abs((observed[i] ?? 0) - want[i]) <= 1) agreed++;
+    }
+    return agreed / want.length;
+  };
+
+  let best = null;
+  for (const sheet of sheets) {
+    const score = scoreOf(sheet);
+    if (score > 0 && (!best || score > best.score)) {
+      best = { id: sheet.id, title: sheet.title, score };
+    }
+  }
+  return best;
 }
 
 // ---------------------------------------------------------------------------
