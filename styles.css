@@ -2827,80 +2827,123 @@ details.legal-section > summary:focus-visible {
 }
 
 /* ── Sliders ────────────────────────────────────────────────────────────
-   Filled track and hover-grow adapted from a Uiverse.io slider by Galahhad
-   (MIT). Applied to input[type=range] directly rather than through the
-   original's `.slider` class, which is generic enough to collide with almost
-   anything, and which would have meant rewriting all five controls' markup.
+   Two Uiverse.io sliders, merged: the filled track from Galahhad (MIT) and the
+   round thumb with the halo from satisshTechie (MIT).
 
-   The fill is a nice trick: the thumb is collapsed to zero and given an
-   enormous one-sided box-shadow, which `overflow: hidden` then clips to the
-   track. Everything left of the thumb is shadow.
+   They could not simply be stacked. Galahhad's fill is a zero-width thumb
+   casting an enormous one-sided box-shadow, clipped to the track by
+   `overflow: hidden` on the input — and that clip eats any other shadow on the
+   thumb, which is exactly what satisshTechie's halo is. Worse, the trick meant
+   the control had no visible grab handle at all: you could see where the fill
+   ended and nothing you could take hold of.
 
-   It is also WebKit-only. Firefox does not clip a ::-moz-range-thumb shadow
-   this way, so in the original the fill simply does not appear there — the
-   track is uniformly grey and nothing indicates the value. Firefox has
-   ::-moz-range-progress for exactly this, so both engines are handled and the
-   result matches.
+   So the fill is a background gradient instead, sized from a `--fill` custom
+   property that src/slider.js keeps in step with the value. That is one
+   declaration for every engine rather than a WebKit shadow trick plus a
+   ::-moz-range-progress fallback that could drift from it, and it frees the
+   thumb entirely.
 
-   Other changes: the fill was pure white and takes the accent instead; the
-   volume icon is dropped, since it means nothing next to "Italic slant"; and
-   a focus ring was added, because `appearance: none` removes the platform one
-   and the original never put anything back.
+   What changed from satisshTechie's original:
+     · `background-color: #000000` on the thumb, twice — this palette has no
+       pure black, and a black thumb is invisible on the dark theme. It takes
+       the accent, ringed in --surface so it stays legible where it crosses its
+       own fill.
+     · `opacity: 0.7` on the whole control, which dimmed the track AND the
+       thumb AND the halo together. Contrast is set per part instead.
+     · `-webkit-transition: .2s` next to `transition: opacity .2s` — the first
+       has no property, so it means `all`, and the two contradict each other.
+     · No focus style at all. `appearance: none` removes the platform ring and
+       the original never put one back, so the control was unusable by keyboard.
+     · A 15px thumb on a 4px track. The input now carries a 2.2rem hit area
+       with the track painted as a thin strip through the middle of it, so the
+       target passes on touch without the track looking like a bar.
+     · ::-moz-range-thumb had no border reset, so Firefox drew its own.
    ─────────────────────────────────────────────────────────────────────── */
 
 input[type=range] {
   --track: 6px;
+  --thumb: 18px;
+  /* Only a starting point. src/slider.js sets the real value, and a slider
+     whose script never ran still drags correctly — it just stops colouring. */
+  --fill: 0%;
 
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: var(--track);
+  /* A real hit area, with the visible track painted as a strip through the
+     middle of it. The old control was 6px tall in total, which fails every
+     touch-target guideline there is. */
+  height: 2.2rem;
+  background:
+    linear-gradient(90deg, var(--accent) 0 var(--fill), var(--surface-3) var(--fill) 100%)
+    center / 100% var(--track) no-repeat;
   border-radius: 999px;
-  background: var(--surface-3);
-  overflow: hidden; /* clips the shadow that forms the fill */
   cursor: pointer;
-  transition: height .12s var(--ease);
+  transition: --fill .06s linear;
 }
 
-/* WebKit and Blink: zero-width thumb casting the fill behind itself. */
+/* WebKit and Blink. */
 input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 0;
-  height: var(--track);
-  box-shadow: -240px 0 0 240px var(--accent);
+  appearance: none;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: var(--accent);
+  /* Ringed, because for most of its travel the thumb sits on top of the
+     accent-coloured fill it is marking the end of. */
+  border: 2px solid var(--surface);
+  cursor: pointer;
+  transition: box-shadow .2s var(--ease), transform .12s var(--ease);
 }
 
-/* Firefox: the same result, natively. */
-input[type=range]::-moz-range-progress {
+/* Firefox: the same, natively. The track is transparent so the gradient on the
+   input itself shows through rather than being covered by it. */
+input[type=range]::-moz-range-track {
   height: var(--track);
-  background: var(--accent);
+  background: transparent;
   border-radius: 999px;
 }
 input[type=range]::-moz-range-thumb {
-  width: 0;
-  height: var(--track);
-  border: 0;
-  background: transparent;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  cursor: pointer;
+  transition: box-shadow .2s var(--ease), transform .12s var(--ease);
 }
 
-input[type=range]:hover,
-input[type=range]:focus-visible { --track: 12px; }
+/* The halo. This is what `overflow: hidden` used to make impossible. */
+input[type=range]:hover::-webkit-slider-thumb,
+input[type=range]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+input[type=range]:hover::-moz-range-thumb,
+input[type=range]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+input[type=range]:active::-webkit-slider-thumb { transform: scale(1.12); }
+input[type=range]:active::-moz-range-thumb { transform: scale(1.12); }
 
+/* The platform ring is gone with `appearance: none`; this puts one back. */
+input[type=range]:focus { outline: none; }
 input[type=range]:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 
-/*
- * Hover cannot be relied on for size, and a 6px target fails every touch
- * guideline going. On a coarse pointer the track is simply always thick.
- */
+/* A thicker track where a hover state cannot be relied on to reveal anything. */
 @media (pointer: coarse) {
-  input[type=range] { --track: 16px; }
+  input[type=range] { --track: 10px; --thumb: 22px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  input[type=range] { transition: none; }
+  input[type=range],
+  input[type=range]::-webkit-slider-thumb,
+  input[type=range]::-moz-range-thumb { transition: none; }
+  input[type=range]:active::-webkit-slider-thumb,
+  input[type=range]:active::-moz-range-thumb { transform: none; }
 }
 
 /* ── Hard-shadow text field ─────────────────────────────────────────────

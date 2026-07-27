@@ -41,6 +41,7 @@ import { init as initFlourish, bindToggle as bindFlourish } from './flourish.js'
 import { loop as loopSpecimen } from './specimen.js';
 import { mount as mountStepshow } from './stepshow.js';
 import { mount as mountEggs } from './eggs.js';
+import { mount as mountSliders } from './slider.js';
 import { read as readRoute, write as writeRoute, base as routeBase } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
@@ -2094,6 +2095,9 @@ function bindControls() {
       scheduleRecompile();
     });
   };
+
+  // Paint every track's fill from its value, and keep it painted while dragging.
+  mountSliders();
 
   bind('#ctl-spacing', 'spacing', (v) => `${Math.round(v * 100)}%`);
   bind('#ctl-bold', 'bold', (v) => `${(v * 1000).toFixed(0)} units`);
