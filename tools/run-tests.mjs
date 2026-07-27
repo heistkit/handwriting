@@ -21,6 +21,7 @@ const suites = [
   './salvage.test.mjs',
   './health.test.mjs',
   './markup.test.mjs',
+  './endtoend.test.mjs',
 ];
 
 let total = 0;
