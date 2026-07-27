@@ -15,6 +15,7 @@ const suites = [
   './routes.test.mjs',
   './leaving.test.mjs',
   './browsergate.test.mjs',
+  './timings.test.mjs',
 ];
 
 let total = 0;

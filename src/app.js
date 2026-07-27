@@ -37,6 +37,7 @@ import { bindToggle as bindTextSize } from './textsize.js';
 import { observe as observeReveal, showAll as revealAll } from './reveal.js';
 import { read as readRoute, write as writeRoute } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
+import { record as recordTiming, estimate as estimateTiming } from './timings.js';
 import { intercept as interceptExternal, describe as describeUrl } from './leaving.js';
 import { profile, createEstimator, describeEta, slowDeviceNote } from './eta.js';
 import { buildIndex, search as searchDocs, terms as searchTerms, highlight } from './docsearch.js';
@@ -201,23 +202,69 @@ function setStage(text) {
 
 const estimator = createEstimator();
 
-function busy(on, stage = '', pct = 0) {
+/**
+ * The operation currently running, and when it started — so it can be timed and
+ * so the right history bucket can be read while it is still too early to
+ * measure.
+ */
+let busyRun = null;
+
+/**
+ * @param {boolean} on
+ * @param {string} stage
+ * @param {number} pct
+ * @param {'capture'|'preview'|'family'|null} [op] which history bucket this is
+ */
+function busy(on, stage = '', pct = 0, op = null) {
   const el = $('#busy');
   el.hidden = !on;
 
   if (!on) {
+    // Timed here rather than at each call site, because this is the one place
+    // that knows the operation really finished. A build that threw goes through
+    // runCompile's catch and reaches busy(false) too, so completion is recorded
+    // only when the last progress seen was a real one.
+    if (busyRun && busyRun.op && busyRun.reached >= 0.9) {
+      recordTiming(busyRun.op, performance.now() - busyRun.startedAt);
+    }
+    busyRun = null;
     estimator.reset();
     $('#busy-eta').textContent = '';
     return;
   }
 
+  if (!busyRun) busyRun = { op, startedAt: performance.now(), reached: pct };
+  else if (op) busyRun.op = op;
+  busyRun.reached = Math.max(busyRun.reached, pct);
+
   setStage(stage);
   $('#busy-bar').style.width = `${Math.round(pct * 100)}%`;
 
   const { remainingMs, confident } = estimator.update(pct);
-  // Left blank until there is enough signal — an estimate drawn from the first
-  // 2% of a job is a guess wearing a number.
-  $('#busy-eta').textContent = confident ? describeEta(remainingMs) : '';
+  $('#busy-eta').textContent = confident
+    ? describeEta(remainingMs)
+    // Until there is enough signal to measure — an estimate drawn from the
+    // first 2% of a job is a guess wearing a number — fall back to what this
+    // device took last time, and say so. A remembered figure and a measured one
+    // must not look alike: the reader is entitled to know which they are
+    // reading, because only one of them is tracking the run in front of them.
+    : rememberedEta(busyRun, pct);
+}
+
+/**
+ * @returns {string} empty when there is no usable history
+ */
+function rememberedEta(run, pct) {
+  if (!run?.op) return '';
+  const past = estimateTiming(run.op);
+  if (!past) return '';
+
+  const elapsed = performance.now() - run.startedAt;
+  const left = past.ms * (1 - Math.min(pct, 0.95)) - elapsed;
+  // Past the remembered duration the memory has nothing left to say, and
+  // counting down past zero would be worse than saying nothing.
+  if (left < 1500) return '';
+  return `${describeEta(left)} — going by your last ${past.samples} runs`;
 }
 
 function toast(message, bad = false) {
@@ -405,7 +452,7 @@ async function handleFile(file, sheetId) {
   }
   if (!allowHeavyOp()) return;
   try {
-    busy(true, 'Reading image', 0.02);
+    busy(true, 'Reading image', 0.02, 'capture');
     const capture = await capturePage(file, sheetId, {
       onProgress: (stage, pct) => busy(true, stage, pct),
     });
@@ -725,7 +772,7 @@ function renderSamples() {
 // ---------------------------------------------------------------------------
 
 async function prepareExport() {
-  busy(true, 'Building all four styles', 0.15);
+  busy(true, 'Building all four styles', 0.15, 'family');
   try {
     await runCompile(false);
     busy(true, 'Packaging', 0.7);
@@ -1603,7 +1650,7 @@ function init() {
   });
 
   $('#to-refine').addEventListener('click', async () => {
-    busy(true, 'Building your font', 0.3);
+    busy(true, 'Building your font', 0.3, 'preview');
     try {
       await runCompile(true);
       goto('refine');
