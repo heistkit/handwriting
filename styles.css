@@ -1179,10 +1179,18 @@ main { flex: 1; }
 .seg-wide button { flex: 1; }
 
 .preview-surface {
+  position: relative; /* anchors the skeleton that stands in before first compile */
   background: var(--paper); border-radius: var(--r-lg);
   padding: clamp(1.5rem, 4vw, 2.75rem);
   min-height: 320px; box-shadow: var(--shadow-2);
   border: 1px solid rgb(0 0 0 / .1);
+}
+/* The surface is always paper-coloured, in either theme, so the skeleton on
+   top of it has to be keyed to paper rather than to the page background. */
+.preview-surface .skel { background: color-mix(in srgb, var(--ink) 11%, var(--paper)); }
+.preview-surface .skel::after {
+  background: linear-gradient(100deg, transparent 20%,
+    color-mix(in srgb, var(--ink) 8%, transparent) 50%, transparent 80%);
 }
 .preview-text {
   color: var(--ink); font-size: 40px; line-height: 1.5;
@@ -1206,6 +1214,87 @@ main { flex: 1; }
 .field-inline { display: flex !important; align-items: center; gap: .7rem; margin: 0 !important; }
 .field-inline > span { font-size: .85rem; }
 .field-inline input { width: 130px; }
+
+/* ── Skeleton ───────────────────────────────────────────────────────────
+   Adapted from a Uiverse.io skeleton by Nawsome (MIT), as a reusable
+   primitive rather than the original's one fixed card.
+
+   Where it is used, and why only there. A skeleton is honest when content is
+   genuinely coming, its shape is roughly known, and the wait is long enough to
+   notice. Most waits in this app already show a determinate progress bar,
+   which tells the user strictly more than a skeleton can, so replacing those
+   would be a downgrade.
+
+   The one place it earns its keep is the preview surface before the first
+   compile finishes. Until the font exists the browser renders that text in a
+   fallback face — so the user is shown a sentence in someone else's
+   handwriting at the exact moment they are looking for their own. A
+   placeholder is not merely prettier than that; it is the difference between
+   saying nothing and saying something false.
+
+   Changes from the original:
+
+   - Every colour was hard-coded around #e3e3e3, including the shimmer, which
+     is built from the same value as the background. On a dark palette that is
+     a bright slab with an invisible sweep. All tokens now.
+   - The card was 240x130 with each line absolutely positioned at fixed pixel
+     offsets. A skeleton has to match the shape of whatever it stands in for,
+     which fixed pixels cannot do. Rebuilt as flow layout.
+   - Class names `.loader`, `.circle`, `.button`, `.line-1` are broad enough to
+     collide with almost any stylesheet. Namespaced.
+   - Skeletons are meaningless to a screen reader, which would otherwise meet a
+     handful of empty divs. Hidden from the accessibility tree, with the state
+     announced in words instead.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.skel {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--surface-3);
+}
+
+.skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--text) 9%, transparent) 50%,
+    transparent 80%
+  );
+  animation: skel-sweep 1.25s linear infinite;
+}
+
+@keyframes skel-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+.skel-line { height: .68em; margin-bottom: .62em; }
+.skel-circle { border-radius: 50%; aspect-ratio: 1; }
+
+.skel-preview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: .1rem;
+  padding: inherit;
+  font-size: inherit;
+}
+.skel-preview[hidden] { display: none; }
+
+/* Static under lite mode and reduced motion: the shape still communicates
+   "content is coming", which is the part that carries meaning. */
+:root[data-lite='on'] .skel::after { animation: none; opacity: .5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .skel::after { animation: none; opacity: .5; }
+}
 
 /* ── Indeterminate top bar ──────────────────────────────────────────────
    Adapted from a Uiverse.io loader by satyamchaudharydev (MIT). Used only

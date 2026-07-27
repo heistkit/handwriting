@@ -506,9 +506,14 @@ async function runCompile(previewOnly = false) {
   if (!previewOnly && !allowHeavyOp()) return;
 
   topload(true);
+  // Only before the first build. On later recompiles the preview already shows
+  // the user's own hand, and replacing it with a placeholder every time a
+  // slider moves would be a downgrade — the top bar covers those.
+  if (!state.family) $('#preview-skeleton').hidden = false;
+
   // Hand the browser a frame before starting. compile() is synchronous and
-  // holds the main thread, so without this the bar would not be painted until
-  // after the work it exists to cover had already finished.
+  // holds the main thread, so without this neither the bar nor the placeholder
+  // would paint until after the work they exist to cover had finished.
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
   try {
@@ -550,6 +555,8 @@ async function runCompile(previewOnly = false) {
 }
 
 function applyPreviewFont() {
+  // The font exists now, so the placeholder has done its job.
+  $('#preview-skeleton').hidden = true;
   const el = $('#preview-text');
   const bold = state.previewStyle.includes('Bold');
   const italic = state.previewStyle.includes('Italic');
