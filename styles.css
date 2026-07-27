@@ -2050,12 +2050,47 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
 
 .how-list { list-style: none; padding: 0; display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
 .how-list li { background: var(--surface); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.25rem; padding: 1.6rem 1.5rem; align-items: start; }
+/* A flat tinted disc with a digit in it was the cheapest possible answer, and
+   looked it. It is now circled by hand — an overshooting pen loop that draws
+   itself as the step arrives, in the same ink as the specimen in the hero.
+   The disc stays underneath as the resting state, so a browser that never
+   runs the animation still gets a legible, finished-looking number. */
 .how-num {
-  width: 34px; height: 34px; flex: none; border-radius: 50%;
+  position: relative;
+  width: 46px; height: 46px; flex: none; border-radius: 50%;
   display: grid; place-items: center;
   background: var(--accent-quiet); color: var(--accent);
-  font-weight: 600; font-size: .95rem; font-family: 'Geist Mono', monospace;
+  font-weight: 600; font-size: 1.15rem; font-family: 'Geist Mono', monospace;
 }
+.how-num b { font-weight: 600; }
+.how-ring {
+  position: absolute; inset: -5px;
+  width: calc(100% + 10px); height: calc(100% + 10px);
+  overflow: visible; pointer-events: none;
+}
+.how-ring path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+/* Drawn on arrival, driven off the row's own reveal state so there is no
+   second mechanism to keep in step. Resting offset is 0, so with the reveal
+   switched off — or never started — the circle is simply there. */
+.reveal-ready [data-reveal] .how-ring path { stroke-dashoffset: 1; }
+.reveal-ready [data-reveal='in'] .how-ring path {
+  animation: how-circle .62s cubic-bezier(.5, .05, .55, .95) .18s both;
+}
+@keyframes how-circle { from { stroke-dashoffset: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-ready [data-reveal] .how-ring path { stroke-dashoffset: 0; }
+  .reveal-ready [data-reveal='in'] .how-ring path { animation: none; }
+}
+:root[data-lite='on'] .how-ring path,
+:root[data-decor='off'] .how-ring path { stroke-dashoffset: 0; animation: none; }
 .how-list h3 { margin-bottom: .35rem; }
 .how-list p { color: var(--text-2); font-size: .96rem; max-width: 68ch; }
 
@@ -2106,6 +2141,46 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
 }
 .legal-section + .legal-section { margin-top: 1.75rem; }
 .legal-section h3 { margin-bottom: .55rem; }
+
+/* ── Folded articles ──
+   Only the Terms folds — the threshold is section count, in app.js. */
+.legal-tools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem;
+  margin-bottom: 1.75rem; padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.legal-tools__hint { font-size: .85rem; color: var(--text-3); }
+
+details.legal-section {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+details.legal-section + details.legal-section { margin-top: .6rem; }
+details.legal-section > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: .95rem 1.15rem;
+  cursor: pointer;
+  list-style: none;
+  transition: background .16s var(--ease);
+}
+details.legal-section > summary::-webkit-details-marker { display: none; }
+details.legal-section > summary:hover { background: var(--surface-2); }
+/* The heading keeps its level for the outline; it just stops looking like a
+   block heading now that it is the label on a control. */
+details.legal-section > summary h3 { margin: 0; font-size: 1rem; }
+details.legal-section > summary::after {
+  content: ''; flex: none; width: 9px; height: 9px;
+  border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform .28s var(--ease);
+}
+details.legal-section[open] > summary::after { transform: rotate(-135deg) translate(-3px, -3px); }
+details.legal-section .fold-body { padding: 0 1.15rem 1.15rem; }
+details.legal-section > summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+}
 .legal-section p { font-size: .94rem; color: var(--text-2); }
 .legal-section p + p { margin-top: .6rem; }
 

@@ -1227,6 +1227,47 @@ async function renderFAQ() {
  * to live at a stable, shareable address. A modal with no URL cannot be cited,
  * so the hash is the routing even though this is a single page.
  */
+/**
+ * One control that opens or closes every article at once.
+ *
+ * This is not a convenience. Find-in-page reaches inside a closed <details> in
+ * some browsers and not in others, so a reader hunting for a particular clause
+ * cannot rely on Ctrl-F finding it while the articles are folded. This is how
+ * they guarantee the whole document is on the page before they search it — and
+ * it is why the folding is allowed to exist on a legal document at all.
+ */
+function expandAllControl(body) {
+  const bar = document.createElement('div');
+  bar.className = 'legal-tools';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-ghost';
+  const label = document.createElement('span');
+  label.textContent = 'Show every clause';
+  btn.append(label);
+  btn.setAttribute('aria-expanded', 'false');
+
+  btn.addEventListener('click', () => {
+    const all = [...body.querySelectorAll('details.legal-section')];
+    // Recomputed each press rather than tracked, so that opening a few
+    // articles by hand and then pressing this does the obvious thing.
+    const opening = all.some((d) => !d.open);
+    // Set directly, which bypasses fold.js: twenty-two panels animating at
+    // once is a mess, and this press is about getting to the text.
+    for (const d of all) d.open = opening;
+    label.textContent = opening ? 'Collapse every article' : 'Show every clause';
+    btn.setAttribute('aria-expanded', String(opening));
+  });
+
+  const hint = document.createElement('span');
+  hint.className = 'legal-tools__hint';
+  hint.textContent = 'Nothing is hidden — folding only affects what is on screen.';
+
+  bar.append(btn, hint);
+  return bar;
+}
+
 function renderLegal(id) {
   const doc = documentById(id) ?? DOCUMENTS[0];
   $('#legal-title').textContent = doc.title;
@@ -1253,12 +1294,37 @@ function renderLegal(id) {
   summary.textContent = doc.summary;
   body.append(summary);
 
-  for (const section of doc.sections) {
-    const sec = document.createElement('section');
+  // The Terms run to 22 articles and 111 clauses, which as one column of prose
+  // is a wall nobody reads. Folding it gives the articles back as a contents
+  // list you can scan.
+  //
+  // Privacy and Licences are deliberately left open. A privacy page whose
+  // disclosures are collapsed by default is worse than one that is long — the
+  // whole point of it is that the answer is in front of you, not one click
+  // away. So the rule is a length threshold rather than a name, and it decides
+  // itself as the documents change.
+  const foldSections = doc.sections.length > 6;
+  if (foldSections) body.append(expandAllControl(body));
+
+  for (const [index, section] of doc.sections.entries()) {
+    const sec = document.createElement(foldSections ? 'details' : 'section');
     sec.className = 'legal-section';
+    // The first article is left open so the document does not open as a
+    // stack of closed boxes with no visible prose at all.
+    if (foldSections && index === 0) sec.open = true;
+
+    // A <summary> is not a heading, and losing the h3s would flatten a
+    // 22-article document to a single level in the outline. Nesting the
+    // heading inside the summary keeps both.
     const h = document.createElement('h3');
     h.textContent = section.heading;
-    sec.append(h);
+    if (foldSections) {
+      const sum = document.createElement('summary');
+      sum.append(h);
+      sec.append(sum);
+    } else {
+      sec.append(h);
+    }
     for (const para of section.body) {
       const p = document.createElement('p');
       // A numbered clause gets its number pulled out into its own column, so
@@ -1280,6 +1346,8 @@ function renderLegal(id) {
     }
     body.append(sec);
   }
+
+  if (foldSections) enhanceFolds(body);
 
   const meta = document.createElement('p');
   meta.className = 'legal-meta';
