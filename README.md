@@ -76,8 +76,31 @@ node tools/serve.mjs
 
 Then open <http://localhost:8745>.
 
-To deploy, upload the folder as-is to any static host. There is nothing to
-compile and no environment to configure.
+## Deploying
+
+Still no build step and no environment to configure — but the folder is no
+longer quite "upload it as-is", because every screen has its own address
+(`/write`, `/guide`, `/terms`) and none of those is a file on disk.
+
+**The host has to answer extensionless paths with `index.html`.** Without that,
+a deep link or a reload anywhere but `/` returns 404, and the router never gets
+a chance to run.
+
+**Vercel** — push to `main`. `vercel.json` is in the repo and supplies the
+rewrite, `cleanUrls`, and the security headers, so nothing needs setting in the
+dashboard. `middleware.js` applies the per-address rate limit at the edge and is
+picked up automatically; it is the one thing here that is billed, as fluid
+compute.
+
+**Any other static host** — configure a fallback to `/index.html` for paths
+without a file extension, and make sure files *with* an extension still 404
+rather than being served the HTML. (Answering a missing `.js` with a page of
+HTML turns a broken asset into a silent mystery.) The edge rate limit is
+Vercel-specific and simply will not run; the per-device limit in
+`src/ratelimit.js` is unaffected.
+
+**Offline** — a copy already loaded keeps working with no network at all. That
+is a property of the app, not of the host.
 
 ## Tests
 
@@ -85,10 +108,12 @@ compile and no environment to configure.
 node tools/run-tests.mjs
 ```
 
-76 checks covering the vectoriser (against analytically-defined shapes, so
+169 checks covering the vectoriser (against analytically-defined shapes, so
 "how wrong is it" is an exact question), the spacing engine, the drawing pad,
-and a full round trip of the font binary — built, then handed back to an
-independent parser to confirm every table survived.
+a full round trip of the font binary — built, then handed back to an
+independent parser to confirm every table survived — and the surrounding
+machinery: both rate limits, the edge matcher, the docs index, and the ETA
+estimator.
 
 ## Layout
 
@@ -109,6 +134,15 @@ independent parser to confirm every table survived.
 | `src/tutorial.js` | lessons, per-platform install steps, FAQ |
 | `src/pipeline.js` | the orchestrator — the only stateful part |
 | `src/app.js` | UI |
+| `src/routes.js` | one address per screen; history, deep links, fallbacks |
+| `src/leaving.js` | names the destination before any outbound link |
+| `src/legal.js` | privacy, terms, licences — as data, rendered in three places |
+| `src/ratelimit.js` | the per-device limit; `middleware.js` is the edge one |
+| `src/theme.js` `src/lite.js` `src/textsize.js` | the three stored settings |
+| `src/reveal.js` | scroll-in, one observer, off under lite and reduced motion |
+| `src/eta.js` | device profile, benchmark, smoothed time remaining |
+| `src/docsearch.js` | the guide's index and search |
+| `src/content.js` | fallback copy when `tutorial.js` fails to load |
 
 `opentype.js` is vendored in `vendor/`. It writes everything except GPOS, which
 is why `gpos.js` and `sfnt.js` exist.
