@@ -19,6 +19,7 @@ const suites = [
   './export.test.mjs',
   './filetype.test.mjs',
   './salvage.test.mjs',
+  './health.test.mjs',
 ];
 
 let total = 0;

@@ -99,6 +99,35 @@ function strokeWidth(glyph) {
 // The report
 // ---------------------------------------------------------------------------
 
+/**
+ * Where the tracer stops having evidence.
+ *
+ * `scale` is already units-per-source-pixel: metrics.js solves each row's
+ * x-height in pixels and scales it to TARGET_X_HEIGHT, so the number is
+ * derived from the pipeline rather than guessed. At 12 units per pixel an
+ * x-height of 500 units was carried by about 42 pixels of photograph.
+ *
+ * Stated as a guideline in the copy, because it is one — there is no threshold
+ * below which a trace is wrong, only one below which it stops being faithful.
+ */
+const COARSE_UNITS_PER_PIXEL = 12;
+const VERY_COARSE_UNITS_PER_PIXEL = 20;
+
+/**
+ * Median resolution across the rows that solved.
+ *
+ * @param {Map} rows from metrics.buildMetrics
+ * @returns {{xHeightPx: number, unitsPerPixel: number}|null}
+ */
+function resolutionOf(rows) {
+  const solved = [...rows.values()].filter((r) => r && r.xHeight > 0 && r.scale > 0);
+  if (!solved.length) return null;
+  return {
+    xHeightPx: Math.round(median(solved.map((r) => r.xHeight))),
+    unitsPerPixel: Math.round(median(solved.map((r) => r.scale))),
+  };
+}
+
 const finding = (level, code, title, detail, extra = {}) => ({
   level, code, title, detail, chars: extra.chars ?? [], ...extra,
 });
@@ -114,6 +143,33 @@ const finding = (level, code, title, detail, extra = {}) => ({
 export function analyse(extracted, normalized, rows, opts = {}) {
   const findings = [];
   const captured = new Set(extracted.map((g) => g.ch));
+
+  // Normalised once, here. Several checks below reach into `rows` directly,
+  // and a build that got far enough to call analyse but produced no row map
+  // would take the whole health card down with a TypeError rather than simply
+  // having less to say.
+  if (!(rows instanceof Map)) rows = new Map();
+
+  const res = resolutionOf(rows);
+  if (res && res.unitsPerPixel > COARSE_UNITS_PER_PIXEL) {
+    findings.push(
+      finding(
+        res.unitsPerPixel > VERY_COARSE_UNITS_PER_PIXEL ? 'warn' : 'info',
+        'low-resolution',
+        `Your characters were about ${res.xHeightPx} pixels tall`,
+        // Deliberately not "blurry". A font is Bezier outlines and a rasteriser
+        // draws them crisply at any size, so the output is never blurred — what
+        // too few pixels costs is the *shape*: corners get rounded off and
+        // straight edges come out lumpy, because the tracer had to place each
+        // edge from evidence it did not have.
+        `Every pixel of the photograph became about ${res.unitsPerPixel} units of the font's `
+        + '1000-unit grid, so the smallest detail the tracer could place is that wide. '
+        + 'The font will still be sharp at every size — outlines are curves, not pixels — '
+        + 'but corners will be rounder and edges lumpier than what you wrote. '
+        + 'Filling more of the frame with the sheet, or moving closer, is worth more than any other change.'
+      )
+    );
+  }
 
   // -- Coverage -------------------------------------------------------------
   const missing = REQUIRED.filter((e) => !captured.has(e.ch));
