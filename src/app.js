@@ -1142,7 +1142,15 @@ async function openDrawPad(ch) {
         // a scanned row's — and a row per character, not one shared row 9000
         // for all of them, because two characters redrawn at different moments
         // are two separate pieces of paper as far as the solver is concerned.
-        state.glyphs.push({ ...glyph, ch, row: `drawn:${ch}`, col: 0, contours });
+        // Coverage is dropped here, on purpose, the moment it has been used.
+        // It is a Float32Array four times the size of the bitmap beside it, it
+        // exists only so traceGlyph can place the boundary between pixels, and
+        // that has just happened. Keeping it would put it into state.glyphs and
+        // therefore into every autosave snapshot — session.js strips `bitmap`
+        // by name and passes everything else through JSON.stringify, so a
+        // hundred-odd of these would be serialised as decimal text on a timer.
+        const { coverage, ...ink } = glyph;
+        state.glyphs.push({ ...ink, ch, row: `drawn:${ch}`, col: 0, contours });
         invalidateBuild();
         saveSession();
         closeModal('#draw-modal');

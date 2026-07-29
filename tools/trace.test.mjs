@@ -8,7 +8,9 @@
  * faithfully reproduced.
  */
 
-import { vectorize, traceContours, signedArea, detectCorners } from '../src/trace.js';
+import {
+  vectorize, traceContours, signedArea, detectCorners, refineToCoverage,
+} from '../src/trace.js';
 
 // ---------------------------------------------------------------------------
 // Rasterisers
@@ -23,6 +25,34 @@ function raster(w, h, inside) {
     }
   }
   return bin;
+}
+
+/**
+ * The same shape as both a coverage field and the binary mask taken from it.
+ *
+ * Coverage is true area coverage, by supersampling, which is what an ideal
+ * rasteriser produces and what draw.js approximates with its one-pixel ramp.
+ * The mask is thresholded from that field rather than sampled independently, so
+ * the two describe the same edge — exactly as rasterizeGlyph produces them, and
+ * so that any difference measured downstream is the refinement rather than two
+ * rasterisers disagreeing.
+ */
+function fields(w, h, inside, sub = 8) {
+  const cov = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let n = 0;
+      for (let sy = 0; sy < sub; sy++) {
+        for (let sx = 0; sx < sub; sx++) {
+          if (inside(x + (sx + 0.5) / sub, y + (sy + 0.5) / sub)) n++;
+        }
+      }
+      cov[y * w + x] = n / (sub * sub);
+    }
+  }
+  const bin = new Uint8Array(w * h);
+  for (let i = 0; i < cov.length; i++) bin[i] = cov[i] >= 0.5 ? 1 : 0;
+  return { bin, cov };
 }
 
 const ring = (cx, cy, R, r) => (x, y) => {
@@ -177,7 +207,149 @@ export function run() {
     );
   }
 
-  // -- 5. Winding convention -------------------------------------------------
+  // -- 5. Sub-pixel refinement from a coverage field ------------------------
+  //
+  // The drawing pad already computes coverage — stampStroke lays a one-pixel
+  // linear ramp at every stroke edge precisely so a 0.5 threshold lands between
+  // pixels — and then throws it away by thresholding to a binary mask before
+  // anything here sees it. Part of the staircase this file works to undo was
+  // therefore self-inflicted. These check that putting it back is worth doing,
+  // and the honest answer turned out to be "only together with a tighter fit".
+  {
+    const shapes = [
+      {
+        name: 'diagonal bar',
+        W: 180, H: 180,
+        inside: (x, y) => Math.abs(y - x) <= 11,
+        dist: (x, y) => (x < 25 || x > 155 ? 0 : Math.abs(Math.abs(y - x) - 11) / Math.SQRT2),
+        gain: 4,
+      },
+      {
+        name: 'disc',
+        W: 160, H: 160,
+        inside: (x, y) => Math.hypot(x - 80, y - 80) <= 65,
+        dist: (x, y) => Math.hypot(x - 80, y - 80) - 65,
+        gain: 2,
+      },
+      {
+        name: 'ring',
+        W: 200, H: 200,
+        inside: (x, y) => {
+          const d = Math.hypot(x - 100, y - 100);
+          return d <= 80 && d >= 42;
+        },
+        dist: (x, y) => {
+          const d = Math.hypot(x - 100, y - 100);
+          return Math.min(Math.abs(d - 80), Math.abs(d - 42));
+        },
+        gain: 2,
+      },
+      {
+        // A fine-liner at a modest capture resolution. The case where the
+        // staircase is the largest fraction of the stroke.
+        name: 'hairline bar',
+        W: 120, H: 120,
+        inside: (x, y) => Math.abs(y - x) <= 1.1,
+        dist: (x, y) => (x < 20 || x > 100 ? 0 : Math.abs(Math.abs(y - x) - 1.1) / Math.SQRT2),
+        gain: 4,
+      },
+    ];
+
+    for (const s of shapes) {
+      const { bin, cov } = fields(s.W, s.H, s.inside);
+      const before = errorStats(samplePoints(vectorize(bin, s.W, s.H).contours), s.dist);
+      const after = errorStats(
+        samplePoints(vectorize(bin, s.W, s.H, { coverage: cov }).contours), s.dist
+      );
+      check(
+        `${s.name}: coverage improves the fitted outline at least ${s.gain}x`,
+        after.mean * s.gain <= before.mean,
+        `mean ${before.mean.toFixed(4)} → ${after.mean.toFixed(4)} px ` +
+        `(${(before.mean / after.mean).toFixed(1)}x), max ${before.max.toFixed(3)} → ${after.max.toFixed(3)}`
+      );
+    }
+  }
+
+  // -- 6. Where the accuracy actually comes from -----------------------------
+  //
+  // Measured on the raw boundary, before smoothing and before fitting, because
+  // that is the only place the refinement acts. The fitted-outline numbers above
+  // are this gain minus whatever the later stages give back.
+  {
+    const W = 200, H = 200, A = (20 * Math.PI) / 180, S = 55;
+    const uv = (x, y) => {
+      const dx = x - 100, dy = y - 100;
+      return [dx * Math.cos(A) + dy * Math.sin(A), -dx * Math.sin(A) + dy * Math.cos(A)];
+    };
+    // A square rotated off both axes, so its edges are neither the case where
+    // the crack walk is exact nor the 45-degree case where every boundary step
+    // is a jog and a naive normal happens to be right.
+    const { bin, cov } = fields(W, H, (x, y) => {
+      const [u, v] = uv(x, y);
+      return Math.abs(u) <= S && Math.abs(v) <= S;
+    });
+    const sdf = (x, y) => {
+      const [u, v] = uv(x, y);
+      const qx = Math.abs(u) - S, qy = Math.abs(v) - S;
+      return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
+    };
+
+    const raw = traceContours(bin, W, H)[0];
+    const refined = refineToCoverage(raw, cov, W, H);
+    const rawErr = errorStats(raw, sdf);
+    const refErr = errorStats(refined, sdf);
+
+    check(
+      'the boundary itself lands four times closer to the true edge',
+      refErr.mean * 4 <= rawErr.mean,
+      `mean ${rawErr.mean.toFixed(4)} → ${refErr.mean.toFixed(4)} px ` +
+      `(${(rawErr.mean / refErr.mean).toFixed(1)}x), max ${rawErr.max.toFixed(3)} → ${refErr.max.toFixed(3)}`
+    );
+    check(
+      'and no vertex is thrown further than the ramp is wide',
+      refined.every((p, i) => Math.hypot(p.x - raw[i].x, p.y - raw[i].y) <= 1.3),
+      `worst move ${Math.max(...refined.map((p, i) =>
+        Math.hypot(p.x - raw[i].x, p.y - raw[i].y))).toFixed(3)} px`
+    );
+    check('and the point count and order are untouched',
+      refined.length === raw.length, `${raw.length} → ${refined.length}`);
+  }
+
+  // -- 7. Corners are not refined, and that is load-bearing ------------------
+  //
+  // A bilinear interpolant cannot represent a corner. At the tip of a right
+  // angle three of the four surrounding pixels are paper, so the interpolated
+  // coverage reads 0.25 — under the level — and an unguarded search finds its
+  // crossing somewhere inside the corner. Before the guard this rounded every
+  // corner of a pixel-aligned square inward by 0.29 px and took the fit from
+  // four curves to sixteen.
+  {
+    const W = 160, H = 160;
+    const { bin, cov } = fields(W, H, (x, y) => x >= 30 && x <= 130 && y >= 30 && y <= 130);
+    const truth = [[30, 30], [130, 30], [130, 130], [30, 130]];
+
+    const measure = (opts) => {
+      const { contours } = vectorize(bin, W, H, opts);
+      const onCurve = [];
+      for (const c of contours) for (const b of c.curves) onCurve.push(b[0], b[3]);
+      return {
+        worst: Math.max(...truth.map(([tx, ty]) =>
+          Math.min(...onCurve.map((p) => Math.hypot(p.x - tx, p.y - ty))))),
+        curves: contours.reduce((n, c) => n + c.curves.length, 0),
+      };
+    };
+
+    const plain = measure({});
+    const refined = measure({ coverage: cov });
+    check(
+      'a square is fitted identically with coverage and without',
+      refined.worst <= plain.worst + 1e-9 && refined.curves === plain.curves,
+      `${plain.curves} curves / ${plain.worst.toFixed(3)} px → ` +
+      `${refined.curves} curves / ${refined.worst.toFixed(3)} px`
+    );
+  }
+
+  // -- 8. Winding convention -------------------------------------------------
   {
     const bin = raster(60, 60, disc(30, 30, 20));
     const raw = traceContours(bin, 60, 60);

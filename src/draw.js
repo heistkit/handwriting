@@ -88,9 +88,40 @@ export function rasterizeGlyph(strokes, { width, height, ch = '', pad = PAD, thr
     }
   }
 
+  // The coverage behind the mask, cropped to the same window.
+  //
+  // stampStroke goes to real trouble to make the edge sub-pixel — a linear ramp
+  // across the outermost pixel of the radius, so that thresholding at 0.5 lands
+  // between pixels rather than on a boundary. The line above then thresholds,
+  // and every bit of that lands in the bin: trace.js is handed a binary mask and
+  // walks the cracks of it, so the edge is re-quantised to whole pixels and the
+  // ramp might as well not have been computed. Carrying the field alongside lets
+  // the tracer put the boundary back where the ramp said it was.
+  //
+  // Copied over the whole PADDED window rather than the ink bounding box, and
+  // that is the part worth getting right. The pad ring is where the outside half
+  // of the ramp lives: a pixel just beyond the last inked one holds coverage
+  // somewhere between zero and the threshold, and that is what the refinement
+  // interpolates against. Crop it away and the field falls from 0.5 to a hard
+  // zero in one step, the crossing lands short, and every outer edge of every
+  // glyph is pulled inward by a fraction of a pixel — an erosion applied evenly
+  // to the whole font, which is the kind nobody spots because nothing looks
+  // wrong relative to anything else.
+  const coverage = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const sy = y0 - pad + y;
+    if (sy < 0 || sy >= height) continue;
+    for (let x = 0; x < w; x++) {
+      const sx = x0 - pad + x;
+      if (sx < 0 || sx >= width) continue;
+      coverage[y * w + x] = cov[sy * width + sx];
+    }
+  }
+
   return {
     ch,
     bitmap,
+    coverage,
     w,
     h,
     pad,

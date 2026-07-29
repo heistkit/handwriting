@@ -228,7 +228,14 @@ export function mergeCaptures(captures) {
  */
 export function traceGlyph(glyph, trace = {}) {
   if (!glyph?.bitmap) return null;
-  const { contours } = vectorize(glyph.bitmap, glyph.w, glyph.h, trace);
+  // The pad also hands over the coverage field its mask was thresholded from,
+  // which lets the tracer place the boundary between pixels instead of on one.
+  // A scanned glyph has no such field and takes the path it always did. Set
+  // explicitly rather than spread so that a caller passing `coverage: undefined`
+  // does not silently turn it off.
+  const opts = { ...trace };
+  if (opts.coverage == null && glyph.coverage) opts.coverage = glyph.coverage;
+  const { contours } = vectorize(glyph.bitmap, glyph.w, glyph.h, opts);
   return contours.length ? contours : null;
 }
 

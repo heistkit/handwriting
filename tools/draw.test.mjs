@@ -8,6 +8,7 @@
  */
 
 import { rasterizeGlyph } from '../src/draw.js';
+import { vectorize } from '../src/trace.js';
 
 const results = [];
 function check(name, pass, detail) {
@@ -114,7 +115,95 @@ export function run() {
       frac != null && frac.bitmap.length === frac.w * frac.h);
   }
 
+  // -- The coverage field survives the crop, and is worth carrying ------------
+  //
+  // Everything above this point is about the mask. This is about the field the
+  // mask was thresholded from: stampStroke builds a one-pixel linear ramp at
+  // every edge so that a 0.5 threshold lands between pixels, and until now that
+  // ramp was discarded one line later. These check it comes out of the crop
+  // intact and that trace.js can actually do something with it.
+  //
+  // The measurement matters more than it looks, because every other test of the
+  // refinement uses supersampled area coverage — a mathematically ideal field.
+  // stampStroke's ramp is an approximation of one. This is the only check that
+  // the approximation is good enough to be worth reading.
+  {
+    // A straight stroke at 22 degrees. Off-axis on purpose: an axis-aligned or
+    // 45-degree stroke is the one case where the crack walk is already close to
+    // exact, and would flatter the result.
+    const W = 200, H = 120, R = 5.5;
+    const angle = (22 * Math.PI) / 180;
+    const points = [];
+    for (let t = 0; t <= 150; t += 1.5) {
+      points.push({ x: 25 + t * Math.cos(angle), y: 30 + t * Math.sin(angle), r: R });
+    }
+    const g = rasterizeGlyph([{ points }], { width: W, height: H, ch: '/' });
+
+    check('the pad returns a coverage field beside the mask',
+      g != null && g.coverage instanceof Float32Array && g.coverage.length === g.w * g.h,
+      g ? `${g.coverage?.length} values for ${g.w}x${g.h}` : 'no glyph');
+
+    // The ramp is the whole point. If the crop had been taken over the ink
+    // bounding box instead of the padded window, every value outside the mask
+    // would be a hard zero and there would be nothing to interpolate against.
+    const partial = g ? [...g.coverage].filter((v) => v > 0.02 && v < 0.98).length : 0;
+    check('and the field carries partial coverage, not just ones and zeroes',
+      partial > g.w, `${partial} partial values across ${g.w}x${g.h}`);
+
+    const outside = [];
+    for (let y = 0; y < g.h; y++) {
+      for (let x = 0; x < g.w; x++) {
+        if (!g.bitmap[y * g.w + x] && g.coverage[y * g.w + x] > 0.02) outside.push(1);
+      }
+    }
+    check('including outside the mask, which is where the outer half of the ramp lives',
+      outside.length > 20, `${outside.length} lit pixels beyond the threshold`);
+
+    // Distance from the stroke's centre line to its edge is exactly the brush
+    // radius, so the true outline is known without needing the rasteriser to be.
+    // End caps are excluded: they are discs, not described by this.
+    const nx = -Math.sin(angle), ny = Math.cos(angle);
+    const dist = (px, py) => {
+      const X = px - g.pad + g.page.x0;
+      const Y = py - g.pad + g.page.y0;
+      const along = (X - 25) * Math.cos(angle) + (Y - 30) * Math.sin(angle);
+      if (along < 20 || along > 130) return 0;
+      return Math.abs(Math.abs((X - 25) * nx + (Y - 30) * ny) - R);
+    };
+
+    const plain = errorOf(vectorize(g.bitmap, g.w, g.h).contours, dist);
+    const refined = errorOf(
+      vectorize(g.bitmap, g.w, g.h, { coverage: g.coverage }).contours, dist
+    );
+    check(
+      'and tracing with it puts the pad stroke closer to where it was drawn',
+      refined.mean < plain.mean,
+      `mean ${plain.mean.toFixed(4)} → ${refined.mean.toFixed(4)} px ` +
+      `(${(plain.mean / refined.mean).toFixed(1)}x), max ${plain.max.toFixed(3)} → ${refined.max.toFixed(3)}`
+    );
+  }
+
   return results;
+}
+
+/** Mean and max distance from a fitted outline to a known truth. */
+function errorOf(contours, dist) {
+  let max = 0, sum = 0, n = 0;
+  for (const c of contours) {
+    for (const b of c.curves) {
+      for (let i = 0; i < 24; i++) {
+        const t = i / 24;
+        const m = 1 - t;
+        const x = m * m * m * b[0].x + 3 * m * m * t * b[1].x + 3 * m * t * t * b[2].x + t * t * t * b[3].x;
+        const y = m * m * m * b[0].y + 3 * m * m * t * b[1].y + 3 * m * t * t * b[2].y + t * t * t * b[3].y;
+        const d = Math.abs(dist(x, y));
+        if (d > max) max = d;
+        sum += d;
+        n++;
+      }
+    }
+  }
+  return { max, mean: n ? sum / n : Infinity, n };
 }
 
 if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`) {
