@@ -1386,6 +1386,36 @@
       </details>
 
       <details class="setgroup" open>
+        <summary><span>Your work</span></summary>
+
+        <div class="setting">
+          <label class="setting-text" for="set-autosave">
+            <b>Keep my work on this device</b>
+            <span>So closing the tab is not losing it. The traced letters and which step you
+              reached, in this browser's own storage — never the photographs, and never sent
+              anywhere. Turn it off and nothing is written at all.</span>
+          </label>
+          <span class="switch">
+            <input type="checkbox" id="set-autosave">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </div>
+
+        <div class="setting setting--stack">
+          <span class="setting-text" id="set-forget-label">
+            <b>Forget it now</b>
+            <span id="set-forget-size">Nothing is being kept at the moment.</span>
+          </span>
+          <div>
+            <button class="btn" type="button" id="set-forget" aria-labelledby="set-forget-label">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trash"/></svg>
+              <span>Forget my saved work</span>
+            </button>
+          </div>
+        </div>
+      </details>
+
+      <details class="setgroup" open>
         <summary><span>Movement</span></summary>
 
         <div class="setting">

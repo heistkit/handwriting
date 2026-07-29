@@ -50,6 +50,7 @@ import { describe as describeScreen } from './meta.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { init as initPointer } from './pointer.js';
 import { once as celebrateOnce } from './celebrate.js';
+import * as session from './session.js';
 import { mount as mountWelcome } from './welcome.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
 import { intercept as interceptExternal, describe as describeUrl } from './leaving.js';
@@ -114,6 +115,67 @@ const state = {
 };
 
 // ---------------------------------------------------------------------------
+// Keeping the work
+// ---------------------------------------------------------------------------
+
+/**
+ * Write the session, at most once every couple of seconds.
+ *
+ * Debounced rather than immediate because the things that change the work
+ * arrive in bursts — a capture lands 112 glyphs at once, and dragging the
+ * spacing slider fires on every pixel. Compressing 300 KB per pixel of slider
+ * travel is exactly the sort of thing that makes an app feel heavy.
+ *
+ * Trailing edge only. There is nothing to be gained by writing the first change
+ * of a burst; what matters is that the last one is on disk.
+ */
+let saveTimer = null;
+const SAVE_AFTER = 2000;
+/** Lite mode saves the cheap version. See session.js's `lean`. */
+const leanSave = () => document.documentElement.dataset.lite === 'on';
+
+function saveSession() {
+  if (!session.enabled() || !state.glyphs.length) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    session.save(session.snapshot(state, { lean: leanSave(), at: Date.now() }));
+  }, leanSave() ? SAVE_AFTER * 3 : SAVE_AFTER);
+}
+
+/**
+ * Put a saved session back on the state object.
+ *
+ * The photographs are not in the record — see session.js — so the captures come
+ * back with their counts and their warnings but no `page`, and the review
+ * screen's before-and-after overlay has nothing to draw. That is why `page` is
+ * explicitly null here rather than absent: the renderer checks for it, and a
+ * missing key and a null both mean "no overlay" only if somebody remembered.
+ */
+function restoreSession(record) {
+  state.step = record.step ?? 'start';
+  state.naturalSlant = record.naturalSlant ?? 0;
+  state.settings = { ...state.settings, ...record.settings };
+  state.glyphs = record.glyphs;
+  state.captures = new Map(
+    (record.sheets ?? []).map((s) => [s.id, {
+      glyphs: record.glyphs.filter((g) => g.sheetId === s.id),
+      issues: s.issues ?? [],
+      stats: s.stats ?? { total: 0, found: 0 },
+      slant: s.slant ?? 0,
+      angle: s.angle ?? 0,
+      page: null,
+    }]),
+  );
+  // Both are derived from the glyphs in about a second, and both are megabytes.
+  // Leaving them null is what sends the reader to Refine rather than Download,
+  // which is correct: the font they had is gone and the work that makes it is
+  // not.
+  state.family = null;
+  state.serialised = null;
+  state.health = null;
+}
+
+// ---------------------------------------------------------------------------
 // Navigation
 // ---------------------------------------------------------------------------
 
@@ -139,6 +201,9 @@ function applyStep(stepId) {
   // it has a position, measure it again.
   const step = $(`.step[data-step="${stepId}"]`);
   if (step) observeReveal(step);
+
+  // Where you are is part of where you were.
+  saveSession();
 
   // The milestones, marked where every route arrives — the router lands here on
   // a reload and Back comes through it too, which is exactly why celebrateOnce
@@ -953,6 +1018,7 @@ function buildGlyphSet() {
   state.naturalSlant = slants.length
     ? slants.sort((a, b) => a - b)[slants.length >> 1]
     : 0;
+  saveSession();
 }
 
 /**
@@ -1078,6 +1144,7 @@ async function openDrawPad(ch) {
         // are two separate pieces of paper as far as the solver is concerned.
         state.glyphs.push({ ...glyph, ch, row: `drawn:${ch}`, col: 0, contours });
         invalidateBuild();
+        saveSession();
         closeModal('#draw-modal');
         renderReview();
         toast(`Updated “${ch}”.`);
@@ -2832,6 +2899,49 @@ function init() {
 
   bindTextSize($('#set-textsize'));
 
+  /*
+   * Autosave, and the control that undoes it.
+   *
+   * The size line is refreshed whenever Settings opens rather than kept live —
+   * it is read from the database, and a figure that is a few seconds stale is
+   * not worth a subscription to keep exact.
+   */
+  {
+    const toggle = $('#set-autosave');
+    const size = $('#set-forget-size');
+    const forget = $('#set-forget');
+
+    const describeSize = async () => {
+      const bytes = await session.weigh();
+      if (!bytes) { size.textContent = 'Nothing is being kept at the moment.'; return; }
+      const kb = Math.max(1, Math.round(bytes / 1024));
+      size.textContent = kb >= 1024
+        ? `About ${(kb / 1024).toFixed(1)} MB is being kept on this device.`
+        : `About ${kb} KB is being kept on this device.`;
+    };
+
+    toggle.checked = session.enabled();
+    toggle.addEventListener('change', () => {
+      session.setEnabled(toggle.checked);
+      // Turning it off has to remove what is already there. Leaving the last
+      // snapshot behind would mean the switch says "not keeping anything" while
+      // the previous session sits in the database, which is the one thing
+      // somebody flipping this switch is trying to prevent.
+      if (!toggle.checked) session.forget().then(describeSize);
+      else { saveSession(); describeSize(); }
+    });
+
+    forget.addEventListener('click', async () => {
+      await session.forget();
+      await describeSize();
+      toast('Saved work forgotten.');
+    });
+
+    // Refreshed each time the panel is opened.
+    $('#open-settings')?.addEventListener('click', describeSize);
+    describeSize();
+  }
+
   // The two decoration switches. Already applied pre-paint by the inline script
   // in <head>; this call only normalises the case where storage was unreadable
   // then and readable now, which costs nothing and keeps one source of truth.
@@ -2925,7 +3035,37 @@ function init() {
   // Back and Forward mean what they mean everywhere else.
   window.addEventListener('popstate', () => { applyRoute(); });
   window.addEventListener('hashchange', () => { applyRoute(); });
+
+  /*
+   * Pick up where they left off.
+   *
+   * applyRoute() runs first and unconditionally, so a visitor with nothing
+   * saved — which is most of them, and all of them on a first visit — gets the
+   * page they asked for with no delay waiting on a database. The restore then
+   * arrives a moment later and re-routes only if there is genuinely something
+   * to come back to.
+   *
+   * The address is respected rather than overridden. Somebody who followed a
+   * link to /guide wanted the guide, and moving them to Review because a
+   * database had a row in it would be the app deciding it knows better. Only a
+   * bare arrival at the root is treated as "carry on".
+   */
   applyRoute();
+
+  session.load().then((record) => {
+    if (!record) return;
+    restoreSession(record);
+    renderCaptureList();
+    renderReview();
+    const asked = readRoute();
+    if (!asked.overlay && (asked.step === null || asked.step === 'start')) {
+      const landing = reachable(record.step) ? record.step : furthestReachable();
+      if (landing !== 'start') {
+        goto(landing);
+        toast(`Picked up where you left off — ${state.glyphs.length} characters.`);
+      }
+    }
+  });
 
   const preview = $('#preview-text');
   preview.dataset.placeholder = 'Type something…';

@@ -84,6 +84,14 @@ rather than something a visitor has to take on trust.
 Seven small values are kept in the browser's local storage — theme, text size,
 motion preference and similar. No cookies, no session storage, no analytics.
 
+Work in progress is also kept, on the device, so that closing the tab does not
+throw away a sheet somebody filled in by hand: the traced outlines of the
+characters, which step was reached, and the tuning settings, in the browser's
+own IndexedDB. Not the photographs — those are discarded when the tab closes
+and are never written to storage. It can be switched off in Settings, and the
+same panel erases it on demand. None of it is transmitted; there is no server
+to transmit it to.
+
 ## Ownership
 
 Fonts made with Handwrite belong entirely to the person who made them. No
