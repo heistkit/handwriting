@@ -371,6 +371,20 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
     display: inline-flex;
     align-items: center;
   }
+
+  /* The style picker on the Refine screen — Regular, Bold, Italic, Both. Its
+     buttons came to 35px, and unlike the footer links these are not a place
+     someone visits once: choosing a weight is the whole purpose of that screen,
+     and it is the screen most likely to be used on the phone that took the
+     photograph. The group's own padding is trimmed so four buttons at a
+     reachable height still fit a 375px row rather than wrapping mid-control. */
+  .seg button { min-height: 44px; }
+  .seg { padding: 2px; }
+
+  /* Straighten and Kerning on the same screen. The checkbox itself is a 1px
+     visually-hidden input — correct, and it means the label is the whole target,
+     so the label is what has to be reachable. 29px before. */
+  .check { min-height: 44px; }
 }
 
 .brand {
@@ -2865,7 +2879,10 @@ details.legal-section > summary:focus-visible {
 .field output { font-family: 'Geist Mono', monospace; font-size: .87rem; color: var(--text); }
 .field-inline { display: flex !important; align-items: center; gap: .7rem; margin: 0 !important; }
 .field-inline > span { font-size: .85rem; }
-.field-inline input { width: 130px; }
+/* Was a flat 130px. The toolbar wraps, so that never overflowed — it just left
+   the slider stuck at its smallest useful size on the screen where precision
+   matters most, while the row it sits in had width going spare. */
+.field-inline input { flex: 1 1 130px; min-width: 110px; max-width: 220px; }
 
 /* ── Skeleton ───────────────────────────────────────────────────────────
    Adapted from a Uiverse.io skeleton by Nawsome (MIT), as a reusable
