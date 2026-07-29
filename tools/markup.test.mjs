@@ -92,13 +92,17 @@ function scan(html) {
     opens.push({ tag: name, attrs, line, ancestors: stack.slice() });
     stack.push({ name, line, attrs });
 
-    // <script> and friends: everything up to the matching close is text.
+    // <script> and friends: everything up to the matching close is text, so the
+    // parser skips over it rather than reading `a < b` as a tag. The element is
+    // popped off the stack because it has been consumed whole — but it stays in
+    // `opens`, which is the record of what this document contains. Dropping it
+    // from there too made every later check about scripts pass by finding
+    // nothing to check, which is the failure mode a test file exists to avoid.
     if (RAW_TEXT.has(name)) {
       const end = blanked.indexOf(`</${name}`, tag.lastIndex);
       if (end >= 0) {
         skipTo = end;
         stack.pop();
-        opens.pop();
         tag.lastIndex = end + name.length + 3;
       }
     }
@@ -199,6 +203,64 @@ export async function run() {
       else seen.set(id, o.line);
     }
     check('no id appears twice', dupes.length === 0, dupes.join(', '));
+  }
+
+  // --- nothing that would need 'unsafe-inline' ------------------------------
+  {
+    // The content-security policy says `script-src 'self'`, and the whole value
+    // of that is `connect-src 'none'` beside it: an injected script cannot post
+    // a photograph of someone's handwriting anywhere. Adding one inline
+    // <script> back to this file does not break the page — it breaks silently,
+    // by not running, and the fix a hurried reader reaches for is
+    // 'unsafe-inline', which quietly returns the policy to decoration.
+    //
+    // So the rule is checked here rather than trusted: every script in this
+    // document is external, and every one is same-origin.
+    const scripts = opens.filter((o) => o.tag === 'script');
+    const inline = scripts.filter((o) => !/\bsrc\s*=/.test(o.attrs));
+    check('no inline <script> survives in index.html', inline.length === 0,
+      inline.map((o) => `line ${o.line}`).join(', '));
+
+    const srcOf = (attrs) => (attrs.match(/\bsrc\s*=\s*"([^"]*)"/) || [, ''])[1];
+    const remote = scripts.map((o) => srcOf(o.attrs)).filter((s) => /^(https?:)?\/\//.test(s));
+    check('every script is loaded from this origin', remote.length === 0, remote.join(', '));
+
+    // The theme is applied before first paint, which only a *blocking* classic
+    // script does. `defer` and `type="module"` both run after the parse, which
+    // is exactly the flash preflight.js exists to prevent — and either would
+    // pass the check above while quietly undoing the reason for the file.
+    const preflight = scripts.find((o) => /preflight\.js/.test(srcOf(o.attrs)));
+    check('the pre-paint script is still present', !!preflight);
+    check('and still blocking, so it runs before first paint',
+      preflight && !/\bdefer\b|\basync\b|type\s*=\s*"module"/.test(preflight.attrs),
+      preflight?.attrs);
+  }
+
+  // --- the policy itself ----------------------------------------------------
+  {
+    const vercel = JSON.parse(await readFile(join(here, '..', 'vercel.json'), 'utf8'));
+    const all = vercel.headers.find((h) => h.source === '/(.*)');
+    const csp = all?.headers.find((h) => h.key === 'Content-Security-Policy')?.value ?? '';
+
+    check('a content-security policy is served', !!csp);
+    // Start from deny and enumerate. 'self' as the default would mean the next
+    // directive nobody thought of silently permits same-origin loads.
+    check("it starts from default-src 'none'", /default-src 'none'/.test(csp), csp);
+    // The one that turns the README's headline into something a visitor can
+    // check in their own devtools.
+    check("it forbids every outbound connection", /connect-src 'none'/.test(csp), csp);
+    check("scripts are same-origin only, with no 'unsafe-inline'",
+      /script-src 'self'/.test(csp) && !/script-src[^;]*unsafe-inline/.test(csp), csp);
+    check('and no unsafe-eval anywhere', !/unsafe-eval/.test(csp), csp);
+    check('the page cannot be framed', /frame-ancestors 'none'/.test(csp), csp);
+    check('and cannot have its base URL rewritten', /base-uri 'none'/.test(csp), csp);
+
+    // The dev server serves this same string, read out of this same file, so
+    // a policy that breaks the app breaks it in development too. Assert the
+    // path it reads is still the path that exists.
+    const serve = await readFile(join(here, 'serve.mjs'), 'utf8');
+    check('the dev server serves the deployed policy rather than its own',
+      /vercel\.json/.test(serve) && /content-security-policy/i.test(serve));
   }
 
   // --- labelled dialogues ---------------------------------------------------

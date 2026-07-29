@@ -8,38 +8,10 @@
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#14161a">
 
-<script>
-  /*
-   * Applied before first paint, so the page never flashes the wrong theme.
-   * Duplicated from src/theme.js deliberately — that module is deferred like
-   * every other module, and deferred execution is precisely what causes the
-   * flash this exists to prevent.
-   */
-  try {
-    var t = localStorage.getItem('handwrite.theme');
-    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-
-    var l = localStorage.getItem('handwrite.lite');
-    if (l === 'on' || l === 'off') document.documentElement.dataset.lite = l;
-    else if (matchMedia('(prefers-reduced-motion: reduce)').matches)
-      document.documentElement.dataset.lite = 'on';
-
-    /* Text size matters most here. Theme is a repaint, but this one reflows the
-       entire page, so applying it after first paint would move every line under
-       the reader's eye. */
-    if (localStorage.getItem('handwrite.textsize') === 'large')
-      document.documentElement.dataset.textsize = 'large';
-
-    /* Decoration switches. Only the "off" answer is written, so a storage
-       that cannot be read leaves the defaults on — and the specimen in the
-       hero starts drawing on the first frame rather than after a module
-       has loaded and told it whether it is allowed to. */
-    if (localStorage.getItem('handwrite.fold') === 'off')
-      document.documentElement.dataset.fold = 'off';
-    if (localStorage.getItem('handwrite.decor') === 'off')
-      document.documentElement.dataset.decor = 'off';
-  } catch (e) { /* private mode: fall back to the system preference */ }
-</script>
+<!-- Applied before first paint, so the page never flashes the wrong theme. A
+     plain blocking classic script, not defer and not a module: both of those run
+     after the parse, which is the thing this exists to avoid. See src/preflight.js. -->
+<script src="src/preflight.js"></script>
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>✒</text></svg>">
 </head>
@@ -1185,18 +1157,7 @@
 <!-- Runs only in a browser with no ES module support, which is the browser
      telling us rather than us inferring it from a flag that a content-security
      policy could just as easily have suppressed. Deliberately ES5. -->
-<script nomodule>
-  document.documentElement.className += ' bgate-open';
-  document.write(
-    '<div class="bgate" role="alertdialog" aria-labelledby="bgate-nomod">' +
-      '<div class="bgate__panel">' +
-        '<h1 class="bgate__title" id="bgate-nomod">This browser is too old to run Handwrite</h1>' +
-        '<p class="bgate__lede">It does not support JavaScript modules, which every part of this app is written as. There is no version of the page that would work here.</p>' +
-        '<p class="bgate__advice">Any browser from 2018 onward has them. Updating is the whole fix.</p>' +
-      '</div>' +
-    '</div>'
-  );
-</script>
+<script nomodule src="src/nomodule.js"></script>
 
 <!--
   The four modules app.js loads on demand, fetched during load instead.

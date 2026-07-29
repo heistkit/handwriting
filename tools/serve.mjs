@@ -17,6 +17,20 @@ import { join, extname, normalize } from 'node:path';
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const PORT = Number(process.env.PORT) || 8745;
 
+/**
+ * The same content-security policy the deployment sends.
+ *
+ * Read out of vercel.json rather than written twice. A policy that exists only
+ * in production is a policy nobody finds out they have broken until it is
+ * deployed — and the failure it produces is a blocked resource and a silent
+ * gap on the page, not an error anyone would go looking for. Serving it here
+ * means the browser refuses the same things in development that it refuses
+ * live, and a test asserts the two are still the same string.
+ */
+const CSP = JSON.parse(await readFile(join(ROOT, 'vercel.json'), 'utf8'))
+  .headers.find((h) => h.source === '/(.*)')
+  .headers.find((h) => h.key === 'Content-Security-Policy').value;
+
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -81,6 +95,7 @@ createServer(async (req, res) => {
     res.writeHead(200, {
       'content-type': TYPES[extname(path).toLowerCase()] ?? 'application/octet-stream',
       'cache-control': 'no-store',
+      'content-security-policy': CSP,
     });
     res.end(body);
   } catch (err) {

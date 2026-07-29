@@ -108,7 +108,7 @@ is a property of the app, not of the host.
 node tools/run-tests.mjs
 ```
 
-467 checks covering the vectoriser (against analytically-defined shapes, so
+479 checks covering the vectoriser (against analytically-defined shapes, so
 "how wrong is it" is an exact question), the spacing engine, the drawing pad,
 a full round trip of the font binary — built, then handed back to an
 independent parser to confirm every table survived — and the surrounding
