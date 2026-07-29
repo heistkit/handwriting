@@ -16,6 +16,7 @@
 
 import {
   solveRowMetrics,
+  solveAllRows,
   computeSpacing,
   computeKerning,
   deriveSpaceWidth,
@@ -331,6 +332,60 @@ export async function run() {
         Math.abs(solved.get(2).xHeight - 190) < 1,
         `xHeight=${solved.get(2).xHeight}, wanted 190 (its own sheet) not 130`);
     }
+  }
+
+  // -- A row with no ascender and no descender ------------------------------
+  //
+  // Raised as a suspected cause of blank lowercase tiles: the baseline is
+  // recovered from unruled paper by constraining ascenders and descenders
+  // across a row, so a row of `a c e m n o` has neither and might be
+  // under-determined rather than merely noisy.
+  //
+  // It is not, and the reason is worth writing down so nobody has to work it
+  // out twice. Baseline comes from the BOTTOMS of x-zone and ascender-zone
+  // glyphs, and x-height from the TOPS of x-zone and descender-zone glyphs — an
+  // all-x row supplies both lists in full. What it cannot supply is the
+  // ascender and descender extents, and those have somewhere to fall back to.
+  //
+  // So this pins behaviour that is already correct, which is the honest outcome
+  // of the investigation rather than a fix for a bug that was not there.
+  {
+    const box = (ch, y0, y1) => ({ ch, page: { x0: 0, y0, x1: 40, y1 } });
+    // Every one of these is ZONES.x: no stem rises, no tail drops.
+    const row = ['a', 'c', 'e', 'm', 'n', 'o', 'r', 's', 'u', 'v', 'w', 'x', 'z']
+      .map((ch, i) => box(ch, 200 + (i % 3) - 1, 300 + (i % 2)));
+
+    const m = solveRowMetrics(row);
+    check('an all-x-height row still pins its baseline',
+      m.baseline != null && Math.abs(m.baseline - 300) <= 1, `baseline=${m.baseline}`);
+    check('and still measures its own x-height',
+      m.xHeight > 0 && Math.abs(m.xHeight - 100) <= 2, `xHeight=${m.xHeight}`);
+    check('it reports having sampled nothing for the ascender',
+      m.samples.ascender === 0, `${m.samples.ascender}`);
+    check('and nothing for the descender', m.samples.descender === 0,
+      `${m.samples.descender}`);
+
+    // The part that would actually produce a blank tile: a NaN or a null
+    // reaching normalizeGlyph, which scales every outline by it.
+    const solved = solveAllRows(row.map((g) => ({ ...g, row: 0, sheetId: 'everyday' })));
+    const only = solved.get(0);
+    check('and the solved row carries a finite scale',
+      Number.isFinite(only.scale) && only.scale > 0, `scale=${only.scale}`);
+    check('and a finite baseline', Number.isFinite(only.baseline), `${only.baseline}`);
+    check('so nothing downstream is asked to divide by nothing',
+      Number.isFinite(only.xHeight) && only.xHeight > 0, `${only.xHeight}`);
+  }
+
+  // -- A row of one character ------------------------------------------------
+  {
+    // The redraw pad produces exactly this, and a median of one is that one.
+    const solved = solveAllRows([
+      { ch: 'o', row: 0, sheetId: 'everyday', page: { x0: 0, y0: 200, x1: 40, y1: 300 } },
+    ]);
+    const m = solved.get(0);
+    check('a single-character row does not produce NaN',
+      Number.isFinite(m.scale) && Number.isFinite(m.baseline) && m.xHeight > 0,
+      JSON.stringify({ scale: m.scale, baseline: m.baseline, xHeight: m.xHeight }));
   }
 
   return results;
