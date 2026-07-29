@@ -1,170 +1,144 @@
-# Handoff — three independent modules
+# Handoff
 
-The algorithmic core is finished and covered by 60 passing checks
-(`node tools/run-tests.mjs`). What follows are three **leaf modules**: nothing
-else imports them yet, they import almost nothing, and they touch no file
-anyone else is editing. They can be built in parallel with zero merge risk.
+Handwrite turns a photograph of someone's handwriting into an installable
+OpenType family — Regular, Bold, Italic, Bold Italic — with measured spacing,
+generated kerning, and three variants of every character so repeated letters do
+not look rubber-stamped. It is a static site. There is no build step, no
+bundler, no framework, and one vendored dependency.
 
-**Ground rules for all three**
+`node tools/run-tests.mjs` — 559 checks, plain Node, no test framework.
 
-- Plain ES modules, no build step, no dependencies, no network calls at runtime.
-- The whole app is offline-first and privacy-by-default. Nothing may fetch, log,
-  or transmit anything.
-- Match the house style of `src/metrics.js` and `src/trace.js`: comments explain
-  *why* a non-obvious decision was made, not what the line does.
-- UI text is plain sentences, sentence case, no exclamation marks, no emoji.
-- Do **not** edit: `src/pipeline.js`, `src/app.js`, `index.html`, `styles.css`,
-  or anything under `src/views/`. Those are in flight.
+An earlier version of this file described three modules to be written. All three
+shipped: `src/template.js`, `src/draw.js` and `src/tutorial.js` are complete and
+have been in use for months. It also said not to edit `src/app.js`,
+`index.html`, `styles.css` or `src/pipeline.js`. That is no longer true either —
+they are the shell, and ordinary work touches them.
 
-Design tokens are defined in `styles.css` as CSS custom properties. Use them;
-do not hard-code colours. Never pure white or pure black. Icons must be inline
-SVG — no emoji, no icon fonts.
+## Constraints that are not negotiable
 
----
+These are the things that make a change wrong regardless of how well it works.
 
-## 1. `src/template.js` — printable writing sheet
+- **Nothing leaves the device.** No uploads, no analytics, no telemetry, no
+  fonts or images fetched at runtime. The served page carries a
+  `connect-src 'none'` content-security policy, so the browser enforces this
+  rather than anyone having to trust it. A change that needs the network is a
+  change to the product, not to the code.
+- **No new dependencies and no build step.** Plain ES modules served as files.
+  The one vendored library is `vendor/opentype.js` — do not edit anything under
+  `vendor/`.
+- **No inline scripts.** `script-src 'self'`. JSON-LD is fine, because a
+  `type="application/ld+json"` block is data and the parser returns before the
+  inline check.
+- **Never `#000000` or `#ffffff`.** Eye strain, and pure black smears on OLED.
+  Colours come from the tokens in `styles.css`; do not hard-code them. Icons are
+  inline SVG — no emoji, no icon fonts.
+- **Nothing internal reaches the user.** No raw exception text, no stack traces,
+  no property paths in a message anyone reads. Detail goes to `console.error`;
+  the reader gets a sentence about what to do next.
+- **Every animation must be switchable off** — under `:root[data-lite='on']`,
+  `:root[data-decor='off']` and `prefers-reduced-motion`. Decoration is never
+  the only place information lives.
+- **House voice.** Sentence case, no exclamation marks, no marketing voice, body
+  paragraphs under about forty words. Comments explain *why* a non-obvious
+  decision was made, not what the line does — match `src/metrics.js` and
+  `src/trace.js`.
+- **Storage is disclosed.** Anything written to the device is described in
+  `src/legal.js` and `llms.txt`, in the same commit that writes it. The policy
+  going stale is a worse defect than the feature being late.
 
-**Why it exists.** The primary capture flow asks the user to write on blank
-paper. This is the alternative for people who want guide boxes: a sheet they
-print, write in, and photograph. Because the app already knows the character
-sequence, the boxes are a writing aid for the *human*, not a landmark for the
-segmenter — so they do not need registration marks or corner fiducials.
+## The pipeline
 
-**Print the guides in light blue** (`#9fc5e8`-ish). `toGrayscale()` in
-`src/imageproc.js` accepts `{ dropBlue: true }`, which pushes saturated blue
-pixels to white, so the guides vanish during binarisation exactly the way
-non-photo blue pencil works in traditional drafting. This is why the guides must
-be blue and not grey.
+Photograph in, font out. Each stage hands the next a specific shape, and the
+shapes are the part worth knowing.
 
-```js
-/**
- * @param {object} opts
- * @param {'a4'|'letter'} opts.paper
- * @param {Array<{id,title,hint,rows:string[][]}>} opts.sheets  from charset.js
- * @returns {HTMLElement}  a print-ready DOM subtree
- */
-export function renderTemplate(opts): HTMLElement
-
-/** Opens the browser print dialog for the rendered sheet. */
-export function printTemplate(element): void
+```
+imageproc.preprocess   file        → { bin, w, h, slant, angle }
+segment.segmentSheet   bin         → rows of cells, with issues and stats
+segment.extractGlyph   cell        → { ch, bitmap, w, h, pad, page }
+trace.vectorize        bitmap      → contours of cubic Béziers
+metrics.buildMetrics   extracted   → { glyphs, spacing, kerning, rows }
+fontbuild.buildFamily  glyphs      → four styles
+pipeline.serialise     family      → .otf bytes
+export.packageFamily   bytes       → the .zip
 ```
 
-Requirements:
+`src/pipeline.js` orchestrates it. `src/app.js` is the shell around it: steps,
+routing, settings, and every screen.
 
-- One page per sheet from `SHEETS`; also accept `LIGATURE_SHEET`.
-- Each cell shows the target character small and pale in the corner, with a
-  large empty box to write in. Include a dotted baseline and a dashed x-height
-  line inside every box — they materially improve how consistently people write.
-- Cells sized so a 13-column row fits A4 *and* US Letter without reflowing.
-- `@media print` CSS scoped inside the module: exact page margins, no headers,
-  `print-color-adjust: exact` so the blue survives.
-- A short instruction block on page 1: use a dark pen (not pencil), write at a
-  natural size, keep strokes inside the boxes, photograph in even light.
+**Segmentation never recognises anything.** The app dictates which characters to
+write and in what order, so it only has to find the ink and read it left to
+right. That removes the entire class of OCR errors and is why no printed grid or
+registration mark is needed. It also means putting the capitals photograph in
+the everyday slot would write every character under the wrong name — which is
+why `capturePage` refuses a sheet that scores badly against the one it was asked
+for, rather than warning about it.
 
----
+**Baselines are solved, not assumed.** The paper is unruled, so `solveAllRows`
+recovers a baseline per row by solving ascender and descender constraints across
+the whole row at once, using the zone declared for each character in
+`charset.js`. This is why `normalizeGlyph` takes a `rowMetric`, and why glyphs
+carry `page` coordinates all the way through.
 
-## 2. `src/draw.js` — canvas drawing pad
+**There is no vector-in entry point.** `normalizeGlyph(extracted, rowMetric)`
+reads bitmap-space contours plus page coordinates and a solved
+`{ scale, baseline }`. Anything arriving as outlines already — an imported font,
+say — has its baseline at zero and none of that, so it needs a parallel
+normaliser that skips `solveAllRows` and feeds `computeSpacing` directly.
+`metrics.profilesFromContours` exists for exactly that and is not yet called.
 
-**Why it exists.** Fallback capture for people with a stylus or tablet, and the
-repair path when one glyph from a scan comes out wrong. The review grid will
-call this for a single character.
+## Things that cost time to learn
 
-Output must be **interchangeable with a scanned glyph** so the rest of the
-pipeline cannot tell the difference. That means returning the same shape
-`segment.extractGlyph()` returns:
+- **opentype.js can read GPOS but not write it.** Kerning is assembled as raw
+  bytes in `src/gpos.js`.
+- **Winding is measured, never assumed.** The tracer walks in bitmap space with
+  y down, `normalizeGlyph` flips y, and a flip reverses winding — so an outer
+  contour reaches `embolden` clockwise. It takes its direction from the signed
+  area of the largest contour. Before that, Bold came out *thinner* than Regular
+  in every font the app had ever exported.
+- **The drawing pad carries a coverage field beside its mask.** `stampStroke`
+  builds a one-pixel ramp so a 0.5 threshold lands between pixels;
+  `trace.vectorize` takes it as `opts.coverage` and refines the boundary onto
+  the half-coverage crossing. Corners are excluded — a bilinear interpolant
+  cannot represent one. The fit tolerance halves when coverage is present, and
+  that is one change with the refinement, not two.
+- **`capture.page.bin` is about 2.5 MB per sheet.** It exists only to draw the
+  review screen's before/after overlay. It must never be persisted, and a test
+  asserts it never reaches an autosave snapshot.
+- **`session.js` strips `bitmap` by name and passes everything else through
+  `JSON.stringify`.** Adding a large typed array to a glyph without adding it to
+  that exclusion will serialise it as decimal text on a debounce timer.
+- **`filetype.js` currently refuses `.otf` and `.ttf`** with "that looks like a
+  font", because people try it. If font import ships, that message becomes
+  wrong.
+- **`getComputedStyle` returns a live declaration.** Read it after the element
+  has been removed and every value is an empty string.
+- **Custom properties do not resolve for canvas.** `getPropertyValue('--text')`
+  returns the token stream, `light-dark(...)` and all, which canvas rejects
+  silently. `src/paint.js` makes the browser do the resolving; use it rather
+  than reading tokens directly.
 
-```js
-{
-  ch: string,
-  bitmap: Uint8Array,   // 1 = ink, 0 = paper, row-major
-  w: number, h: number,
-  pad: number,          // transparent border, use 2
-  page: { x0, y0, x1, y1 }   // ink bounding box in bitmap coords
-}
-```
+## Source layout
 
-```js
-/**
- * @param {HTMLElement} mount
- * @param {object} opts
- * @param {string} opts.ch                     character being drawn
- * @param {number} [opts.guideXHeight=0.5]     x-height as a fraction of box height
- * @param {(glyph) => void} opts.onCommit
- */
-export function createDrawPad(mount, opts): { destroy(), clear(), undo(), isEmpty() }
-```
+`src/` is flat and every file opens with a header explaining what it is for. The
+ones to read first, in this order: `charset.js` (what gets written, and why that
+set), `pipeline.js` (the whole flow in one file), `metrics.js` (the spacing
+engine, where most of the quality lives), `app.js` (everything the user
+touches).
 
-Requirements:
+`tools/` holds the tests, one suite per module, registered in
+`tools/run-tests.mjs`. They are numerical checks on pure functions plus a few
+scanners over the CSS and markup. There is no DOM, so anything imported there
+must not touch `document` at module scope.
 
-- Pointer Events only (`pointerdown/move/up`), so mouse, touch and stylus all
-  work from one code path. Call `setPointerCapture`.
-- Use `event.pressure` when the device reports it (> 0 and ≠ 0.5) to vary stroke
-  width. A stylus produces dramatically better-looking letters this way.
-- Smooth input with a quadratic midpoint curve between successive points; raw
-  `lineTo` per pointer sample produces visible polygonal kinks at speed.
-- Render at **3× the display size** on a backing canvas and threshold that to
-  produce the bitmap. The tracer's accuracy is bounded by input resolution, and
-  this is nearly free.
-- Guides: baseline, x-height, ascender, descender lines matching `opts` — drawn
-  on a separate layer that is *not* included in the exported bitmap.
-- Undo (per stroke) and clear. Keyboard: `Ctrl/Cmd+Z` undo, `Esc` cancel.
-- The bitmap must be cropped to the ink bounds plus `pad`, never the full
-  canvas, or every drawn glyph will carry a huge empty margin into the metrics
-  stage and its side bearings will be wrong.
+## Open work
 
----
+`TODO.md` at the repo root is the live list. The near items: sub-pixel tracing
+on the photograph path — the coverage field has to be settled first, since
+Sauvola's threshold is local and raw greyscale's 0.5 level is therefore not the
+edge — font import from an existing `.ttf`, and shipping a usable font from the
+first sheet instead of asking for all 112 characters up front.
 
-## 3. `src/tutorial.js` — tutorial content and install guidance
-
-**Why it exists.** Most people have never made a font and do not know what makes
-a good sample. The single highest-value thing this app can do is tell them
-before they write, not after.
-
-Export **data, not markup** — the app shell renders it. This keeps the copy
-reviewable in one place and lets the same content appear in onboarding, in
-contextual help, and in the exported README.
-
-```js
-export const LESSONS: Array<{
-  id: string,
-  title: string,
-  body: string[],          // paragraphs, plain text
-  tips?: string[],
-  illustration?: 'pen' | 'lighting' | 'spacing' | 'baseline' | 'photo',
-}>
-
-export const INSTALL: Array<{
-  os: 'windows' | 'macos' | 'linux' | 'ios' | 'android',
-  label: string,
-  steps: string[],
-  note?: string,
-}>
-
-export const FAQ: Array<{ q: string, a: string }>
-```
-
-Cover, at minimum:
-
-- **Choosing a pen.** A fine-liner or gel pen around 0.5 mm. Not pencil (too
-  faint, and graphite reflects), not a broad marker (strokes merge into blobs).
-- **Photographing the sheet.** Flat surface, even indirect light, no hard shadow
-  across the page, camera parallel to the paper. Explain that the app corrects
-  rotation and uneven lighting automatically, so the only thing that really
-  matters is that the ink is clearly darker than the paper.
-- **Writing naturally.** People instinctively write in unnatural block capitals
-  when they know they are being recorded. Tell them not to.
-- **Why letters must not touch.** One sentence on why gaps between characters
-  matter, since this is the only failure the app cannot silently repair.
-- **What happens to bold and italic** — synthesised from the one sample, so they
-  do not need to write anything four times.
-- **Installing** on each OS. Be accurate: iOS cannot install a font from Files
-  alone and needs a configuration-profile app; most Android apps cannot use
-  custom fonts at all. Say so plainly rather than letting people fail.
-- **FAQ**: Is anything uploaded? (No — everything runs in the browser and the
-  page works offline once loaded.) Who owns the font? (They do, entirely.) Can
-  they sell it? (Yes.) Why is the file `.otf` and not `.ttf`? (Both are
-  OpenType; `.otf` carries cubic outlines, which is what the tracer produces,
-  and it installs identically everywhere.)
-
-Keep every `body` paragraph under about 40 words. This copy is read by someone
-holding a pen who wants to start.
+Two pieces of advice, both learned the expensive way. Measure before changing a
+number: a bound picked to make a test pass is a number that means nothing. And a
+green suite is not the verdict — for anything that ends up as a shape on a page,
+render a real sample and look at it.
