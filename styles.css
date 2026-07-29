@@ -1795,6 +1795,57 @@ main { flex: 1; }
   max-width: 62ch;
 }
 
+/* ── The greeting ───────────────────────────────────────────────────────
+   Shown once, on arrival. Deliberately plain: it is the first thing anyone
+   sees, and a dialogue that performs on the way in is a dialogue people learn
+   to dismiss without reading. The entrance it does have comes free from
+   .sheet-modal-panel's lift, and reduced motion turns that off already.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.welcome-lead {
+  color: var(--text-2);
+  margin-bottom: 1.4rem;
+  max-width: 46ch;
+}
+
+.welcome-steps {
+  list-style: none;
+  margin: 0 0 1.6rem;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.welcome-steps li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: .85rem;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.welcome-steps b { color: var(--text); font-weight: 600; }
+
+/* The counter is the icon's job here — a number beside a pen and a camera
+   would be saying the same thing twice. */
+.welcome-step__icon {
+  display: grid;
+  place-items: center;
+  width: 2.2rem; height: 2.2rem;
+  flex: none;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--accent);
+}
+.welcome-step__icon svg { width: 1.15rem; height: 1.15rem; }
+
+/* On a phone the two actions stack and the primary one goes full width, which
+   is the same shape the draw pad's toolbar takes below its own breakpoint. */
+@media (max-width: 480px) {
+  #welcome .fb-actions { display: grid; gap: .6rem; }
+  #welcome .fb-actions > * { width: 100%; }
+}
+
 /* ── Leaving the site ───────────────────────────────────────────────── */
 
 .sheet-modal-panel.is-narrow { max-width: 34rem; }

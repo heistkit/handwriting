@@ -47,6 +47,7 @@ import { mount as mountSliders } from './slider.js';
 import { mount as mountMascot } from './mascot.js';
 import { read as readRoute, write as writeRoute, base as routeBase, overlayPath } from './routes.js';
 import { run as runBrowserGate } from './browsergate.js';
+import { mount as mountWelcome } from './welcome.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
 import { intercept as interceptExternal, describe as describeUrl } from './leaving.js';
 import { profile, createEstimator, describeEta, slowDeviceNote } from './eta.js';
@@ -2791,6 +2792,27 @@ function init() {
     );
     demoIO.observe(demoBand);
   }
+
+  // The greeting, and it opens itself only when nothing else has claimed the
+  // screen: an arrival at /guide or /privacy or any step past the first is a
+  // reader who knows where they were going, and a hello over the top of that is
+  // an interruption rather than an introduction.
+  //
+  // Decided from the address, not from the modal stack. applyRoute is async —
+  // it awaits openGuide, which awaits the tutorial module — so at this point in
+  // init the stack is still empty even when the address plainly says /guide,
+  // and the greeting opened on top of the guide. The address is known
+  // synchronously and cannot race.
+  mountWelcome({
+    open: openModal,
+    close: closeOverlay,
+    onGuide: () => openGuide(),
+    onStart: () => goto('write'),
+    canGreet: () => {
+      const here = readRoute();
+      return !here.overlay && (here.step === 'start' || here.step === null);
+    },
+  });
 
   $('#open-guide').addEventListener('click', () => openGuide());
   $('#open-settings').addEventListener('click', () => {

@@ -1075,6 +1075,59 @@
   </div>
 </div>
 
+<!-- ── First visit: a hello, and the whole thing in four lines ──────────
+     Shown once, on arrival, instead of asking someone to scroll for it. The
+     four steps below are the same four the deck further down the page carries;
+     this is the short version for the reader who has not decided yet whether
+     to care. Dismissed with the X, Escape, or either button, and remembered so
+     it never opens twice. See src/welcome.js. -->
+<div class="sheet-modal" id="welcome" hidden>
+  <div class="sheet-modal-panel is-narrow" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+    <header class="modal-head">
+      <h2 id="welcome-title">Your handwriting, as a real font</h2>
+      <button class="btn btn-icon" id="close-welcome" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <p class="welcome-lead">
+        Four steps, about ten minutes, and nothing you write or photograph
+        leaves this browser.
+      </p>
+
+      <ol class="welcome-steps">
+        <li>
+          <span class="welcome-step__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pen"/></svg></span>
+          <span><b>Copy one sheet.</b> About thirty characters on blank paper, in your ordinary hand.</span>
+        </li>
+        <li>
+          <span class="welcome-step__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-camera"/></svg></span>
+          <span><b>Photograph it.</b> Flat, in even light. Crooked and shadowed are both fine.</span>
+        </li>
+        <li>
+          <span class="welcome-step__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg></span>
+          <span><b>Check the letters.</b> Redraw any that came out wrong, by hand, right here.</span>
+        </li>
+        <li>
+          <span class="welcome-step__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"/></svg></span>
+          <span><b>Install it.</b> A real OpenType family — regular, bold, italic — that is yours to keep.</span>
+        </li>
+      </ol>
+
+      <div class="fb-actions">
+        <button class="btn" id="welcome-guide" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-book"/></svg>
+          <span>Read the guide</span>
+        </button>
+        <button class="contbtn" id="welcome-start" type="button">
+          <span>Start writing</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-circle"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="sheet-modal" id="settings" hidden>
   <div class="sheet-modal-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <header class="modal-head">
