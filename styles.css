@@ -307,6 +307,72 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   }
 }
 
+/*
+ * And below this, the wordmark goes too.
+ *
+ * Collapsing the two action labels was not enough. Measured on a 375px phone:
+ * the logo took 153px of about 335 usable, and the mark, the switch and the two
+ * icon buttons came to roughly ten pixels more than the row had. Ten pixels is
+ * all it takes — flexbox does not compress a line that cannot fit, it moves an
+ * item to a new one, so Settings dropped to a row of its own and the rail took
+ * a third. The bar stood 178px tall on an 812px screen: not a fifth of the
+ * chrome budget, closer to a quarter, before a word of the page.
+ *
+ * The pen alone is the home button now, which is the ordinary reading of a logo
+ * at this width. As with the labels, the name is moved out of sight rather than
+ * removed — `display: none` would take the button's accessible name with it and
+ * leave a control that announces as nothing.
+ */
+@media (max-width: 420px) {
+  .topbar-inner .brand-name {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+}
+
+/*
+ * Touch targets.
+ *
+ * A finger is not a mouse pointer, and every one of these was sized for the
+ * pointer: the two header actions came to 42px, the theme switch 33, the deck's
+ * dots 12, and the footer links 27. The floor both platform guidelines settle
+ * on is 44.
+ *
+ * Keyed to the pointer rather than the width, because the thing that changed is
+ * the input device, not the screen — a phone in landscape is still a phone, and
+ * a narrow window on a desktop is still driven by a mouse.
+ *
+ * The dots grow their hit area through a pseudo-element rather than through
+ * padding. Padding was tried first and it works, but the box grows with it —
+ * four dots at 1rem of padding each came to 288px of a 375px row, and on a
+ * 320px screen that is a horizontal scrollbar on the whole page. An absolutely
+ * positioned ::after is outside the layout entirely: the dot stays 0.6rem, the
+ * row stays the width it was, and the finger gets its 44px.
+ */
+@media (pointer: coarse) {
+  .topbar-inner .btn-ghost { min-width: 44px; min-height: 44px; }
+  .topbar-inner .brand { min-height: 44px; }
+  .theme-switch { min-height: 44px; display: inline-flex; align-items: center; }
+
+  .stepshow__dot { position: relative; }
+  .stepshow__dot::after {
+    content: '';
+    position: absolute;
+    /* Out to 44px from a 0.6rem dot, measured from the dot's own edges so the
+       active one — a stadium, not a circle — grows by the same margin. */
+    inset: -1rem;
+  }
+
+  .footer-links a,
+  .footer-links button {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
 .brand {
   display: flex; align-items: center; gap: .55rem;
   font-weight: 600; letter-spacing: -.02em;

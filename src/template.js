@@ -44,7 +44,11 @@ export function renderTemplate({ paper = 'a4', sheets = [] } = {}) {
   root.className = 'ivt-root';
   root.dataset.paper = paper === 'letter' ? 'letter' : 'a4';
 
-  root.append(styleElement(root.dataset.paper), instructionPage());
+  // The print CSS is not part of this subtree — it cannot be, see adoptRules.
+  // It is carried on the root so printTemplate can install it at the moment it
+  // is needed and take it away again afterwards.
+  root.dataset.css = styleCss(root.dataset.paper);
+  root.append(instructionPage());
 
   sheets.forEach((sheet, i) => root.append(sheetPage(sheet, i === 0)));
 
@@ -63,6 +67,11 @@ export function printTemplate(element) {
   // app is showing does not bleed onto the sheet.
   const wasAttached = root.isConnected;
   if (!wasAttached) document.body.append(root);
+  // Installed for the duration of the print and removed in cleanup below. It is
+  // a document-wide sheet — it has to be, to hide the app behind the paper — so
+  // leaving it adopted would keep the app hidden from its own print dialog the
+  // next time anything else printed.
+  const dropRules = adoptRules(root.dataset.css || '');
   document.body.classList.add('ivt-printing');
 
   // Two independent "printing has finished" signals, because afterprint is not
@@ -75,6 +84,7 @@ export function printTemplate(element) {
     if (done) return;
     done = true;
     document.body.classList.remove('ivt-printing');
+    dropRules();
     if (!wasAttached) root.remove();
     window.removeEventListener('afterprint', cleanup);
     mql?.removeEventListener?.('change', onMediaChange);
@@ -198,13 +208,84 @@ function cell(ch) {
  * is essential — without it browsers strip the blue guides as "background" and
  * the sheet prints blank boxes with no rules at all.
  *
+ * The rules go in through CSSOM rather than through textContent, and that is
+ * not a stylistic choice. The content-security policy carries
+ * `style-src-elem 'self'`, and under it Chrome refuses a <style> element with
+ * text in it — `style-src-elem <- inline` — refusing it the way CSP refuses
+ * things: the element is appended, its textContent is intact, and not one of
+ * its rules applies. The staging area then sits in the page flow instead of
+ * being parked off-screen and the sheet prints blank, with nothing thrown and
+ * nothing on screen to say so. The first anyone would know is the paper.
+ *
+ * A hash cannot help, because the text interpolates the paper size. insertRule
+ * can, because CSP governs the *content of the element* and not the object
+ * model — a sheet built rule by rule was never parsed from markup, so there is
+ * nothing for the directive to refuse.
+ *
  * Cell size is driven by the narrower usable width so 13 always fit a row on
  * both papers without reflowing; the wider paper simply gains a larger margin.
  */
-function styleElement(paper) {
+/**
+ * Move a style element's rules from a pending string into its own sheet.
+ *
+ * `styleElement` parks the CSS on a data attribute rather than in the element's
+ * text, so nothing is ever parsed from markup. Here it is split into top-level
+ * rules and inserted one at a time.
+ *
+ * The split is a brace counter rather than a regular expression because two of
+ * these rules are `@media` blocks with their own braces inside, and insertRule
+ * takes one complete rule at a time — a naive split on `}` would hand it the
+ * first half of a media query. Comments are stripped first: insertRule parses a
+ * single rule and a leading comment is not one.
+ *
+ * If anything goes wrong the text is written the old way as a fallback. That
+ * path is refused under this app's own policy, but this module is a
+ * self-contained printable sheet and is worth keeping usable somewhere with no
+ * policy at all.
+ */
+/**
+ * Install the sheet's CSS as a constructed stylesheet on the document.
+ *
+ * A <style> element cannot carry it. Under `style-src-elem 'self'` Chrome
+ * refuses one with text in it, and refuses it thoroughly: the element is
+ * appended, its textContent survives, no rule applies, and `style.sheet` is
+ * null forever — so there is not even a sheet to reach through CSSOM and fill
+ * in afterwards. Nothing throws. The staging area sits in the page flow instead
+ * of parked off-screen and the paper comes out blank.
+ *
+ * A constructed CSSStyleSheet is the way through, because it is not markup:
+ * nothing was parsed from a document, so the directive has nothing to refuse.
+ * Measured against this app's own policy — no violation, rules apply.
+ *
+ * Adopted on the document rather than a shadow root because these rules must
+ * reach outside the subtree: `body.ivt-printing > :not(.ivt-root)` is what
+ * hides the app so only the sheet prints, and a scoped sheet cannot say that.
+ * Everything else is namespaced under .ivt- so document scope costs nothing.
+ *
+ * @returns {() => void} removes the sheet again
+ */
+function adoptRules(css) {
+  if (typeof CSSStyleSheet !== 'function') return () => {};
+  let sheet;
+  try {
+    sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+  } catch (err) {
+    // No constructable stylesheets, or a rule this engine will not parse.
+    // Printing falls back to the browser's own page setup, which still produces
+    // a usable sheet — the guides are drawn as elements, not as CSS.
+    console.error('template: could not install the print stylesheet', err);
+    return () => {};
+  }
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  return () => {
+    document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => s !== sheet);
+  };
+}
+
+function styleCss(paper) {
   const pageMargin = paper === 'letter' ? '15mm 17mm' : '14mm';
-  const style = document.createElement('style');
-  style.textContent = `
+  return `
 .ivt-root { --ivt-guide: ${GUIDE}; --ivt-guide-soft: ${GUIDE_SOFT}; --ivt-ink: ${INK}; }
 
 @media screen {
@@ -281,5 +362,4 @@ function styleElement(paper) {
     border-top: 0.5pt dashed var(--ivt-guide);
   }
 }`;
-  return style;
 }
