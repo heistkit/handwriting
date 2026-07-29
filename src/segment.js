@@ -168,12 +168,111 @@ function reconcileCount(groups, expected, { onNote = () => {} } = {}) {
 }
 
 /**
+ * Zones whose characters are legitimately much smaller than a letter.
+ *
+ * A period is not a stray mark, and on the punctuation sheet neither is a
+ * hyphen or an apostrophe. Rows that expect any of these are exempt from the
+ * stray filter below, because there the filter's own premise — that a mark far
+ * smaller than its neighbours is not a character — is simply false.
+ */
+const SMALL_ZONES = new Set(['base', 'mid', 'high']);
+
+/**
+ * Drop marks that are too slight to be any of the characters this row expects.
+ *
+ * This exists because of the failure it prevents, which is the worst one this
+ * file can produce. A photographed row of capitals came back with thirteen
+ * groups for thirteen expected characters, and the count was wrong in two
+ * places at once that cancelled: F and G had touched and been read as one
+ * group, and a stray dash elsewhere in the row had been read as another. The
+ * arithmetic agreed, so nothing below split anything, nothing reconciled, and
+ * no warning was raised — and because cells are paired to characters by
+ * position, every character after F was written into the font under the name of
+ * the one before it. G got H's shape, H got I's, and the last cell got the
+ * dash. The font typed the wrong letter for two thirds of the alphabet and the
+ * app reported no problem at all.
+ *
+ * So a matching count is not evidence that the assignment is right, and this
+ * row's own statistics are better evidence than its total. Ink area is the
+ * signal: a written character carries a comparable amount of ink to its
+ * neighbours, and a smudge, a crease, or the tail of a crossed-out letter
+ * carries a small fraction of it. The median is taken over the row, so it holds
+ * as long as most of the row is real writing — which is the case worth handling;
+ * a row that is mostly debris is already refused upstream by the component cap.
+ *
+ * Deliberately not despeckle's job. despeckle works on the whole page against
+ * an absolute pixel floor, with no idea how big a character on this sheet is.
+ * Here the row supplies that scale.
+ */
+function dropStrayMarks(groups, expected, { onNote = () => {} } = {}) {
+  // Below four groups a median is describing almost nothing, and the cost of
+  // being wrong — deleting a real character — is higher than the cost of
+  // leaving a stray in.
+  if (groups.length < 4) return groups;
+  if (expected.some((ch) => SMALL_ZONES.has(BY_CHAR.get(ch)?.zone))) return groups;
+
+  const medArea = median(groups.map((g) => g.area));
+  if (!medArea) return groups;
+
+  const kept = groups.filter((g) => g.area >= medArea * STRAY_AREA_FRACTION);
+  // Never let this empty a row out. If most of what was found looks slight, the
+  // median is being set by debris and the premise has failed.
+  if (kept.length < Math.ceil(groups.length / 2)) return groups;
+
+  const dropped = groups.length - kept.length;
+  if (dropped) onNote('stray', dropped);
+  return kept;
+}
+
+/**
+ * A written character carries at least this share of the row's median ink.
+ *
+ * Unmeasured, and chosen with the shape of the error in mind rather than from
+ * sample photographs, which this repo does not ship. The thinnest capital is a
+ * bare vertical stroke — an 'I' — which against a median drawn from letters
+ * like M and B still carries something like a third of it, while a smudge or a
+ * dash carries a few per cent. A quarter sits between those with room on both
+ * sides, and erring low is the safe direction: leaving a stray in costs a
+ * warning on the review screen, and dropping a real letter costs a letter.
+ */
+const STRAY_AREA_FRACTION = 0.25;
+
+/**
+ * A group this much wider than the row's median holds two characters.
+ *
+ * Independent of the count, and that independence is the point — the count is
+ * exactly what cannot be trusted when a fusion and a stray cancel each other.
+ * Two letters that touch make a group about twice as wide as its neighbours,
+ * and no single character in these charsets is anywhere near that wide relative
+ * to the rest of its row.
+ */
+const FUSED_WIDTH_FACTOR = 1.75;
+
+/**
  * Split a group at its narrowest vertical waist.
  *
- * Used when a row came up short, meaning two characters are touching. We look
- * for the column with the least ink inside the middle 60% of the group — the
- * edges are excluded because the thinnest column of any glyph is usually its
- * own first or last column, which would produce a useless sliver.
+ * Used when two characters have been read as one. We look for the column with
+ * the least ink inside the middle 60% of the group — the edges are excluded
+ * because the thinnest column of any glyph is usually its own first or last
+ * column, which would produce a useless sliver.
+ *
+ * Two characters can arrive as one group in two different ways, and this used
+ * to handle only the easier one. If they are separate blobs that mergeStacked
+ * decided to fuse, the group has several components and each can be handed to
+ * whichever side holds its centre. But if the ink actually touches — a capital
+ * F whose arm brushes the G beside it — the two letters are a single connected
+ * component, every part lands on one side, the other comes back empty, and the
+ * old code returned null and gave up. That is the common case and the one the
+ * function exists for: it could split everything except genuinely joined
+ * writing.
+ *
+ * A component that straddles the cut is now clipped to both sides, keeping its
+ * id on each. Sharing an id is safe because extractGlyph filters by id *and*
+ * crops to the box, and after the split the two boxes do not overlap — so the
+ * crop is what separates the halves and the id only keeps a neighbour's ink
+ * out. Each side's bounds are then measured from the ink that actually falls in
+ * it, rather than inherited from the group, so a tall letter joined to a short
+ * one does not hand its height to both.
  */
 function splitAtWaist(group, bin, w, labels) {
   const gw = width(group);
@@ -196,14 +295,39 @@ function splitAtWaist(group, bin, w, labels) {
   if (cut < 0) return null;
 
   const at = group.x0 + cut;
-  const left = { x0: group.x0, y0: group.y0, x1: at, y1: group.y1, area: 0, parts: [] };
-  const right = { x0: at, y0: group.y0, x1: group.x1, y1: group.y1, area: 0, parts: [] };
-  // Reassign the constituent components to whichever side holds their centre.
-  for (const p of group.parts) {
-    const target = (p.x0 + p.x1) / 2 < at ? left : right;
-    target.parts.push(p);
-    target.area += p.area;
-  }
+
+  /** Tight bounds and ink count for one side of the cut. */
+  const measure = (x0, x1) => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, area = 0;
+    for (let y = group.y0; y < group.y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const i = y * w + x;
+        if (!bin[i] || !ids.has(labels[i])) continue;
+        area++;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+    return area ? { x0: minX, y0: minY, x1: maxX + 1, y1: maxY + 1, area } : null;
+  };
+
+  const leftBox = measure(group.x0, at);
+  const rightBox = measure(at, group.x1);
+  // Nothing on one side means the waist is at an edge of the ink, not between
+  // two characters — a sliver, which is what the middle-60% window exists to
+  // avoid and this catches when it does not.
+  if (!leftBox || !rightBox) return null;
+
+  /** Components falling on one side, clipped where they straddle the cut. */
+  const partsIn = (x0, x1) =>
+    group.parts
+      .filter((p) => p.x0 < x1 && p.x1 > x0)
+      .map((p) => ({ ...p, x0: Math.max(p.x0, x0), x1: Math.min(p.x1, x1) }));
+
+  const left = { ...leftBox, parts: partsIn(group.x0, at) };
+  const right = { ...rightBox, parts: partsIn(at, group.x1) };
   if (!left.parts.length || !right.parts.length) return null;
   return [left, right];
 }
@@ -494,8 +618,38 @@ export function segmentSheet(bin, w, h, expectedRows) {
     let groups = mergeStacked(perBand[r]);
     observedPerRow.push(groups.length);
 
-    // Short row: try splitting touching characters before giving up.
+    // Marks too slight to be any character this row expects. Removed before
+    // anything counts the row, because a stray and a fusion cancel in the total
+    // and leave a row that looks correct and is entirely misassigned.
+    let strays = 0;
+    groups = dropStrayMarks(groups, expected, { onNote: (_, n) => { strays = n; } });
+
+    // Groups far wider than the row's median hold two characters that touched.
+    //
+    // Checked whatever the count says, and that is the whole point: the count
+    // is precisely what cannot be trusted here. A row of thirteen expected
+    // characters that yields thirteen groups can still have F and G fused into
+    // one and a smudge standing in for the thirteenth, and every character
+    // after the fusion then goes into the font under its neighbour's name.
+    let splits = 0;
     let guard = 0;
+    while (guard++ < expected.length) {
+      const medWidth = median(groups.map(width));
+      if (!medWidth) break;
+      const widest = groups
+        .map((g, i) => ({ g, i }))
+        .sort((a, b) => width(b.g) - width(a.g))[0];
+      if (!widest || width(widest.g) < medWidth * FUSED_WIDTH_FACTOR) break;
+      const split = splitAtWaist(widest.g, bin, w, labels);
+      if (!split) break;
+      groups.splice(widest.i, 1, ...split);
+      groups.sort((a, b) => a.x0 - b.x0);
+      splits++;
+    }
+
+    // Still short: fall back to splitting the widest group whatever its width,
+    // since something must have touched even if it is not obvious by measure.
+    guard = 0;
     while (groups.length < expected.length && guard++ < expected.length) {
       const widest = groups
         .map((g, i) => ({ g, i }))
@@ -505,10 +659,28 @@ export function segmentSheet(bin, w, h, expectedRows) {
       if (!split) break;
       groups.splice(widest.i, 1, ...split);
       groups.sort((a, b) => a.x0 - b.x0);
+      splits++;
     }
 
     if (groups.length > expected.length) {
       groups = reconcileCount(groups, expected.length);
+    }
+
+    // Say so. Both of these are the app reinterpreting the page rather than
+    // reading it, and the review screen is the only place the reader can check
+    // the result — but only if they know there is something to check.
+    if (strays || splits) {
+      const parts = [];
+      if (splits) parts.push(`separated ${splits} pair${splits === 1 ? '' : 's'} of touching characters`);
+      if (strays) parts.push(`ignored ${strays} stray mark${strays === 1 ? '' : 's'}`);
+      issues.push({
+        level: 'info',
+        code: 'row-adjusted',
+        row: r,
+        message:
+          `Row ${r + 1}: ${parts.join(' and ')}. Worth a glance on the next screen — `
+          + 'if a character is under the wrong letter, everything after it will be too.',
+      });
     }
 
     if (groups.length !== expected.length) {

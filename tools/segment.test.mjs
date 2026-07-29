@@ -294,6 +294,143 @@ export async function run() {
       String(seg.stats.observedBands));
   }
 
+  // --- when the count is right and the assignment is not -------------------
+  //
+  // The band-level version of this bug is covered above: an extra band at the
+  // top shifts every label below it. This is the same failure one level down,
+  // inside a row, and it is worse because the total gives nothing away.
+  //
+  // From a real photograph: thirteen capitals, thirteen groups found, and two
+  // errors that cancelled — F and G had touched and been read as one group,
+  // while a stray dash was read as another. Nothing split, nothing reconciled,
+  // no warning. Cells pair to characters by position, so G took H's shape, H
+  // took I's, and the last cell took the dash. The font typed the wrong letter
+  // for most of the alphabet and the app said it was fine.
+  //
+  // So the property here is not "does the count match". It is: does cell `i`
+  // hold the shape written in position `i` on the paper. A test that counted
+  // cells would have passed against the broken code.
+  {
+    /** A character with an interior waist, so a fused pair has one to find. */
+    const glyph = (bin, x, y, w, h) => {
+      const s = Math.max(3, Math.round(w * 0.18));
+      box(bin, x, y, x + s, y + h);
+      box(bin, x + w - s, y, x + w, y + h);
+      box(bin, x, y + Math.round(h * 0.45), x + w, y + Math.round(h * 0.45) + s);
+    };
+
+    /** Lay out a row, optionally fusing one pair and adding a stray mark. */
+    const drawRow = ({ n, fuseAt = -1, stray = false }) => {
+      const bin = new Uint8Array(W * H);
+      const gw = 60, gh = 150, y = 380, gap = 26;
+      const drawn = [];
+      let x = 40;
+      for (let i = 0; i < n; i++) {
+        if (i === fuseAt) {
+          // Two characters written close, joined by a hairline where one
+          // letter's stroke brushes the next. They are a single connected
+          // component — which is the case splitAtWaist has to handle and the
+          // one it used to give up on — and the bridge is thinner than either
+          // letter's own interior, so the waist is genuinely between them.
+          const bridge = 10;
+          glyph(bin, x, y, gw, gh);
+          glyph(bin, x + gw + bridge, y, gw, gh);
+          box(bin, x + gw, y + 70, x + gw + bridge, y + 73);
+          drawn.push({ i, x0: x, x1: x + gw });
+          drawn.push({ i: i + 1, x0: x + gw + bridge, x1: x + gw * 2 + bridge });
+          x += gw * 2 + bridge + gap;
+          i++;
+          continue;
+        }
+        glyph(bin, x, y, gw, gh);
+        drawn.push({ i, x0: x, x1: x + gw });
+        x += gw + gap;
+      }
+      // A dash: a small fraction of a character's ink, after the writing.
+      if (stray) box(bin, x + 10, y + 80, x + 44, y + 87);
+      return { bin, drawn };
+    };
+
+    /** Which drawn position each cell landed on, by the centre of its box. */
+    const assignment = (cells, drawn) =>
+      cells.map((cell) => {
+        if (!cell.box) return null;
+        const mid = (cell.box.x0 + cell.box.x1) / 2;
+        const hit = drawn.find((d) => mid >= d.x0 - 14 && mid <= d.x1 + 14);
+        return hit ? hit.i : null;
+      });
+
+    {
+      const { bin, drawn } = drawRow({ n: 13, fuseAt: 5, stray: true });
+      const out = segmentSheet(bin, W, H, [ALPHA]);
+      const cells = out.rows[0]?.cells ?? [];
+
+      check('a fusion and a stray cancel in the count', cells.length === 13, `${cells.length}`);
+
+      const got = assignment(cells, drawn);
+      check('yet each cell still holds the character written in its position',
+        got.every((v, i) => v === i), JSON.stringify(got));
+      check('the letter after the fused pair is not shifted',
+        got[6] === 6, `G landed on drawn position ${got[6]}`);
+      check('nor is the last letter of the row',
+        got[12] === 12, `M landed on drawn position ${got[12]}`);
+      check('and no cell is left empty', cells.every((c) => !c.missing));
+
+      const note = out.issues.find((i) => i.code === 'row-adjusted');
+      check('the reinterpretation is reported to the reader', !!note,
+        JSON.stringify(out.issues.map((i) => i.code)));
+      check('and the message names both things that were done',
+        /touching/.test(note?.message || '') && /stray/.test(note?.message || ''),
+        note?.message);
+    }
+
+    {
+      const { bin, drawn } = drawRow({ n: 13 });
+      const out = segmentSheet(bin, W, H, [ALPHA]);
+      const got = assignment(out.rows[0]?.cells ?? [], drawn);
+      check('a clean row assigns straight through',
+        got.every((v, i) => v === i), JSON.stringify(got));
+      check('and nothing is reported about it',
+        !out.issues.some((i) => i.code === 'row-adjusted'),
+        JSON.stringify(out.issues.map((i) => i.code)));
+    }
+
+    {
+      // The case the old code did handle — short row, so it split. Still works.
+      const { bin, drawn } = drawRow({ n: 13, fuseAt: 2 });
+      const out = segmentSheet(bin, W, H, [ALPHA]);
+      const got = assignment(out.rows[0]?.cells ?? [], drawn);
+      check('a fused pair with no stray is still separated',
+        got.every((v, i) => v === i), JSON.stringify(got));
+    }
+
+    {
+      const { bin, drawn } = drawRow({ n: 13, stray: true });
+      const out = segmentSheet(bin, W, H, [ALPHA]);
+      const got = assignment(out.rows[0]?.cells ?? [], drawn);
+      check('a stray mark alone never takes a cell',
+        got.every((v, i) => v === i), JSON.stringify(got));
+    }
+
+    {
+      // The filter's premise — that a mark far smaller than its neighbours is
+      // not a character — is false on a punctuation row, and dropping the
+      // period would be this same bug pointing the other way.
+      const bin = new Uint8Array(W * H);
+      const y = 380, gh = 150, gw = 60;
+      let x = 40;
+      box(bin, x + 20, y + gh - 14, x + 34, y + gh); x += gw + 26;      // .
+      box(bin, x + 20, y + gh - 16, x + 32, y + gh + 8); x += gw + 26;  // ,
+      for (let i = 0; i < 4; i++) { glyph(bin, x, y, gw, gh); x += gw + 26; }
+
+      const out = segmentSheet(bin, W, H, [['.', ',', 'A', 'B', 'C', 'D']]);
+      const cells = out.rows[0]?.cells ?? [];
+      check('small punctuation is not mistaken for a stray mark',
+        cells.length === 6 && cells.every((c) => !c.missing),
+        JSON.stringify(cells.map((c) => ({ ch: c.ch, missing: c.missing }))));
+    }
+  }
+
   return results;
 }
 
