@@ -21,6 +21,7 @@ const suites = [
   './salvage.test.mjs',
   './health.test.mjs',
   './lite.test.mjs',
+  './mascot.test.mjs',
   './markup.test.mjs',
   './segment.test.mjs',
   './endtoend.test.mjs',

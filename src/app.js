@@ -2042,8 +2042,22 @@ function expandAllControl(body) {
   return bar;
 }
 
+/**
+ * Which of the three legal documents the shared `#legal` sheet is showing.
+ *
+ * The sheet is one element and its DOM id is `legal`, which is not an address —
+ * only `privacy`, `terms` and `licenses` are. Anything that has to name the
+ * sheet to the router therefore has to ask what is in it, and the tabs rewrite
+ * that under the reader without the element changing at all.
+ */
+let legalShowing = DOCUMENTS[0].id;
+
 function renderLegal(id) {
   const doc = documentById(id) ?? DOCUMENTS[0];
+  // Recorded after the fallback, never from the argument: `documentById` is what
+  // decides whether a name off the address bar is a document, and an id that is
+  // not one has to leave this naming the document actually rendered.
+  legalShowing = doc.id;
   $('#legal-title').textContent = doc.title;
 
   $('#legal-tabs').replaceChildren(
@@ -2220,16 +2234,33 @@ const topModal = () => modalStack[modalStack.length - 1] ?? null;
  *
  * Not derivable from ROUTED_OVERLAYS below: that list is route ids, and the
  * three legal documents share one `#legal` element between them. Kept as one
- * constant because this set is consulted in four places — closing them all,
- * finding the innermost one that owns an address, Escape, and a backdrop click
- * — and the failure mode of four literals is a dialogue added to three of them,
- * which closes without its address following it.
+ * constant because this set is consulted from three places — closing them all,
+ * finding the innermost one that owns an address, and deciding whether a
+ * dismissal has to move the address — and the failure mode of three literals is
+ * a dialogue added to two of them, which closes without its address following
+ * it. Escape and a backdrop click used to consult it directly as well; they go
+ * through closeOverlay now, for reasons written there.
  */
 const ROUTED_MODAL_IDS = ['guide', 'legal', 'settings', 'feedback'];
 
 /** The innermost open dialogue that owns an address, or null. */
 const topRoutedModal = () =>
   [...modalStack].reverse().find((m) => ROUTED_MODAL_IDS.includes(m.id)) ?? null;
+
+/**
+ * The address id of an open dialogue.
+ *
+ * Every dialogue but one answers with its own DOM id, because for those the two
+ * vocabularies happen to coincide. The legal sheet is where they part: three
+ * documents share one `#legal` element, and `legal` names no address, so handing
+ * it to writeRoute finds no path and returns without writing anything. That
+ * failure is silent — the dialogue closes and the address simply stays where it
+ * was, pointing at the document that is no longer on screen. Nothing routed
+ * opens on top of the legal sheet today, so this is a seam being held rather
+ * than a fault being repaired; it is held because the seam is one line wide and
+ * the day it tears there will be nothing on screen to say why.
+ */
+const routeIdOf = (el) => (el.id === 'legal' ? legalShowing : el.id);
 
 function openModal(sel) {
   const el = $(sel);
@@ -2363,10 +2394,54 @@ async function applyRoute() {
   if (landed !== wanted || !named || fromHash) writeRoute({ step: landed, replace: true });
 }
 
-/** Closing an overlay returns the address to the step underneath it. */
+/**
+ * Close a dialogue and put the address back on whatever the reader is left
+ * looking at.
+ *
+ * This was closeModal followed by an unconditional `writeRoute({ step })`, which
+ * is right for the ordinary case and wrong for the only case where dialogues
+ * nest. The Privacy link inside Settings opens the legal sheet on top of
+ * Settings, so dismissing the legal sheet leaves Settings on screen — and the
+ * address went to the step underneath it, `/write` or `/` or wherever the reader
+ * had got to, naming a screen they are not looking at and saying nothing about
+ * the panel still in front of them. Reload, bookmark or share that address and
+ * it is taken literally: the panel is gone.
+ *
+ * The asymmetry is worth naming, because it is how this survived being read
+ * several times. Escape and a backdrop click were written afterwards, with the
+ * nesting already understood, and both ask what is left underneath before they
+ * touch the address. The close buttons were written when nothing nested and were
+ * never revisited, so three paths that dismiss the same dialogue held three
+ * opinions about the address — and the one the mouse reaches first was the wrong
+ * one. All three come through here now, which is also what stops a fourth
+ * opinion growing the next time a dialogue is added.
+ *
+ * The remaining path is the router, and it agrees by construction: applyRoute
+ * tears every routed dialogue down and rebuilds only what the address names, so
+ * it cannot leave one on screen unaccounted for.
+ */
 function closeOverlay(sel) {
+  const el = $(sel);
+  // Whether the address has to move is a property of the dialogue being closed,
+  // not of the stack. A backdrop click arrives here for every `.sheet-modal`,
+  // including the redraw pad and the leaving interstitial, and those two own no
+  // address to give back — writing one would drop a history entry for a
+  // dialogue that deliberately has none.
+  const owned = Boolean(el) && ROUTED_MODAL_IDS.includes(el.id);
   closeModal(sel);
-  writeRoute({ step: state.step });
+  if (!owned) return;
+
+  // Asked after closeModal, which is what drains the stack: before it, the
+  // dialogue being closed is still the innermost one and this would hand back
+  // the address that is on its way out.
+  const beneath = topRoutedModal();
+  // Peeling the legal sheet off Settings leaves Settings on screen, so the
+  // address has to name Settings — not stay at /privacy, which a reload would
+  // then take literally. Replaced rather than pushed: the reader has not gone
+  // anywhere new, they have come back to the entry they were already on, and a
+  // pushed copy of it makes Back a press that changes nothing.
+  if (beneath) writeRoute({ overlay: routeIdOf(beneath), replace: true });
+  else writeRoute({ step: state.step });
 }
 
 /**
@@ -2891,26 +2966,21 @@ function init() {
     // this", not "close everything".
     const top = topModal();
     if (!top) return;
-    closeModal(`#${top.id}`);
-    // The address follows only if the thing just closed owned one, and only
-    // once nothing routed is left underneath it.
-    if (!ROUTED_MODAL_IDS.includes(top.id)) return;
-    const beneath = topRoutedModal();
-    // Peeling the legal sheet off Settings leaves Settings on screen, so the
-    // address has to name Settings — not stay at /privacy, which a reload would
-    // then take literally.
-    if (beneath) writeRoute({ overlay: beneath.id, replace: true });
-    else writeRoute({ step: state.step });
+    // The address follows only if the thing just closed owned one, and only once
+    // nothing routed is left underneath it. Both of those were decided here, in
+    // a second copy of the reasoning, until the close buttons turned out to be
+    // deciding them differently; closeOverlay owns the question now.
+    closeOverlay(`#${top.id}`);
   });
 
   $$('.sheet-modal').forEach((m) =>
     m.addEventListener('click', (e) => {
       // Only a click on the backdrop itself, not one that bubbled from inside.
       if (e.target !== m) return;
-      closeModal(`#${m.id}`);
-      if (ROUTED_MODAL_IDS.includes(m.id) && !topRoutedModal()) {
-        writeRoute({ step: state.step });
-      }
+      // The same dismissal as the button in the corner, address included — a
+      // backdrop click is that intention expressed with less aim, and the two
+      // have no business leaving the reader at different addresses.
+      closeOverlay(`#${m.id}`);
     })
   );
 }
