@@ -214,45 +214,41 @@ function furthestReachable() {
   return 'start';
 }
 
+/**
+ * How far along, stated once.
+ *
+ * This was six chips you could press. Three things were wrong with that. It is
+ * a navigation control, and one that redirects out of a half-finished sheet is
+ * a way to lose work — which is the same reason the sheets are being autosaved
+ * rather than defended by a warning. It needed its own horizontal scroller
+ * below 860px, plus a scrollIntoView on every step change to stop the current
+ * chip drifting off the end of it. And it stopped fitting at all once the
+ * optional sheets became steps of their own.
+ *
+ * A bar says the position without offering to change it. Forward is the button
+ * at the bottom of the screen you are on; back is the browser's Back, which
+ * works properly because every screen has an address.
+ *
+ * The percentage is of *completed* steps, so the first screen reads as empty
+ * rather than as one-sixth done — arriving is not progress. The last one reads
+ * as full.
+ */
 function renderSteps() {
-  const nav = $('#steps');
-  const currentIndex = STEPS.findIndex((s) => s.id === state.step);
-  nav.replaceChildren(
-    ...STEPS.map((s, i) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'step-chip';
-      const done = i < currentIndex && reachable(s.id);
-      if (done) btn.classList.add('is-done');
-      if (s.id === state.step) btn.setAttribute('aria-current', 'step');
-      btn.disabled = !reachable(s.id);
+  const bar = $('#progress');
+  const fill = $('#progress-fill');
+  const count = $('#progress-count');
+  if (!bar || !fill) return;
 
-      const dot = document.createElement('span');
-      dot.className = 'dot';
-      dot.innerHTML = done
-        ? '<svg viewBox="0 0 24 24"><use href="#i-check"/></svg>'
-        : String(i + 1);
+  const index = Math.max(0, STEPS.findIndex((s) => s.id === state.step));
+  const current = STEPS[index];
+  const done = index / (STEPS.length - 1);
 
-      const label = document.createElement('span');
-      label.className = 'step-chip__label';
-      label.textContent = s.label;
-
-      btn.append(dot, label);
-      btn.addEventListener('click', () => goto(s.id));
-      return btn;
-    })
-  );
-
-  // Below 860px the rail is its own horizontal scroller, and this function
-  // resets its scrollLeft to 0 on every step change. So by Refine the current
-  // chip sat entirely outside the visible strip: the progress nav read
-  // "Start / Write / Photog…" and never moved again for the whole session.
-  //
-  // 'instant' rather than 'smooth' so it is already right under
-  // prefers-reduced-motion without a second branch, and block: 'nearest' so
-  // this cannot drag the page itself around — goto() owns the page scroll.
-  nav.querySelector('[aria-current="step"]')
-    ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'instant' });
+  fill.style.inlineSize = `${(done * 100).toFixed(1)}%`;
+  if (count) count.textContent = `${index + 1}/${STEPS.length}`;
+  // The label carries the whole state, because the bar is one element to a
+  // screen reader and "38 percent" is not what somebody needs to hear.
+  bar.setAttribute('aria-label', `Step ${index + 1} of ${STEPS.length}: ${current?.label ?? ''}`);
+  bar.dataset.step = state.step;
 }
 
 // ---------------------------------------------------------------------------

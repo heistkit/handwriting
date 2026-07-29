@@ -339,30 +339,69 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
  * not paint, so it costs nothing when the rail fits and there is nothing under
  * the fade.
  */
-.steps {
+/*
+ * The progress pill.
+ *
+ * A capsule holding a bar and a count — the same shape language as the buttons,
+ * which are pills too, so the top bar reads as one family rather than as a
+ * control and a widget. It is not a control: nothing in it is focusable and
+ * nothing in it is pressable, which is the whole point of replacing the chips.
+ *
+ * The rail this replaces needed `overflow-x: auto`, a masked fade at both ends,
+ * a hidden scrollbar and a scrollIntoView on every step change, because six
+ * chips did not fit and the current one kept drifting off the end. A capsule
+ * with a bar in it is the same information in a fixed width that never needs
+ * any of that.
+ */
+.progress {
   order: 2;
   flex: 0 1 auto;
   min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 1.25rem, #000 calc(100% - 1.25rem), transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0, #000 1.25rem, #000 calc(100% - 1.25rem), transparent 100%);
+  display: inline-flex;
+  align-items: center;
+  gap: .6rem;
+  height: 2rem;
+  padding: 0 .8rem;
+  margin-inline: auto;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
 }
-.steps::-webkit-scrollbar { display: none; }
+.progress__track {
+  inline-size: clamp(3.5rem, 11vw, 7.5rem);
+  block-size: .375rem;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.progress__fill {
+  display: block;
+  block-size: 100%;
+  inline-size: 0;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transition: inline-size .5s var(--ease);
+}
+.progress__count {
+  font-family: 'Geist Mono', monospace;
+  font-size: .8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  flex: none;
+}
+@media (prefers-reduced-motion: reduce) { .progress__fill { transition: none; } }
+:root[data-lite='on'] .progress__fill,
+:root[data-decor='off'] .progress__fill { transition: none; }
 .topbar-inner .theme-switch,
 .topbar-inner .btn-ghost { order: 3; }
 
-/* Below this the logo, the two actions and the theme switch already fill the
-   width on their own, so the rail genuinely needs a row of its own. */
+/* The rail that used to need a row of its own below 860px is gone — the pill
+   that replaced it is a fixed 2rem tall and clamps its own width, so it sits
+   in the single row with everything else at every size. The gap tightening
+   stays, since four things in one bar is still four things. */
 @media (max-width: 860px) {
-  .topbar-inner { gap: .7rem; padding-bottom: .4rem; flex-wrap: wrap; }
-  .steps {
-    order: 4;
-    flex-basis: 100%;
-    margin-inline: 0;
-    padding-bottom: .15rem;
-  }
+  .topbar-inner { gap: .7rem; }
 }
 
 /*
@@ -533,106 +572,7 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 :root[data-lite='on'] .brand-trace,
 :root[data-decor='off'] .brand-trace { display: none; }
 
-/* No scroller of its own — the bar around it scrolls, and nesting two
-   horizontal scrollers means a drag has to guess which one you meant. */
-.steps { display: flex; gap: .15rem; margin-inline: auto; }
-
-/*
- * The rail carries six chips and the bar's content box is 1180px, which after
- * the logo, the theme switch and the two actions leaves about 560px. Six full
- * labels need 726px, so the last one was being sliced through the middle of a
- * word — "Refin" — which is what a broken interface looks like.
- *
- * So the label is shown for the step you are on and hidden on the rest, where
- * the numbered disc already says which step it is. It is hidden by clipping
- * rather than by `display: none`, so every chip keeps its full accessible name
- * and a screen reader still reads "Photograph, step 3 of 6". Hovering or
- * focusing a chip brings its label back, so a pointer can still read ahead.
- *
- * 44px minimum, because these are the app's primary navigation and they were
- * 41px — under every touch-target guideline there is, and the first thing
- * anyone notices when they try to hit one.
- */
-.step-chip {
-  display: flex; align-items: center; gap: .5rem;
-  padding: .4rem .7rem; border-radius: 999px;
-  min-height: 44px;
-  background: none; border: 0; cursor: pointer;
-  color: var(--text-3); font-size: .87rem; font-weight: 500;
-  white-space: nowrap; transition: color .18s var(--ease), background .18s var(--ease);
-}
-
-/*
- * Slower, and it waits a moment before it starts.
- *
- * At .22s with no delay this snapped, and worse, it snapped five times: moving
- * the pointer from the brand to Settings crosses every chip in the bar, so the
- * whole row opened and shut in sequence like a keyboard being played. The
- * reveal is meant to answer "what is step 4", which is a question somebody asks
- * by stopping on it, not by passing over it.
- *
- * The delay is on the way in only — it lives on the hover rule below, not here,
- * because a transition-delay set on the base rule delays the collapse too, and
- * a label that lingers after the pointer has gone is the same fault in reverse.
- */
-.step-chip__label {
-  max-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: max-width .34s var(--ease), opacity .28s var(--ease), margin .34s var(--ease);
-}
-.step-chip[aria-current='step'] .step-chip__label,
-:where(html[data-pointer="fine"]) .step-chip:hover:not(:disabled) .step-chip__label,
-.step-chip:focus-visible .step-chip__label { max-width: 12ch; opacity: 1; }
-
-/* Hover intent: 140ms of staying still before the label commits to opening.
-   Not applied to the focused or current chip — a keyboard user has already
-   committed by pressing Tab, and the current step's label is not animating in
-   at all, it is simply on. */
-:where(html[data-pointer="fine"]) .step-chip:hover:not(:disabled) .step-chip__label {
-  transition-delay: .14s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .step-chip__label { transition: none; }
-}
 @media (max-width: 660px) { .topbar-inner { gap: .8rem; } }
-
-:where(html[data-pointer="fine"]) .step-chip:hover:not(:disabled) { color: var(--text-2); background: var(--surface-2); }
-/* Quieter by colour, not by opacity. Fading text over a light background
-   lightens it, so `opacity: .5` on an already-quiet grey took the step labels
-   to about 2.4:1 — and these are the app's primary navigation, not an inert
-   control. The colour alone reads as unavailable; the disc beside it carries
-   the state as well. */
-.step-chip:disabled { cursor: default; color: var(--text-3); }
-.step-chip[aria-current="step"] { color: var(--text); background: var(--surface-2); }
-/*
- * Filled, not outlined.
- *
- * This was a hairline ring at `1.5px solid currentColor` around a fractional
- * rem box. A ring that thin never lands on a device pixel — at a 17px root the
- * circle is 24.65px across — so the browser spreads it across two rows of
- * pixels and it renders soft and grey rather than sharp. Worse at every text
- * size, since none of them make it a whole number either.
- *
- * A filled disc has no hairline to blur: the edge is antialiased against a
- * solid, which is what antialiasing is good at. It also carries the state in
- * the fill rather than in a border colour, so pending, current and done read
- * apart at a glance instead of on inspection.
- */
-.step-chip .dot {
-  width: 1.5rem; height: 1.5rem; border-radius: 50%; flex: none;
-  display: grid; place-items: center;
-  background: var(--surface-3); color: var(--text-2);
-  font-size: .82rem; font-weight: 600; line-height: 1;
-  font-variant-numeric: tabular-nums;
-  transition: background .18s var(--ease), color .18s var(--ease);
-}
-.step-chip:disabled .dot { background: var(--surface-2); color: var(--text-3); }
-.step-chip[aria-current="step"] .dot { background: var(--text); color: var(--bg); }
-.step-chip.is-done { color: var(--accent); }
-.step-chip.is-done .dot { background: var(--accent); color: var(--accent-fg); }
-.step-chip.is-done .dot svg { width: .72rem; height: .72rem; stroke-width: 2.8; }
 
 /* ── Buttons ────────────────────────────────────────────────────────── */
 

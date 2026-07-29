@@ -305,9 +305,20 @@
       </span>
     </button>
 
-    <nav class="steps" id="steps" aria-label="Progress">
-      <!-- populated by app.js -->
-    </nav>
+    <!-- How far along, and nothing else.
+         This was six chips you could click, which is a navigation control, and
+         a navigation control that redirects you out of a half-finished sheet is
+         a way to lose work. It also stopped fitting the moment the optional
+         sheets became separate steps. A bar states the position without
+         offering to change it — forward is the button at the bottom of the
+         screen you are on, back is the browser's own Back, which works because
+         every screen has an address.
+         role="img" with a full label, so a screen reader hears "Step 2 of 6,
+         Write" as one thing rather than reading out a decorative div. -->
+    <div class="progress" id="progress" role="img" aria-label="Progress">
+      <span class="progress__track"><span class="progress__fill" id="progress-fill"></span></span>
+      <span class="progress__count" id="progress-count" aria-hidden="true"></span>
+    </div>
 
     <label class="theme-switch" title="Light or dark">
       <input type="checkbox" class="theme-switch__checkbox" id="theme-toggle" aria-label="Dark theme">
