@@ -49,6 +49,7 @@ import { read as readRoute, write as pushRoute, base as routeBase, overlayPath }
 import { describe as describeScreen } from './meta.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { init as initPointer } from './pointer.js';
+import { once as celebrateOnce } from './celebrate.js';
 import { mount as mountWelcome } from './welcome.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
 import { intercept as interceptExternal, describe as describeUrl } from './leaving.js';
@@ -138,6 +139,23 @@ function applyStep(stepId) {
   // it has a position, measure it again.
   const step = $(`.step[data-step="${stepId}"]`);
   if (step) observeReveal(step);
+
+  // The milestones, marked where every route arrives — the router lands here on
+  // a reload and Back comes through it too, which is exactly why celebrateOnce
+  // is the thing called rather than a plain burst.
+  //
+  // After the paint, not during it: the burst is positioned from a bounding box,
+  // and the screen it is bursting from was display:none one line ago. Measured
+  // then, every fleck starts at 0,0 in the corner of the page.
+  if (step && (stepId === 'review' || stepId === 'export')) {
+    requestAnimationFrame(() => {
+      if (stepId === 'export') {
+        celebrateOnce('font-exists', step.querySelector('.download-card') ?? step, 'large');
+      } else {
+        celebrateOnce('characters-read', step.querySelector('.step-head') ?? step, 'small');
+      }
+    });
+  }
 }
 
 /**
@@ -497,50 +515,103 @@ function allowHeavyOp() {
 // Write step
 // ---------------------------------------------------------------------------
 
+/** One sheet, as paper. */
+function paperFor(sheet) {
+  const paper = document.createElement('div');
+  paper.className = 'paper';
+
+  const head = document.createElement('div');
+  head.className = 'paper-head';
+  const h = document.createElement('h3');
+  h.textContent = sheet.title;
+  const count = document.createElement('span');
+  count.className = 'paper-count';
+  const n = sheet.rows.flat().length;
+  count.textContent = `${n} character${n === 1 ? '' : 's'}`;
+  head.append(h, count);
+
+  const hint = document.createElement('p');
+  hint.className = 'paper-hint';
+  hint.textContent = sheet.hint;
+
+  paper.append(head);
+  if (sheet.optional) {
+    const badge = document.createElement('span');
+    badge.className = 'paper-badge';
+    badge.textContent = 'Optional';
+    paper.append(badge);
+  }
+  paper.append(hint);
+
+  for (const row of sheet.rows) {
+    const r = document.createElement('div');
+    r.className = 'paper-row';
+    for (const ch of row) {
+      const cell = document.createElement('span');
+      cell.className = 'paper-cell';
+      cell.textContent = ch;
+      r.append(cell);
+    }
+    paper.append(r);
+  }
+  return paper;
+}
+
+/**
+ * The alphabet first, everything else folded away.
+ *
+ * This screen used to open with all four sheets laid out — 112 characters, four
+ * headings, a wall — directly underneath a sentence saying the first sheet on
+ * its own is a font. The page said "about thirty characters" and then showed a
+ * hundred and twelve, and the sentence loses that argument every time.
+ *
+ * So the essential sheet is the screen, and the rest are one closed disclosure.
+ * The tiers are already in charset.js, decided where the character set is
+ * decided; nothing here is a second opinion about which sheet matters, it only
+ * lays out the answer that is already recorded.
+ *
+ * The copy under the disclosure does not promise you can return to *this* font
+ * later, because you cannot: nothing about a session is stored — that is the
+ * whole privacy design — so coming back means starting a new one. It says
+ * "another time", which is true, rather than "come back and add them", which
+ * would not be.
+ */
 function renderSheets() {
   const stack = $('#sheet-stack');
-  stack.replaceChildren(
-    ...ALL_SHEETS.map((sheet) => {
-      const paper = document.createElement('div');
-      paper.className = 'paper';
+  const essential = ALL_SHEETS.filter((s) => s.tier === 'essential');
+  const rest = ALL_SHEETS.filter((s) => s.tier !== 'essential');
 
-      const head = document.createElement('div');
-      head.className = 'paper-head';
-      const h = document.createElement('h3');
-      h.textContent = sheet.title;
-      const count = document.createElement('span');
-      count.className = 'paper-count';
-      const n = sheet.rows.flat().length;
-      count.textContent = `${n} character${n === 1 ? '' : 's'}`;
-      head.append(h, count);
+  const children = essential.map(paperFor);
 
-      const hint = document.createElement('p');
-      hint.className = 'paper-hint';
-      hint.textContent = sheet.hint;
+  if (rest.length) {
+    const more = document.createElement('details');
+    more.className = 'paper-more';
 
-      paper.append(head);
-      if (sheet.optional) {
-        const badge = document.createElement('span');
-        badge.className = 'paper-badge';
-        badge.textContent = 'Optional';
-        paper.append(badge);
-      }
-      paper.append(hint);
+    const summary = document.createElement('summary');
+    const label = document.createElement('span');
+    label.className = 'paper-more__label';
+    label.textContent = 'Add capitals, numbers, symbols and joined pairs';
+    const extra = rest.reduce((n, s) => n + s.rows.flat().length, 0);
+    const count = document.createElement('span');
+    count.className = 'paper-count';
+    count.textContent = `${extra} more characters`;
+    summary.append(label, count);
 
-      for (const row of sheet.rows) {
-        const r = document.createElement('div');
-        r.className = 'paper-row';
-        for (const ch of row) {
-          const cell = document.createElement('span');
-          cell.className = 'paper-cell';
-          cell.textContent = ch;
-          r.append(cell);
-        }
-        paper.append(r);
-      }
-      return paper;
-    })
-  );
+    const note = document.createElement('p');
+    note.className = 'paper-more__note';
+    note.textContent =
+      'Optional. The letters above already make a font you can install and type with — '
+      + 'these widen what it covers. Write them now if you want the full set, or make the '
+      + 'short one first and do a fuller sheet another time.';
+
+    more.append(summary, note, ...rest.map(paperFor));
+    children.push(more);
+  }
+
+  stack.replaceChildren(...children);
+  // Built after init() ran, so the fold enhancement has to be applied here —
+  // the same reason renderFAQ does it.
+  enhanceFolds(stack);
 
   const tips = [
     'Use a dark pen — a fine-liner or gel pen around 0.5 mm. Pencil is too faint.',
@@ -2123,6 +2194,12 @@ function renderLegal(id) {
   for (const [index, section] of doc.sections.entries()) {
     const sec = document.createElement(foldSections ? 'details' : 'section');
     sec.className = 'legal-section';
+    // A stable handle on each section, so a link elsewhere can name the part
+    // of the document it is actually about. Derived from the heading rather
+    // than authored: legal.js is a list of headings and paragraphs and has no
+    // ids, and adding a parallel set of them would be two things to keep in
+    // step for the sake of one link.
+    sec.dataset.section = slug(section.heading);
     // The first article is left open so the document does not open as a
     // stack of closed boxes with no visible prose at all.
     if (foldSections && index === 0) sec.open = true;
@@ -2169,10 +2246,59 @@ function renderLegal(id) {
   body.append(meta);
 }
 
-function openLegal(id) {
+/** A heading, as something a link can name. */
+const slug = (heading) =>
+  heading.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/**
+ * Open a legal document, optionally at one section of it.
+ *
+ * The section argument exists because of one link. Settings said "Everything
+ * that gets stored", and clicking it opened fifteen sections of privacy policy
+ * at the top — with "What is stored on your device" ninth down the page. The
+ * document loaded every time; the thing the reader asked for did not, which
+ * from the other side of the screen is indistinguishable from it being broken.
+ *
+ * Named by heading rather than by index, so re-ordering the policy cannot
+ * silently repoint the link at whatever is ninth now. A name that matches
+ * nothing scrolls nowhere and leaves the document at the top, which is exactly
+ * where it used to start.
+ */
+function openLegal(id, section = null) {
   renderLegal(id);
   openModal('#legal');
   writeRoute({ overlay: id });
+  if (section) revealLegalSection(section);
+}
+
+function revealLegalSection(name) {
+  const sec = $(`#legal-body [data-section="${CSS.escape(name)}"]`);
+  if (!sec) return;
+  // Folded documents open the named section; unfolded ones have nothing to
+  // open.
+  if (sec.tagName === 'DETAILS') sec.open = true;
+
+  // No requestAnimationFrame around this, deliberately. The obvious shape is to
+  // wait a frame so `open` has been laid out before scrolling — but rAF does not
+  // fire at all in a hidden tab, so anything behind one is a step that silently
+  // never happens, which is how the build once came to hang forever. It is also
+  // unnecessary: scrollIntoView forces layout itself, so it reads the height the
+  // section has now rather than the one it had a moment ago.
+  //
+  // Smooth only where motion is wanted. A smooth scroll is an animation, and
+  // the two switches that turn animation off in this app mean it — while
+  // `behavior: 'auto'` jumps, which is both what a reader who asked for less
+  // motion should get and the only version that happens at all in a tab the
+  // compositor has stopped painting.
+  const still = document.documentElement.dataset.lite === 'on'
+    || document.documentElement.dataset.decor === 'off'
+    || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  sec.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' });
+
+  // Marked as well as scrolled to. On a fifteen-section document a jump is
+  // ambiguous about which of the headings now on screen was the one asked for.
+  sec.classList.add('is-targeted');
+  setTimeout(() => sec.classList.remove('is-targeted'), 2200);
 }
 
 const LEGAL_IDS = DOCUMENTS.map((d) => d.id);
@@ -2732,7 +2858,7 @@ function init() {
       // stamped `#privacy` onto the entry the reader came *from*, so Back read
       // the hash, re-opened the document, and overwrote that entry — the page
       // they started on stopped being reachable by Back at all.
-      openLegal(a.dataset.legal);
+      openLegal(a.dataset.legal, a.dataset.legalSection || null);
     })
   );
   $('#close-legal').addEventListener('click', () => closeOverlay('#legal'));

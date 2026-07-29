@@ -1,9 +1,9 @@
 /**
- * mascot.js — the ink drop is lit by the pointer.
+ * mascot.js — the ink drop leans toward the pointer.
  *
  * Two properties reach CSS: `--look-x` and `--look-y`, each clamped to -1..1,
- * where 0,0 is the highlight sitting in its resting place. Everything visual is
- * done in the stylesheet from those two numbers; this file only measures.
+ * where 0,0 is the drop sitting square. Everything visual is done in the
+ * stylesheet from those two numbers; this file only measures.
  *
  * It used to move a pair of eyes, which is why the tests below and half the
  * comments in this file still talk about looking and staring. The measuring is
