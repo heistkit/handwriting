@@ -36,6 +36,213 @@
 <meta name="twitter:title" content="Handwrite — turn your handwriting into a real font">
 <meta name="twitter:description" content="Write on a sheet of paper, photograph it, and get an installable font of your own handwriting. Runs entirely in your browser — nothing is uploaded.">
 
+<!--
+  Structured data.
+
+  This is the one part of the page that says what the app is in a form that
+  does not need a renderer. Everything below <main> that explains anything at
+  length — the guide, the legal documents, the questions — is rendered by
+  modules, so a crawler that does not execute JavaScript sees the landing copy
+  and stops. Search engines mostly do render. The assistants and answer engines
+  that now sit in front of them mostly do not, and this block plus /llms.txt is
+  what they get instead.
+
+  Fragment-only @ids, and no absolute url. A JSON-LD identifier resolves
+  against the document it was found in, so "#app" is correct on every host this
+  is served from — which is the same reason og:url is absent above, and it
+  would be strange for the two to disagree about whether this app has one home.
+
+  Every claim here is checkable on the page. There is no aggregateRating, no
+  review and no interactionStatistic: nobody has rated this, and structured
+  data is exactly where an invented number would be believed.
+
+  The four steps are the four cards in #how and the questions are the FAQ from
+  src/tutorial.js, both verbatim. tools/seo.test.mjs compares them, because a
+  second copy of the copy is a second copy to forget.
+
+  Not blocked by the content-security policy: type="application/ld+json" is a
+  data block, and the HTML parser stops preparing it before the inline-script
+  check is ever reached. It is data that happens to live in a script element.
+-->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "@id": "#app",
+      "name": "Handwrite",
+      "description": "Write on a sheet of paper, photograph it, and get an installable font of your own handwriting. Runs entirely in your browser — nothing is uploaded.",
+      "applicationCategory": "DesignApplication",
+      "applicationSubCategory": "Font generator",
+      "operatingSystem": "Any, in a web browser",
+      "browserRequirements": "Requires a current browser with JavaScript enabled.",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "license": "https://opensource.org/licenses/MIT",
+      "codeRepository": "https://github.com/heistkit/handwriting",
+      "sameAs": "https://github.com/heistkit/handwriting",
+      "creator": {
+        "@type": "Person",
+        "name": "heistkit",
+        "url": "https://github.com/heistkit"
+      },
+      "featureList": [
+        "Builds a four-style OpenType family — Regular, Bold, Italic, Bold Italic — from one handwritten sample",
+        "Side bearings measured from each character’s own ink profile, so perceived spacing is even",
+        "Kerning generated as a class-based GPOS table",
+        "Three variants of every character, rotated by a calt substitution, so repeated letters differ",
+        "Baseline recovered from unruled paper",
+        "Rotation and uneven lighting corrected automatically",
+        "Runs entirely in the browser: no upload, no account, no server-side processing",
+        "Exports .otf, .woff, .woff2 and a CSS snippet in one zip"
+      ],
+      "isFamilyFriendly": true
+    },
+    {
+      "@type": "HowTo",
+      "@id": "#howto",
+      "name": "How to turn your handwriting into a font",
+      "description": "Copy a short sheet of characters onto blank paper, photograph it, check what was read, and install the font.",
+      "totalTime": "PT10M",
+      "estimatedCost": {
+        "@type": "MonetaryAmount",
+        "currency": "USD",
+        "value": "0"
+      },
+      "supply": [
+        {
+          "@type": "HowToSupply",
+          "name": "Blank paper"
+        },
+        {
+          "@type": "HowToSupply",
+          "name": "A dark pen — a fine-liner or gel pen around 0.5 mm is best"
+        }
+      ],
+      "tool": [
+        {
+          "@type": "HowToTool",
+          "name": "A phone camera or a flatbed scanner"
+        },
+        {
+          "@type": "HowToTool",
+          "name": "A web browser"
+        }
+      ],
+      "step": [
+        {
+          "@type": "HowToStep",
+          "position": 1,
+          "name": "Copy the sheet",
+          "text": "The app shows you about 120 characters. Write them on any blank paper with any dark pen, leaving a gap between them. No printer, no special paper."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 2,
+          "name": "Photograph it",
+          "text": "Shoot straight down in ordinary light. Page rotation and uneven lighting are corrected automatically; the photo only has to be readable."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 3,
+          "name": "Check and adjust",
+          "text": "Every character it found is shown back to you. Redraw any that came out wrong, then type a sentence and move the sliders until the spacing feels like your hand."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 4,
+          "name": "Install it",
+          "text": "Download all four styles as one zip and install them like any other font. They share a family name, so Bold and Italic work normally in every app."
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is anything I write uploaded?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Reading the photo, tracing the letters and building the font all happen in this browser tab, and there is no server involved in any of it. The network is used for one thing only: fetching the app’s own code, some of which loads on demand the first time you reach it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Who owns the font?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "You do, entirely. There is no licence to follow and no attribution required. You can use it commercially or sell it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why is it a .otf and not a .ttf?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Both are OpenType and install identically everywhere. The .otf format carries cubic Bezier outlines, which is exactly what the tracer produces, so nothing is lost in conversion."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do my letters look slightly different each time?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "That is deliberate. Each character is built in three slightly different versions that rotate as you type, so repeated letters do not look rubber-stamped. You can switch it off in the Refine step."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I have to write everything four times for the styles?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. You write once. Bold and italic are synthesised geometrically from that single sample, so all four styles stay recognisably one hand."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How is letter spacing decided?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "It is measured, not guessed. Handwrite reads the ink profile down each side of every character and sets its bearings so the perceived gap between any two letters comes out even. A round o already carries space in its own curve where a flat H carries none, so giving them identical margins — which is what most handwriting fonts do — makes one look loose and the other cramped."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is kerning, and do I need it?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Kerning is a per-pair correction on top of normal spacing, for combinations that collide or gape no matter how well each letter is spaced on its own — AV, To, Wa, r. and f) are the usual offenders. It is generated automatically and you can switch it off in the Refine step, though there is rarely a reason to."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "The spacing looks wrong. What do I change?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use the spacing slider in the Refine step and type a line with a lot of round letters next to straight ones. If only one or two characters look wrong rather than the whole line, the cause is usually that glyph itself — go back to Review and redraw it, since a stray speck or a clipped edge shifts where its bearings land."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do the words run together, or sit too far apart?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "That is the width of the space character, which is derived from the width of your lowercase letters rather than written by hand. The spacing slider in the Refine step moves it along with everything else."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+
 <!-- Applied before first paint, so the page never flashes the wrong theme. A
      plain blocking classic script, not defer and not a module: both of those run
      after the parse, which is the thing this exists to avoid. See src/preflight.js. -->
@@ -335,9 +542,7 @@
             <div class="mascot" aria-hidden="true">
               <div class="mascot__stage">
                 <div class="mascot__blob">
-                  <span class="mascot__eye"></span>
-                  <span class="mascot__eye"></span>
-                  <span class="mascot__mouth"></span>
+                  <span class="mascot__gleam"></span>
                 </div>
                 <span class="mascot__shadow"></span>
               </div>
@@ -355,9 +560,7 @@
             <div class="mascot" aria-hidden="true">
               <div class="mascot__stage">
                 <div class="mascot__blob">
-                  <span class="mascot__eye"></span>
-                  <span class="mascot__eye"></span>
-                  <span class="mascot__mouth"></span>
+                  <span class="mascot__gleam"></span>
                 </div>
                 <span class="mascot__shadow"></span>
               </div>
@@ -375,9 +578,7 @@
             <div class="mascot" aria-hidden="true">
               <div class="mascot__stage">
                 <div class="mascot__blob">
-                  <span class="mascot__eye"></span>
-                  <span class="mascot__eye"></span>
-                  <span class="mascot__mouth"></span>
+                  <span class="mascot__gleam"></span>
                 </div>
                 <span class="mascot__shadow"></span>
               </div>
@@ -395,9 +596,7 @@
             <div class="mascot" aria-hidden="true">
               <div class="mascot__stage">
                 <div class="mascot__blob">
-                  <span class="mascot__eye"></span>
-                  <span class="mascot__eye"></span>
-                  <span class="mascot__mouth"></span>
+                  <span class="mascot__gleam"></span>
                 </div>
                 <span class="mascot__shadow"></span>
               </div>
@@ -1139,15 +1338,24 @@
     <div class="modal-body">
       <details class="setgroup" open>
         <summary><span>Appearance</span></summary>
-        <div class="setting">
-          <label class="setting-text" for="set-theme">
-            <b>Dark theme</b>
-            <span>Off follows your system. The sun and moon in the header does the same thing.</span>
-          </label>
-          <span class="switch">
-            <input type="checkbox" id="set-theme">
-            <span class="switch__track" aria-hidden="true"></span>
+        <!-- Three states, because there are three. This was a switch labelled
+             "Dark theme", described as "Off follows your system" — and Off
+             wrote 'light', which pins light. Anybody who touched it once left
+             the system-following state and had no way back to it short of
+             clearing site data, on a machine that may well switch at sunset.
+             The header sun and moon is still the quick two-way flip; this is
+             where the third answer lives. -->
+        <div class="setting setting--stack">
+          <span class="setting-text" id="set-theme-label">
+            <b>Theme</b>
+            <span>System follows your device, including when it changes at sunset.
+              The sun and moon in the header flips between light and dark directly.</span>
           </span>
+          <div class="seg seg-wide" role="group" aria-labelledby="set-theme-label" id="set-theme">
+            <button type="button" data-theme-choice="system">System</button>
+            <button type="button" data-theme-choice="light">Light</button>
+            <button type="button" data-theme-choice="dark">Dark</button>
+          </div>
         </div>
 
         <div class="setting">

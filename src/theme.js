@@ -23,7 +23,7 @@
 const KEY = 'handwrite.theme';
 
 /** Background colours matching --bg in each palette, for the browser chrome. */
-const CHROME = { light: '#f4f5f7', dark: '#14161a' };
+const CHROME = { light: '#fcfcfd', dark: '#14161a' };
 
 function safeRead() {
   try {
@@ -96,6 +96,65 @@ export function bindToggle(checkbox) {
   const q = systemQuery();
   q?.addEventListener?.('change', () => {
     if (!chosen()) sync();
+  });
+
+  return { sync };
+}
+
+/**
+ * Bind the three-way control: System, Light, Dark.
+ *
+ * The switch this replaces could express two of the three states the module has
+ * always had. Off meant light — it wrote 'light' — while the label beside it
+ * said Off followed the system, so the one state you could not get back to was
+ * the default, and the sentence describing it was false. `apply(null)` was
+ * exported and reachable from nothing.
+ *
+ * Buttons rather than radios: this is the same segmented control the Refine step
+ * uses for Regular/Bold/Italic, and a reader who has met it there already knows
+ * what it does. The group is labelled by the text above it, and the current
+ * choice is announced through aria-pressed rather than through the class that
+ * paints it.
+ *
+ * @param {HTMLElement} group  the .seg container
+ * @returns {{sync(): void}|undefined}
+ */
+export function bindChoice(group) {
+  if (!group) return;
+
+  const buttons = [...group.querySelectorAll('[data-theme-choice]')];
+  if (!buttons.length) return;
+
+  const sync = () => {
+    const current = chosen() ?? 'system';
+    for (const b of buttons) {
+      const on = b.dataset.themeChoice === current;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+  };
+
+  for (const b of buttons) {
+    b.addEventListener('click', () => {
+      const pick = b.dataset.themeChoice;
+      apply(pick === 'system' ? null : pick);
+      sync();
+      // The header switch reads the resolved theme, which System can change
+      // without this control knowing which way it went.
+      group.dispatchEvent(new CustomEvent('themechange', { bubbles: true }));
+    });
+  }
+
+  sync();
+
+  // While System is selected, a machine that switches at sunset has to be
+  // followed. Nothing about this control changes — it still says System — but
+  // the page around it does, and the header switch has to be told.
+  systemQuery()?.addEventListener?.('change', () => {
+    if (!chosen()) {
+      apply(null);
+      group.dispatchEvent(new CustomEvent('themechange', { bubbles: true }));
+    }
   });
 
   return { sync };

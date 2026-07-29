@@ -216,10 +216,28 @@ export async function run() {
     //
     // So the rule is checked here rather than trusted: every script in this
     // document is external, and every one is same-origin.
+    //
+    // The structured-data block is the one exception, and it is not really an
+    // exception: `type="application/ld+json"` is a *data block*. The parser
+    // works out the type first and stops there for anything that is not
+    // JavaScript, so the inline-script check in the policy is never reached and
+    // there is nothing to execute if it were. It is JSON that happens to live
+    // inside a script element, and it has to be inline — a crawler will not
+    // follow a src to find it.
+    const DATA_BLOCK = /\btype\s*=\s*"application\/ld\+json"/;
     const scripts = opens.filter((o) => o.tag === 'script');
-    const inline = scripts.filter((o) => !/\bsrc\s*=/.test(o.attrs));
+    const executable = scripts.filter((o) => !DATA_BLOCK.test(o.attrs));
+    const inline = executable.filter((o) => !/\bsrc\s*=/.test(o.attrs));
     check('no inline <script> survives in index.html', inline.length === 0,
       inline.map((o) => `line ${o.line}`).join(', '));
+
+    // And the exception stays an exception: a data block that grew a src, or a
+    // second one, is worth noticing rather than waving through.
+    const data = scripts.filter((o) => DATA_BLOCK.test(o.attrs));
+    check('the structured-data block is present, once', data.length === 1,
+      `${data.length} found`);
+    check('and carries its JSON inline rather than by src',
+      data.every((o) => !/\bsrc\s*=/.test(o.attrs)));
 
     const srcOf = (attrs) => (attrs.match(/\bsrc\s*=\s*"([^"]*)"/) || [, ''])[1];
     const remote = scripts.map((o) => srcOf(o.attrs)).filter((s) => /^(https?:)?\/\//.test(s));

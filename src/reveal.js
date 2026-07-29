@@ -60,6 +60,36 @@ const TARGETS = [
 /** Elements this far apart are treated as one group for the stagger. */
 const GROUP_GAP = 220;
 
+/**
+ * How long a whole group may take to finish arriving, in milliseconds.
+ *
+ * The stagger used to be a flat 65ms per element with the index capped at six,
+ * which is two different behaviours wearing one name: a row of four cards got a
+ * sequence, and a list of nine got a sequence of seven followed by three
+ * arriving together. The cap was there to stop a long list taking forever, which
+ * is the right worry and the wrong fix — bounding the *window* rather than the
+ * index keeps short groups exactly as they were (four cards still step 65ms
+ * apart) while a long one compresses instead of giving up partway through.
+ */
+const GROUP_WINDOW = 420;
+const STEP_MAX = 65;
+
+/**
+ * Families that arrive as a whole group the moment any one of them is reached,
+ * rather than each waiting to be scrolled to individually.
+ *
+ * The questions are a stack of pages, and a stack does not settle one sheet at
+ * a time as your eye passes each one — it settles. Reaching the top of the list
+ * is the event; the rest following a beat behind is the consequence, and the
+ * delays that were already there are what make it read that way.
+ *
+ * Deliberately a short list rather than the default. Most of what is revealed on
+ * this page is genuinely independent — a claim card, a heading, a paragraph —
+ * and revealing a hundred glyph tiles because the first one came into view
+ * would spend the effect on the twelve of them anyone actually watches.
+ */
+const BATCHED = ['.faq-item'];
+
 const prefersReduced = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -76,15 +106,86 @@ const liteOn = () => document.documentElement.dataset.lite === 'on';
  */
 function stagger(elements) {
   const sorted = [...elements].sort((a, b) => a.__revealTop - b.__revealTop);
-  let index = 0;
-  let previous = null;
 
+  // Cut into groups first, so each one's size is known before its step is
+  // chosen. The single pass this replaces could not do that: it had to commit
+  // to a delay for the first element without knowing how many were behind it,
+  // which is why the old cap existed.
+  const groups = [];
+
+  // A family that arrives together is grouped by the list it is in, not by how
+  // far apart its rows are.
+  //
+  // Distance was tried and is wrong here for a reason that is not obvious: the
+  // first question is open on load, so it is 182px tall where the other eight
+  // are 76px, and the step from its top to the next one cleared the 220px
+  // threshold. The list split into a group of one and a group of eight, and the
+  // row that triggers the cascade was the one row not in it. Anything that
+  // changes a row's height — a longer question, a wider window, larger text —
+  // could do the same again, silently, to a different row.
+  //
+  // Two rows in the same <ul> are the same list whatever their heights say.
+  const byParent = new Map();
+  const loose = [];
   for (const el of sorted) {
-    if (previous !== null && el.__revealTop - previous > GROUP_GAP) index = 0;
-    el.style.setProperty('--reveal-i', String(Math.min(index, 6)));
-    previous = el.__revealTop;
-    index += 1;
+    if (!isBatched(el)) { loose.push(el); continue; }
+    const parent = el.parentElement;
+    if (!byParent.has(parent)) byParent.set(parent, []);
+    byParent.get(parent).push(el);
   }
+  groups.push(...byParent.values());
+
+  let current = null;
+  let previous = null;
+  for (const el of loose) {
+    if (current === null || (previous !== null && el.__revealTop - previous > GROUP_GAP)) {
+      current = [];
+      groups.push(current);
+    }
+    current.push(el);
+    previous = el.__revealTop;
+  }
+
+  for (const group of groups) {
+    // Registered only when the group is one that arrives together. A group of
+    // one has nobody to arrive with, and an unbatched family reveals element by
+    // element — in both cases keeping the array here would be a reference held
+    // for the life of the page to something nothing will ever look up.
+    const together = group.length > 1 && isBatched(group[0]);
+    const id = nextGroupId;
+    if (together) {
+      batches.set(id, group);
+      nextGroupId += 1;
+    }
+
+    const step = group.length > 1
+      ? Math.min(STEP_MAX, GROUP_WINDOW / (group.length - 1))
+      : STEP_MAX;
+
+    group.forEach((el, index) => {
+      el.__revealGroup = together ? id : null;
+      el.style.setProperty('--reveal-i', String(index));
+      el.style.setProperty('--reveal-step', `${step.toFixed(1)}ms`);
+    });
+  }
+}
+
+/**
+ * Show an element — and, if it belongs to a group that arrives together, the
+ * rest of that group with it.
+ *
+ * Shared by both paths deliberately. An element already on screen when
+ * observe() runs never reaches the observer, so without this the top question
+ * would appear on load and the eight below it would each still be waiting to be
+ * scrolled to individually, which is the behaviour this is here to replace.
+ */
+function arrive(el, io_) {
+  const mates = batches.get(el.__revealGroup);
+  for (const member of mates ?? [el]) {
+    member.dataset.reveal = 'in';
+    io_?.unobserve(member);
+  }
+  if (mates) batches.delete(el.__revealGroup);
 }
 
 /**
@@ -97,14 +198,32 @@ function stagger(elements) {
  */
 let io = null;
 
+/**
+ * Group id → its members, for the families in BATCHED.
+ *
+ * Ids come from a counter that never restarts, because observe() is called
+ * again on every step change and a per-call index would let a new group claim
+ * the id of one still being watched — which would reveal the wrong list.
+ * Entries are deleted as soon as their group has arrived, so this holds only
+ * what is still pending.
+ */
+const batches = new Map();
+let nextGroupId = 0;
+
+const isBatched = (el) => BATCHED.some((sel) => el.matches(sel));
+
 function observer() {
   if (io) return io;
   io = new IntersectionObserver(
     (entries, self) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
-        entry.target.dataset.reveal = 'in';
-        self.unobserve(entry.target);
+        // Reaching one member of a group that arrives together is what starts
+        // the whole group. Their `--reveal-i` delays are already set, so what
+        // follows is a sequence rather than nine things at once — and unlike
+        // waiting for each to be scrolled to, it is the same sequence however
+        // fast the reader is moving.
+        arrive(entry.target, self);
       }
     },
     // A little bottom inset so an element starts moving slightly before its top
@@ -153,7 +272,7 @@ export function observe(root = document) {
     // then its own content fades in underneath the reader's cursor.
     const r = el.getBoundingClientRect();
     const onScreen = r.height > 0 && r.top < innerHeight && r.bottom > 0;
-    if (onScreen) el.dataset.reveal = 'in';
+    if (onScreen) arrive(el, io);
     else observer().observe(el);
   }
 

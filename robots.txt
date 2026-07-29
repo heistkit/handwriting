@@ -1,0 +1,70 @@
+# Handwrite — https://handwritingfont.vercel.app
+#
+# Everything is open. This is worth stating rather than leaving to the default,
+# because the usual reason a site restricts crawlers is to protect what its
+# users put into it — and there is nothing here to protect. No handwriting, no
+# photograph and no font ever reaches this server; the app builds them in the
+# visitor's own browser and the network is used only to fetch the app's own
+# code. What a crawler can see is the same page any visitor sees, and that page
+# is the pitch.
+#
+# /src/ and /styles.css are deliberately not blocked. A renderer that cannot
+# fetch the modules sees an empty shell, and blocking them is the most common
+# way a site accidentally hides itself from the one crawler that would have
+# rendered it properly.
+
+User-agent: *
+Allow: /
+
+# Assistants and answer engines, named rather than left to the wildcard above.
+#
+# A named group replaces the wildcard entirely for that agent, so these say the
+# same thing twice on purpose: the point is that the permission is a decision
+# and not an oversight. Google-Extended and Applebot-Extended are not crawlers
+# at all — they are the tokens those two read to decide whether the pages they
+# already have may be used for training and for grounding answers. Allowed, for
+# the reason above: the only text here is text written to be read.
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+# Absolute by specification — a Sitemap line is the one place in this file where
+# a relative path is not allowed. A self-hosted copy should change the host here
+# or drop the line; nothing else in the repo hard-codes this address.
+Sitemap: https://handwritingfont.vercel.app/sitemap.xml

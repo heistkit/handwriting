@@ -48,4 +48,18 @@
     if (localStorage.getItem('handwrite.decor') === 'off')
       document.documentElement.dataset.decor = 'off';
   } catch (e) { /* private mode: fall back to the system preference */ }
+
+  /* Pointer class, so the hover rules in styles.css can be scoped to devices
+     that actually hover. Outside the try above on purpose: it reads no storage,
+     and a browser that refuses localStorage should still get this.
+
+     This is only the first-frame guess. pointer.js corrects it from real events
+     for the rest of the session, including when a mouse arrives partway through.
+     It is written here rather than there because a tile that reveals a button on
+     the first frame and takes it away once a module has loaded is worse than one
+     that never showed it. */
+  try {
+    document.documentElement.dataset.pointer =
+      matchMedia('(hover: hover) and (pointer: fine)').matches ? 'fine' : 'coarse';
+  } catch (e) { /* no matchMedia: leave the attribute unset, which reads as coarse */ }
 })();

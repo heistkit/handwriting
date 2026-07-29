@@ -23,6 +23,8 @@ const suites = [
   './lite.test.mjs',
   './mascot.test.mjs',
   './markup.test.mjs',
+  './seo.test.mjs',
+  './hover.test.mjs',
   './segment.test.mjs',
   './endtoend.test.mjs',
 ];

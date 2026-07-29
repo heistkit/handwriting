@@ -26,7 +26,7 @@ import { download } from './export.js';
 import { FALLBACK_LESSONS, FALLBACK_INSTALL, FALLBACK_FAQ } from './content.js';
 import { DOCUMENTS, documentById, LEGAL_VERSION, LEGAL_UPDATED } from './legal.js';
 import { limiter, describeWait } from './ratelimit.js';
-import { bindToggle } from './theme.js';
+import { bindToggle, bindChoice as bindThemeChoice } from './theme.js';
 import {
   bindToggle as bindLite,
   bindCheckbox as bindLiteCheckbox,
@@ -45,8 +45,10 @@ import { mount as mountStepshow } from './stepshow.js';
 import { mount as mountEggs } from './eggs.js';
 import { mount as mountSliders } from './slider.js';
 import { mount as mountMascot } from './mascot.js';
-import { read as readRoute, write as writeRoute, base as routeBase, overlayPath } from './routes.js';
+import { read as readRoute, write as pushRoute, base as routeBase, overlayPath } from './routes.js';
+import { describe as describeScreen } from './meta.js';
 import { run as runBrowserGate } from './browsergate.js';
+import { init as initPointer } from './pointer.js';
 import { mount as mountWelcome } from './welcome.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
 import { intercept as interceptExternal, describe as describeUrl } from './leaving.js';
@@ -149,6 +151,22 @@ function applyStep(stepId) {
  * the chips were not, so the gate was in the wrong place. It is here now, where
  * every route arrives.
  */
+/**
+ * Move the address, and say what the screen now is.
+ *
+ * One wrapper rather than a describeScreen() beside each of the nine calls
+ * below, for the same reason closeOverlay exists: three paths that dismissed the
+ * same dialogue held three opinions about the address, and the fix was to give
+ * them one function rather than to correct all three. The title, the meta
+ * description and the canonical are facts of the same kind as the address —
+ * they all name the screen — so they are written where the address is written,
+ * and a tenth call site added later gets them without anybody remembering to.
+ */
+function writeRoute(opts = {}) {
+  pushRoute(opts);
+  describeScreen(opts);
+}
+
 function goto(stepId) {
   if (stepId === 'export' && !state.serialised?.length) {
     prepareExport().then((ok) => { if (ok) goto('export'); });
@@ -2368,6 +2386,7 @@ async function applyRoute() {
     // below replaces — a pushed correction makes Back return to the address
     // that was just rejected and bounce forward again.
     if (fromHash || landed !== section) writeRoute({ overlay, section: landed, replace: true });
+    describeScreen({ overlay });
     return;
   }
 
@@ -2393,6 +2412,11 @@ async function applyRoute() {
   const landed = canLand ? wanted : furthestReachable();
   applyStep(landed);
   if (landed !== wanted || !named || fromHash) writeRoute({ step: landed, replace: true });
+  // Told what was landed on, not what was asked for. An address naming a step
+  // nobody can reach cold lands somewhere else, and a tab that names the screen
+  // the reader typed rather than the one in front of them is a worse lie than
+  // no title at all.
+  describeScreen({ step: landed });
 }
 
 /**
@@ -2579,6 +2603,11 @@ function init() {
   // capability is needed for is guarded at its own call site.
   runBrowserGate();
 
+  // Before anything renders. Every hover rule in the stylesheet is scoped to
+  // the attribute this maintains, so a screen built before it is settled is a
+  // screen where nothing responds to the mouse.
+  initPointer();
+
   renderSteps();
   renderSheets();
   renderCaptureList();
@@ -2590,10 +2619,17 @@ function init() {
   // the labelled one in Settings. They write to the same store, so each has to
   // re-read after the other moves; otherwise opening Settings shows a switch
   // that disagrees with the page it is sitting on.
+  //
+  // The Settings one is now three-way — System, Light, Dark — while the header
+  // stays a two-way flip, so they do not mirror each other exactly. Flipping the
+  // header from System picks a side, which the three-way control has to be told
+  // about; picking System writes no side at all, and the header then has to
+  // re-read what the operating system resolved to. Hence a listener each way
+  // rather than one shared handler.
   const theme = bindToggle($('#theme-toggle'));
-  const themeSetting = bindToggle($('#set-theme'));
+  const themeSetting = bindThemeChoice($('#set-theme'));
   $('#theme-toggle').addEventListener('change', () => themeSetting?.sync());
-  $('#set-theme').addEventListener('change', () => theme?.sync());
+  $('#set-theme').addEventListener('themechange', () => theme?.sync());
 
   const lite = bindLite($('#lite-toggle'));
   const liteSetting = bindLiteCheckbox($('#set-lite'));

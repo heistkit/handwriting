@@ -1,0 +1,134 @@
+# Handwrite
+
+> Handwrite turns a photograph of your own handwriting into an installable
+> OpenType font family — Regular, Bold, Italic, Bold Italic — with measured
+> spacing, generated kerning, and three variants of every character so repeated
+> letters do not look rubber-stamped. It is free, needs no account, and does all
+> of its work inside the visitor's browser: no handwriting, photograph or font
+> is ever uploaded anywhere.
+
+Site: https://handwritingfont.vercel.app
+Source: https://github.com/heistkit/handwriting (MIT)
+
+This file exists because the app is a client-side application: the guide, the
+legal documents and the help text are rendered by JavaScript modules, so a
+crawler that does not execute them sees the landing page and nothing else.
+Everything below is the same information those screens contain, in a form that
+does not need a renderer.
+
+## What it does
+
+You copy a printed list of characters onto blank paper in your own hand,
+photograph the page, and the app returns a `.zip` containing four `.otf` files,
+web font files, and a CSS snippet. The font installs like any other font and
+works in any application that can pick a font.
+
+## Requirements
+
+- Any modern browser. A desktop machine is easier for the review step; phones work.
+- Blank paper and a pen. A fine-liner or gel pen around 0.5 mm is best.
+- A phone camera or a flatbed scanner.
+- Nothing else. No account, no sign-up, no payment, no software to install.
+
+## The steps
+
+1. **Write.** Copy the characters onto paper. There are four sheets — everyday
+   letters (32 characters: lowercase plus the six commonest punctuation marks),
+   capitals (26), numbers and maths (31), and symbols (23), 112 in total. The
+   first sheet on its own produces a working, usable font; the rest add coverage.
+   A printable sheet with guide boxes is available, printed in a blue that drops
+   out during processing so the boxes are never traced into the letters.
+2. **Photograph.** Lay the page flat, light it evenly, hold the camera parallel
+   to the page. The shot does not need to be square: rotation is corrected and
+   lighting is evened out region by region.
+3. **Review.** Every character is shown as the app read it. Anything wrong can be
+   redrawn by hand in the browser.
+4. **Refine.** Type a sample line, adjust spacing and weight, name the family.
+5. **Download.** The zip arrives in your downloads folder.
+
+About ten minutes, most of it writing.
+
+## Rules that decide whether it works
+
+- **Do not let characters touch.** This is the one failure the app cannot
+  repair — two characters written so their ink connects are read as one shape.
+  A gap about one letter wide is plenty.
+- **Do not use pencil.** It photographs faint and graphite catches the light, so
+  the same stroke reads dark in one place and pale in another.
+- **Do not use a broad marker.** Thick strokes merge into blobs.
+- **Use one pen throughout.** Switching partway shows up as uneven weight.
+- **Write the way you normally write.** Careful block capitals produce a stiff,
+  generic font. The slight inconsistency between one letter and the next is what
+  makes handwriting look handwritten.
+
+## Installing the font
+
+- **Windows** — extract the zip, select all four `.otf` files, right-click, Install. Restart apps that were already open.
+- **macOS** — drag the four `.otf` files into Font Book, or double-click each and press Install Font.
+- **Linux** — copy them into `~/.local/share/fonts/`, then run `fc-cache -f -v`.
+- **iOS** — cannot install a font from the Files app on its own. A font-installer app from the App Store adds it as a configuration profile, which then has to be approved in Settings. This is an iOS restriction, not something the app can work around.
+- **Android** — most apps cannot use a custom font at all. Some launchers and note-taking apps load an `.otf` directly; system-wide installation needs a rooted device. The web font files in the zip are usually more useful here.
+
+## Privacy
+
+Reading the photograph, tracing the letters and building the font all happen in
+the browser tab. There is no upload, no account, and no server involved in any
+part of the processing. The network is used for one thing: fetching the app's
+own code, some of which loads on demand.
+
+The served page carries a content-security policy containing `connect-src
+'none'`, which means the browser itself refuses to let the page make any
+outbound request at all. That is checkable in any browser's developer tools
+rather than something a visitor has to take on trust.
+
+Seven small values are kept in the browser's local storage — theme, text size,
+motion preference and similar. No cookies, no session storage, no analytics.
+
+## Ownership
+
+Fonts made with Handwrite belong entirely to the person who made them. No
+licence to follow, no attribution, no restrictions, commercial use included.
+The application's own source code is MIT.
+
+## How it works, technically
+
+There is no machine-learning model anywhere in it, and that is a design decision
+rather than a limitation. Because the app tells you exactly which characters to
+write and in what order, it never has to *recognise* handwriting — it already
+knows what each shape is meant to be. It only has to find the ink and read it
+left to right, which is classical image processing with no inference step to be
+wrong about.
+
+- **Preprocess** — Sauvola local thresholding via summed-area tables, so a shadow across one corner binarises correctly. Rotation corrected by maximising the sharpness of the ink projection profile.
+- **Segment** — connected components grouped into characters by merging pieces stacked vertically, which reunites the dot of an `i` with its stem. Because the expected count per row is known, a row that comes up long fuses its closest pair and one that comes up short splits its widest glyph at its narrowest waist.
+- **Trace** — contours walked along pixel edges, corners detected on the raw walk before smoothing can hide them, then fitted with cubic Bézier curves.
+- **Metrics** — side bearings set from each glyph's own ink profile so the *perceived* gap is even: a flat `H` gets the full bearing, a round `o` less, a diagonal `A` less still. Baselines are recovered from unruled paper by solving ascender and descender constraints across a whole row at once.
+- **Compile** — bold synthesised by displacing outline points along their own outward normals, italic by shearing about the middle of the x-height band. Three variants per character rotate through a `calt` chaining substitution. Kerning is written as a class-based GPOS table.
+
+## Common questions
+
+**Is anything I write uploaded?** No. Everything happens in the browser tab.
+
+**Who owns the font?** You do, entirely — including commercial use and resale.
+
+**Why `.otf` and not `.ttf`?** Both are OpenType and install identically. The
+`.otf` format carries cubic Bézier outlines, which is exactly what the tracer
+produces, so nothing is lost in conversion.
+
+**Do I have to write everything four times for bold and italic?** No. You write
+once; the other three styles are generated geometrically from that sample.
+
+**Why do my letters look slightly different each time?** Deliberate. Three
+variants of each character rotate as you type. It can be switched off.
+
+**How is spacing decided?** Measured, not guessed — from the ink profile down
+each side of every character.
+
+## Pages
+
+- [Handwrite](https://handwritingfont.vercel.app/): the app itself, and the explanation of what it does
+- [How it works](https://handwritingfont.vercel.app/guide): the full guide — choosing a pen, writing naturally, photographing the sheet, and what the four styles are
+- [Privacy](https://handwritingfont.vercel.app/privacy): what is stored, which is seven values in local storage
+- [Terms](https://handwritingfont.vercel.app/terms)
+- [Licences](https://handwritingfont.vercel.app/licences): the third-party code, which is opentype.js and the Geist typeface
+- [Source code](https://github.com/heistkit/handwriting): MIT, no build step, no dependencies in the application itself

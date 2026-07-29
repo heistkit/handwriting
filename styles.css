@@ -43,13 +43,34 @@
 :root {
   color-scheme: dark;
 
-  --bg: light-dark(#f4f5f7, #14161a);
-  --bg-deep: light-dark(#eaecef, #101216);
-  --surface: light-dark(#fbfcfd, #1a1e24);
-  --surface-2: light-dark(#f0f2f5, #21262d);
-  --surface-3: light-dark(#e6e9ed, #2a3038);
-  --border: light-dark(#dce0e5, #2a3038);
-  --border-strong: light-dark(#c4cad2, #3a424c);
+  /*
+   * The light branch is built the other way up from the dark one, and this is
+   * deliberate rather than an inconsistency.
+   *
+   * It used to sit the page at #f4f5f7 with cards a shade lighter at #fbfcfd,
+   * so the page read as grey next to the browser's own white and the seam
+   * between the two was visible on every scroll. There is no way to raise the
+   * page toward white and keep cards above it without reaching #ffffff, which
+   * this palette does not use — #fff glares beside the warm paper previews, and
+   * the note at the top of this file has said so from the beginning.
+   *
+   * So the light theme inverts: the page is the lightest thing on it and
+   * panels sit *below* it, which is how every light interface built around a
+   * white canvas works, GitHub's included. #fcfcfd rather than #ffffff — two
+   * points off pure, indistinguishable beside browser chrome, and not the value
+   * that glares.
+   *
+   * The dark branch is untouched. Dark has the opposite problem and the
+   * opposite answer: there the page is the darkest thing and surfaces lift off
+   * it, which is already what these say.
+   */
+  --bg: light-dark(#fcfcfd, #14161a);
+  --bg-deep: light-dark(#f2f4f7, #101216);
+  --surface: light-dark(#f6f8fa, #1a1e24);
+  --surface-2: light-dark(#eef1f5, #21262d);
+  --surface-3: light-dark(#e8ecf1, #2a3038);
+  --border: light-dark(#d8dee4, #2a3038);
+  --border-strong: light-dark(#c2c9d1, #3a424c);
 
   --text: light-dark(#1c2128, #e4e9ef);
   --text-2: light-dark(#57606a, #a5adb8);
@@ -66,22 +87,46 @@
    * used: 4.48:1 on --surface, where the download list's file sizes live, and
    * 4.08:1 on --surface-2. A token has to clear the floor on the darkest
    * surface it is put on, not on the one it was first noticed against.
+   *
+   * Re-measured after the light branch was inverted, since every surface it is
+   * graded against moved: 5.12:1 on --bg, 4.93:1 on --surface, 4.63:1 on
+   * --surface-2. All three clear the floor and all three are within a tenth of
+   * where they were. --surface-3 is the one that does not, at 4.42:1 — it did
+   * not before either, at 4.31:1, and it is the hover fill on buttons whose
+   * labels are --text at 13:1, so the quiet tier is not put on it. Improved
+   * rather than fixed, and named here so the next person does not have to
+   * measure it again to find that out.
    */
   --text-3: light-dark(#656d76, #8a929c);
 
   /*
-   * The light green is darker than the dark-theme one. At #2da44e the primary
-   * button rendered white-on-green at 3.13:1 and accent-coloured text on the
-   * page background at 2.86:1 — both below the 4.5:1 floor. Darkening only the
-   * light branch lifts them to 5.0:1 and 4.6:1 without touching dark, where the
-   * brighter green is already correct against a near-black field.
+   * The accent is ink.
+   *
+   * It was green — GitHub's, tuned per theme for contrast — and green is a
+   * decision this app was making about forty times a page for no reason it
+   * could defend. Nothing here is green: the subject is somebody's handwriting,
+   * which is ink on paper, and the one place colour genuinely says something is
+   * a warning or a failure. A palette that spends its only hue on "this is a
+   * button" has nothing left to say with when it needs to say "this went
+   * wrong".
+   *
+   * So the accent inverts with the theme rather than sitting on it: ink on a
+   * light page, near-white on a dark one. A primary button is therefore black
+   * on white or white on black, and --accent-fg is the page colour, which makes
+   * every accent surface a straight inversion of the page it is on. Both
+   * directions clear 15:1, where the green pair cleared 5.0 and 4.9 after being
+   * tuned twice to get there.
+   *
+   * Neither end is pure. #1c2128 is the same ink --text uses, and the near-white
+   * is a shade off #fff for the reason at the top of this file.
    */
-  --accent: light-dark(#1a7f37, #3fb950);
-  --accent-hover: light-dark(#15682d, #4ac45c);
-  /* Lightened from #dcf5e3: the step numbers sit accent-on-accent-quiet and
-     landed at 4.44:1, just under the floor. This clears it at 4.60:1. */
-  --accent-quiet: light-dark(#e6f7ec, #1c3324);
-  --accent-fg: light-dark(#fbfcfd, #0c1116);
+  --accent: light-dark(#1c2128, #e6e9ee);
+  --accent-hover: light-dark(#0f1419, #f4f6f8);
+  /* The quiet tier is a tint of the page, not of the accent — there is no hue
+     left to tint with. Distinct from --surface-2 by a couple of points so a
+     step number still reads as a marked area rather than as a panel. */
+  --accent-quiet: light-dark(#e9edf2, #232a32);
+  --accent-fg: light-dark(#fcfcfd, #14161a);
 
   --warn: light-dark(#9a6700, #d9a441);
   --warn-quiet: light-dark(#fbf1d4, #33280f);
@@ -394,8 +439,8 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   border-radius: var(--r-md); cursor: pointer; color: inherit;
   transition: background .16s var(--ease);
 }
-.brand:hover { background: var(--surface-2); }
-.brand:hover .brand-mark { transform: rotate(-12deg); }
+:where(html[data-pointer="fine"]) .brand:hover { background: var(--surface-2); }
+:where(html[data-pointer="fine"]) .brand:hover .brand-mark { transform: rotate(-12deg); }
 .brand-mark { transition: transform .25s var(--ease); }
 .brand-mark { width: 26px; height: 26px; color: var(--accent); }
 .brand-name { font-size: 1.05rem; }
@@ -446,7 +491,7 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   stroke-dashoffset: 1;
   transition: stroke-dashoffset .8s var(--ease);
 }
-.brand:hover .brand-trace path,
+:where(html[data-pointer="fine"]) .brand:hover .brand-trace path,
 .brand:focus-visible .brand-trace path { stroke-dashoffset: 0; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -491,7 +536,7 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   transition: max-width .22s var(--ease), opacity .18s var(--ease), margin .22s var(--ease);
 }
 .step-chip[aria-current='step'] .step-chip__label,
-.step-chip:hover:not(:disabled) .step-chip__label,
+:where(html[data-pointer="fine"]) .step-chip:hover:not(:disabled) .step-chip__label,
 .step-chip:focus-visible .step-chip__label { max-width: 12ch; opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -499,7 +544,7 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 }
 @media (max-width: 660px) { .topbar-inner { gap: .8rem; } }
 
-.step-chip:hover:not(:disabled) { color: var(--text-2); background: var(--surface-2); }
+:where(html[data-pointer="fine"]) .step-chip:hover:not(:disabled) { color: var(--text-2); background: var(--surface-2); }
 /* Quieter by colour, not by opacity. Fading text over a light background
    lightens it, so `opacity: .5` on an already-quiet grey took the step labels
    to about 2.4:1 — and these are the app's primary navigation, not an inert
@@ -545,16 +590,16 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
   font-size: .95rem; font-weight: 500; letter-spacing: -.01em;
   transition: background .16s var(--ease), border-color .16s var(--ease), transform .1s var(--ease);
 }
-.btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--border-strong); }
+:where(html[data-pointer="fine"]) .btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--border-strong); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn svg { width: 1.05em; height: 1.05em; }
 
 .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
-.btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+:where(html[data-pointer="fine"]) .btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 
 .btn-ghost { background: none; border-color: transparent; color: var(--text-2); }
-.btn-ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+:where(html[data-pointer="fine"]) .btn-ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
 
 .btn-lg { padding: .8rem 1.5rem; font-size: 1.02rem; border-radius: var(--r-lg); }
 .btn-block { width: 100%; }
@@ -606,11 +651,17 @@ main { flex: 1; }
  * belongs, because that is the only place ch means anything.
  */
 .hero { padding-block: clamp(1rem, 5vw, 3.5rem); }
+/* A caption, not a badge.
+ *
+ * This was a filled pill — accent text on accent-quiet, rounded to 999px — which
+ * is the treatment for something that carries state, like a count or a status.
+ * It carries neither. It names the section underneath it, and it was shouting
+ * that four times down one page. Small, tracked, quiet, and the heading below
+ * does the work. */
 .eyebrow {
-  display: inline-block; font-size: .87rem; font-weight: 600;
-  letter-spacing: .06em; text-transform: uppercase; color: var(--accent);
-  background: var(--accent-quiet); padding: .35rem .75rem; border-radius: 999px;
-  margin-bottom: 1.5rem;
+  display: block; font-size: .8rem; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--text-3);
+  margin-bottom: .85rem;
 }
 .hero h1 { margin-bottom: 1.4rem; }
 .lede { font-size: 1.18rem; color: var(--text-2); max-width: 54ch; }
@@ -700,9 +751,12 @@ main { flex: 1; }
   --spec-ink: #23262c;
   --spec-rule: #cfc7b4;
   --spec-base: #a89f89;
-  /* Fixed rather than var(--accent): the sheet is light in both themes, and
-     the dark theme's brighter green sits at about 2.3:1 on paper. */
-  --spec-mark: #17722f;
+  /* Fixed rather than var(--accent): the sheet is light in both themes, and the
+     dark theme's accent is near-white, which on paper is not a mark at all.
+     A grey rather than the sheet's own ink, so the capture brackets read as
+     something laid over the page instead of as more writing. 7.41:1 on the
+     paper colour above. */
+  --spec-mark: #4a5058;
   /* Without this the sheet is invisible in light theme: #f7f4ec paper on a
      #f4f5f7 page, so the ink, the rules and the brackets appear to float on
      the page and the whole point of the picture — a photograph of paper — is
@@ -1070,11 +1124,11 @@ main { flex: 1; }
   left: calc(100% - var(--circle-container-offset) - var(--circle-container-diameter));
 }
 
-.theme-switch__checkbox:checked + .theme-switch__container .theme-switch__circle-container:hover {
+:where(html[data-pointer="fine"]) .theme-switch__checkbox:checked + .theme-switch__container .theme-switch__circle-container:hover {
   left: calc(100% - var(--circle-container-offset) - var(--circle-container-diameter) - 0.187em);
 }
 
-.theme-switch__circle-container:hover { left: calc(var(--circle-container-offset) + 0.187em); }
+:where(html[data-pointer="fine"]) .theme-switch__circle-container:hover { left: calc(var(--circle-container-offset) + 0.187em); }
 
 .theme-switch__checkbox:checked + .theme-switch__container .theme-switch__moon { transform: translate(0); }
 .theme-switch__checkbox:checked + .theme-switch__container .theme-switch__clouds { bottom: -4.062em; }
@@ -1283,7 +1337,7 @@ main { flex: 1; }
   transition: width .45s cubic-bezier(.65, 0, .076, 1), background .2s var(--ease);
 }
 
-.learn-more:hover .circle,
+:where(html[data-pointer="fine"]) .learn-more:hover .circle,
 .learn-more:focus-visible .circle { width: 100%; }
 .learn-more:active .circle { background: var(--accent-hover); }
 
@@ -1311,7 +1365,7 @@ main { flex: 1; }
   transform: rotate(45deg);
 }
 
-.learn-more:hover .icon,
+:where(html[data-pointer="fine"]) .learn-more:hover .icon,
 .learn-more:focus-visible .icon {
   background: var(--accent-fg);
   transform: translateX(1rem);
@@ -1330,7 +1384,7 @@ main { flex: 1; }
   transition: color .45s cubic-bezier(.65, 0, .076, 1);
 }
 
-.learn-more:hover .button-text,
+:where(html[data-pointer="fine"]) .learn-more:hover .button-text,
 .learn-more:focus-visible .button-text { color: var(--accent-fg); }
 
 .learn-more:focus-visible {
@@ -1387,7 +1441,7 @@ main { flex: 1; }
               transform .34s cubic-bezier(.34, 1.56, .64, 1);
 }
 
-.contbtn:hover:not(:disabled) {
+:where(html[data-pointer="fine"]) .contbtn:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
@@ -1430,7 +1484,7 @@ main { flex: 1; }
   transition: transform .3s var(--ease);
 }
 
-.contbtn:hover:not(:disabled) svg,
+:where(html[data-pointer="fine"]) .contbtn:hover:not(:disabled) svg,
 .contbtn:focus-visible:not(:disabled) svg { transform: translateX(5px); }
 
 /* The nudge is the whole gesture, so reduced motion removes it rather than
@@ -1438,7 +1492,7 @@ main { flex: 1; }
    to happen. The colour change still reports the hover. */
 @media (prefers-reduced-motion: reduce) {
   .contbtn svg { transition: none; }
-  .contbtn:hover:not(:disabled) svg,
+  :where(html[data-pointer="fine"]) .contbtn:hover:not(:disabled) svg,
   .contbtn:focus-visible:not(:disabled) svg { transform: none; }
   .contbtn:active:not(:disabled) { transform: none; }
 }
@@ -1479,7 +1533,7 @@ main { flex: 1; }
   border: 1px solid var(--accent);
   transition: background .16s var(--ease), color .16s var(--ease), border-color .16s var(--ease);
 }
-.btn-invert:hover:not(:disabled) {
+:where(html[data-pointer="fine"]) .btn-invert:hover:not(:disabled) {
   background: transparent;
   border-color: var(--accent);
   color: var(--accent);
@@ -1569,14 +1623,14 @@ main { flex: 1; }
   opacity: 0;
   transition: opacity .4s var(--ease);
 }
-.inkbtn:hover::after { opacity: .55; }
+:where(html[data-pointer="fine"]) .inkbtn:hover::after { opacity: .55; }
 /* The blobs are the only thing that moved on hover, and both switches remove
    them — leaving the page's final call to action with no hover state at all.
    A border shift costs nothing and is not motion. */
-:root[data-lite='on'] .inkbtn:hover:not(:disabled),
-:root[data-decor='off'] .inkbtn:hover:not(:disabled) { border-color: var(--accent); }
+:where(html[data-pointer="fine"]):root[data-lite='on'] .inkbtn:hover:not(:disabled),
+:where(html[data-pointer="fine"]):root[data-decor='off'] .inkbtn:hover:not(:disabled) { border-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
-  .inkbtn:hover:not(:disabled) { border-color: var(--accent); }
+  :where(html[data-pointer="fine"]) .inkbtn:hover:not(:disabled) { border-color: var(--accent); }
 }
 
 @keyframes inkdrift-a {
@@ -1672,18 +1726,21 @@ main { flex: 1; }
   font-weight: 600;
   cursor: pointer;
 }
-.bgate__go:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+:where(html[data-pointer="fine"]) .bgate__go:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .bgate__go:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 .bgate__note { margin-top: .9rem; color: var(--text-3); font-size: .87rem; }
 
 @supports not (color: light-dark(#000, #fff)) {
-  .bgate { background: #f4f5f7; color: #1c2128; }
-  .bgate__panel { background: #fbfcfd; border: 1px solid #dce0e5; border-radius: 16px; }
+  .bgate { background: #fcfcfd; color: #1c2128; }
+  .bgate__panel { background: #f6f8fa; border: 1px solid #d8dee4; border-radius: 16px; }
   .bgate__lede, .bgate__advice, .bgate__list p { color: #57606a; }
-  .bgate__list li { background: #f0f2f5; border-left: 3px solid #9a6700; border-radius: 10px; }
-  .bgate__go { background: #1a7f37; border: 1px solid #1a7f37; color: #fbfcfd; border-radius: 10px; }
-  .bgate__go:hover { background: #15682d; border-color: #15682d; }
+  /* The warning stripe keeps its colour. This panel exists to tell somebody
+     their browser is too old to run the app, and a grey stripe beside that
+     sentence is a stripe that says nothing. */
+  .bgate__list li { background: #eef1f5; border-left: 3px solid #9a6700; border-radius: 10px; }
+  .bgate__go { background: #1c2128; border: 1px solid #1c2128; color: #fcfcfd; border-radius: 10px; }
+  :where(html[data-pointer="fine"]) .bgate__go:hover { background: #0f1419; border-color: #0f1419; }
   .bgate__note { color: #656d76; }
 }
 
@@ -1988,10 +2045,13 @@ main { flex: 1; }
   transform-origin: top center;
   /* Slightly slower out than in, and eased so it decelerates into place rather
      than arriving and stopping. The delay staggers a row without needing a
-     rule per child — reveal.js sets --reveal-i from screen position. */
+     rule per child — reveal.js sets --reveal-i from screen position, and
+     --reveal-step from how many are in the group, so four cards keep their
+     unhurried 65ms while nine questions compress to fit one window rather than
+     the last three arriving together. */
   transition:
-    opacity .62s var(--ease) calc(var(--reveal-i, 0) * 65ms),
-    transform .62s var(--ease) calc(var(--reveal-i, 0) * 65ms);
+    opacity .62s var(--ease) calc(var(--reveal-i, 0) * var(--reveal-step, 65ms)),
+    transform .62s var(--ease) calc(var(--reveal-i, 0) * var(--reveal-step, 65ms));
   will-change: opacity, transform;
 }
 
@@ -2080,7 +2140,7 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
   transition: background .16s var(--ease);
 }
 .setgroup > summary::-webkit-details-marker { display: none; }
-.setgroup > summary:hover { background: var(--surface-3); }
+:where(html[data-pointer="fine"]) .setgroup > summary:hover { background: var(--surface-3); }
 .setgroup > summary::after {
   content: ''; flex: none; width: 9px; height: 9px;
   border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2);
@@ -2272,6 +2332,16 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
    row rather than as a heading with something floating beside it. */
 .setting .switch { margin-top: .15rem; }
 
+/* A setting whose control is too wide to sit beside its label — the three-way
+   theme picker. Stacked rather than squeezed: three buttons in the column a
+   switch occupies would each be about 40px, which is under the target size the
+   rest of this panel was raised to. `cursor: default` because the text here
+   labels a group rather than driving one control, so the pointer should not
+   promise that clicking it does something. */
+.setting--stack { flex-direction: column; align-items: stretch; gap: .8rem; }
+.setting--stack .setting-text { cursor: default; }
+.setting--stack .seg { margin: 0; }
+
 /* ── Docs search ────────────────────────────────────────────────────────
    Adapted from a Uiverse.io search field by Lakshay-art (MIT).
 
@@ -2351,8 +2421,8 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
 
 /* At rest the gradient holds still. Motion is a response to the pointer or the
    caret, not a thing the page does at everyone forever. */
-.docsearch:hover .docsearch__ring::before,
-.docsearch:hover .docsearch__glow::before {
+:where(html[data-pointer="fine"]) .docsearch:hover .docsearch__ring::before,
+:where(html[data-pointer="fine"]) .docsearch:hover .docsearch__glow::before {
   animation: docsearch-spin var(--ring-speed) linear infinite;
 }
 
@@ -2423,7 +2493,7 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
   color: var(--text-3);
   cursor: pointer;
 }
-.docsearch__clear:hover { background: var(--surface-2); color: var(--text); }
+:where(html[data-pointer="fine"]) .docsearch__clear:hover { background: var(--surface-2); color: var(--text); }
 .docsearch__clear svg { width: 16px; height: 16px; }
 .docsearch__clear[hidden] { display: none; }
 
@@ -2439,8 +2509,8 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .docsearch:hover .docsearch__ring::before,
-  .docsearch:hover .docsearch__glow::before,
+  :where(html[data-pointer="fine"]) .docsearch:hover .docsearch__ring::before,
+  :where(html[data-pointer="fine"]) .docsearch:hover .docsearch__glow::before,
   .docsearch:focus-within .docsearch__ring::before,
   .docsearch:focus-within .docsearch__glow::before { animation: none; }
 }
@@ -2492,7 +2562,22 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
 
 /* ── Landing bands ──────────────────────────────────────────────────── */
 
-.band { padding-block: clamp(3.5rem, 9vw, 6.5rem); border-top: 1px solid var(--border); margin-top: clamp(3.5rem, 9vw, 6rem); }
+/*
+ * One gap between sections, not three.
+ *
+ * This had `padding-block` and `margin-top` both at roughly 9vw, so the space
+ * between two bands was the first one's padding-bottom, plus the second's
+ * margin-top, plus the second's padding-top — 345px at 1280 wide with larger
+ * text on, for a rule that is meant to read as a divider. The symptom was a
+ * page that looked like it had lost its content: the step deck ended, and the
+ * next heading was a screen and a half away.
+ *
+ * The margin is gone rather than reduced, because padding alone puts the border
+ * exactly halfway between the two sections it separates, which is what a
+ * section rule is for. With the margin there it sat at a third of the gap and
+ * read as belonging to the section below it.
+ */
+.band { padding-block: clamp(3.5rem, 9vw, 6.5rem); border-top: 1px solid var(--border); }
 .band-head { max-width: 58ch; margin-bottom: 2.75rem; }
 .band-head h2 { margin-top: .35rem; }
 .band-head .lede { font-size: 1.08rem; margin-top: 1rem; }
@@ -2586,7 +2671,7 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
   transform: rotate(45deg) translate(-2px, -2px); transition: transform .2s var(--ease);
 }
 .faq-item[open] summary::after { transform: rotate(-135deg) translate(-3px, -3px); }
-.faq-item summary:hover { background: var(--surface-2); }
+:where(html[data-pointer="fine"]) .faq-item summary:hover { background: var(--surface-2); }
 .faq-item p { padding: 0 1.4rem 1.3rem; color: var(--text-2); font-size: .95rem; max-width: 74ch; }
 
 .cta {
@@ -2602,7 +2687,7 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
 /* --text-3 gave 3.09:1 here. These are small standalone links, not muted
    supporting copy, so they take the stronger secondary tone. */
 .footer-links a { color: var(--text-2); font-size: .85rem; text-decoration: none; }
-.footer-links a:hover { color: var(--accent); text-decoration: underline; }
+:where(html[data-pointer="fine"]) .footer-links a:hover { color: var(--accent); text-decoration: underline; }
 
 .legal-summary {
   padding: .9rem 1.1rem; border-radius: var(--r-md);
@@ -2636,7 +2721,7 @@ details.legal-section > summary {
   transition: background .16s var(--ease);
 }
 details.legal-section > summary::-webkit-details-marker { display: none; }
-details.legal-section > summary:hover { background: var(--surface-2); }
+:where(html[data-pointer="fine"]) details.legal-section > summary:hover { background: var(--surface-2); }
 /* The heading keeps its level for the outline; it just stops looking like a
    block heading now that it is the label on a control. */
 details.legal-section > summary h3 { margin: 0; font-size: 1rem; }
@@ -2803,7 +2888,7 @@ details.legal-section > summary:focus-visible {
   display: grid; place-items: center; overflow: hidden;
   transition: border-color .15s var(--ease), transform .12s var(--ease);
 }
-.glyph:hover { border-color: var(--accent); transform: translateY(-2px); z-index: 1; }
+:where(html[data-pointer="fine"]) .glyph:hover { border-color: var(--accent); transform: translateY(-2px); z-index: 1; }
 .glyph canvas { width: 100%; height: 100%; }
 .glyph .label {
   position: absolute; left: 5px; top: 3px;
@@ -2818,12 +2903,36 @@ details.legal-section > summary:focus-visible {
    duplicate nobody could read anyway. The dashed border and --surface-2 fill
    above are what say "missing"; the .label says which. */
 .glyph.is-flagged { border-color: var(--warn); }
+/* Redraw, revealed on hover — and the reason data-pointer exists.
+ *
+ * `opacity: 0` hides an element from the eye and from nothing else. This button
+ * is stretched across the bottom edge of every tile, so on a phone, where no
+ * hover ever fires to explain it, the bottom strip of all 112 tiles was an
+ * invisible control that opened the drawing pad when a thumb landed on it. The
+ * screen it happens on is the review grid, which is the screen people scroll
+ * furthest on a phone.
+ *
+ * So the base state is inert as well as transparent, and there are three ways
+ * back:
+ *
+ *   - a pointer that hovers gets exactly what it had before;
+ *   - a pointer that does not gets the button outright, slightly under full
+ *     opacity so the glyph stays the subject of its own tile;
+ *   - focus reveals it on any device, which is not optional. Scoping a reveal
+ *     to pointer type strands the keyboard on every device the guess calls
+ *     coarse, and :focus-within is what catches it, because the thing being
+ *     focused is the button inside the tile.
+ */
 .glyph .redraw {
   position: absolute; inset: auto 0 0 0; padding: .2rem;
   font-size: .85rem; background: var(--accent); color: var(--accent-fg);
   opacity: 0; transition: opacity .15s var(--ease);
+  pointer-events: none;
 }
-.glyph:hover .redraw { opacity: 1; }
+:where(html[data-pointer="fine"]) .glyph:hover .redraw { opacity: 1; pointer-events: auto; }
+:where(html[data-pointer="coarse"]) .glyph .redraw { opacity: .9; pointer-events: auto; }
+.glyph:focus-within .redraw,
+.glyph .redraw:focus-visible { opacity: 1; pointer-events: auto; }
 
 /* ── Refine step ────────────────────────────────────────────────────── */
 
@@ -2839,7 +2948,7 @@ details.legal-section > summary:focus-visible {
   background: none; color: var(--text-2); cursor: pointer; font-size: .87rem; font-weight: 500;
   transition: background .15s var(--ease), color .15s var(--ease);
 }
-.seg button:hover { color: var(--text); }
+:where(html[data-pointer="fine"]) .seg button:hover { color: var(--text); }
 .seg button.is-on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
 .seg-wide { display: flex; flex-wrap: wrap; width: 100%; margin-bottom: 1rem; }
 .seg-wide button { flex: 1; }
@@ -2871,7 +2980,7 @@ details.legal-section > summary:focus-visible {
   color: var(--text-2); font-size: .88rem;
   transition: color .15s var(--ease), border-color .15s var(--ease);
 }
-.chip:hover { color: var(--text); border-color: var(--border-strong); }
+:where(html[data-pointer="fine"]) .chip:hover { color: var(--text); border-color: var(--border-strong); }
 
 .controls .field { display: grid; gap: .45rem; margin-bottom: 1.1rem; }
 .controls .field:last-of-type { margin-bottom: 0; }
@@ -3076,7 +3185,7 @@ details.legal-section > summary:focus-visible {
   transition: background .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease);
 }
 
-.copybtn:hover { background: var(--surface-3); color: var(--text); border-color: var(--border-strong); }
+:where(html[data-pointer="fine"]) .copybtn:hover { background: var(--surface-3); color: var(--text); border-color: var(--border-strong); }
 .copybtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .copybtn[data-state='done'] { color: var(--accent); border-color: var(--accent); }
 .copybtn[data-state='failed'] { color: var(--danger); border-color: var(--danger); }
@@ -3118,7 +3227,7 @@ details.legal-section > summary:focus-visible {
   rotate: 45deg;
 }
 
-.copybtn:hover .copybtn__tip,
+:where(html[data-pointer="fine"]) .copybtn:hover .copybtn__tip,
 .copybtn:focus-visible .copybtn__tip,
 .copybtn[data-state='done'] .copybtn__tip,
 .copybtn[data-state='failed'] .copybtn__tip {
@@ -3220,11 +3329,11 @@ input[type=range]::-moz-range-thumb {
 }
 
 /* The halo. This is what `overflow: hidden` used to make impossible. */
-input[type=range]:hover::-webkit-slider-thumb,
+:where(html[data-pointer="fine"]) input[type=range]:hover::-webkit-slider-thumb,
 input[type=range]:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 20%, transparent);
 }
-input[type=range]:hover::-moz-range-thumb,
+:where(html[data-pointer="fine"]) input[type=range]:hover::-moz-range-thumb,
 input[type=range]:focus-visible::-moz-range-thumb {
   box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 20%, transparent);
 }
@@ -3285,7 +3394,7 @@ input[type=range]:focus-visible {
 }
 /* Equal specificity, so source order settles a field that is both hovered and
    focused. Focus wins, which is correct. */
-.input:hover { box-shadow: 4px 4px 0 var(--border-strong); }
+:where(html[data-pointer="fine"]) .input:hover { box-shadow: 4px 4px 0 var(--border-strong); }
 .input:focus-visible { box-shadow: 5px 5px 0 var(--border-strong); }
 /*
  * `outline: none` was here, which meant the app's only two text fields — the
@@ -3390,8 +3499,8 @@ input[type=range]:focus-visible {
     stroke .18s var(--ease);
 }
 
-.check:hover .path { stroke: var(--text-2); }
-.check:hover input:checked ~ svg .path { stroke: var(--accent-hover); }
+:where(html[data-pointer="fine"]) .check:hover .path { stroke: var(--text-2); }
+:where(html[data-pointer="fine"]) .check:hover input:checked ~ svg .path { stroke: var(--accent-hover); }
 
 .check input:focus-visible ~ svg {
   outline: 2px solid var(--accent);
@@ -3509,7 +3618,7 @@ input[type=range]:focus-visible {
   background: var(--surface); border: 1px solid var(--border);
   cursor: pointer; text-align: left;
 }
-.dl-item:hover { border-color: var(--accent); }
+:where(html[data-pointer="fine"]) .dl-item:hover { border-color: var(--accent); }
 .dl-item b { font-weight: 500; font-size: .93rem; }
 .dl-item span { font-size: .86rem; color: var(--text-3); font-family: 'Geist Mono', monospace; }
 
@@ -3576,10 +3685,12 @@ input[type=range]:focus-visible {
  * those switches already handle above.
  *
  * Contrast, computed from the tokens against --surface, which is what
- * .sheet-modal-panel is painted with. --text-3 #656d76 on #fbfcfd is 5.11:1;
- * #8a929c on #1a1e24 is 5.32:1. The --accent hover state, #1a7f37 on #fbfcfd,
- * is 4.94:1; #3fb950 on #1a1e24 is 6.59:1. All four clear the 4.5:1 text floor
- * and so also the 3:1 floor that applies to the glyph as a graphic.
+ * .sheet-modal-panel is painted with. --text-3 #656d76 on #f6f8fa is 4.93:1;
+ * #8a929c on #1a1e24 is 5.32:1. The --accent hover state is now the ink itself,
+ * #1c2128 on #f6f8fa at 15.20:1 and #e6e9ee on #1a1e24 at 13.75:1 — it used to
+ * be green at 4.94:1 and 6.59:1, so the hover got considerably stronger when
+ * the accent stopped being a hue. All four clear the 4.5:1 text floor and so
+ * also the 3:1 floor that applies to the glyph as a graphic.
  *
  * text-decoration is cleared explicitly: there is no base `a` rule in this
  * stylesheet, so an anchor otherwise arrives underlined and browser-blue.
@@ -3593,7 +3704,7 @@ input[type=range]:focus-visible {
   vertical-align: baseline;
 }
 .lesson-link svg { width: .78em; height: .78em; }
-.lesson-link:hover,
+:where(html[data-pointer="fine"]) .lesson-link:hover,
 .lesson-link:focus-visible { color: var(--accent); }
 .lesson p { font-size: .95rem; color: var(--text-2); }
 .lesson p + p { margin-top: .6rem; }
@@ -3652,14 +3763,14 @@ input[type=range]:focus-visible {
  * decoration for :root[data-decor='off'] to remove.
  */
 .busy-cancel { margin-top: 1.15rem; border-color: var(--text-3); }
-.busy-cancel:hover:not(:disabled) { border-color: var(--text-3); }
+:where(html[data-pointer="fine"]) .busy-cancel:hover:not(:disabled) { border-color: var(--text-3); }
 .busy-cancel[hidden] { display: none; }
 
 /* Already pressed. Deliberately not dimmed: .btn:disabled's opacity: .45 would
    pull the label off the ratios measured above, and it is the changed wording,
    not a faded box, that says the press was heard. */
 .busy-cancel[aria-disabled='true'] { cursor: default; }
-.busy-cancel[aria-disabled='true']:hover { background: var(--surface-2); border-color: var(--text-3); }
+:where(html[data-pointer="fine"]) .busy-cancel[aria-disabled='true']:hover { background: var(--surface-2); border-color: var(--text-3); }
 
 .bar { height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
 .bar-fill { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .25s var(--ease); }
@@ -3813,7 +3924,7 @@ input[type=range]:focus-visible {
 
 /* With transitions cut to nothing the arrow would snap 5px sideways on hover
    instead of sliding. Lite mode is meant to be calmer, not twitchier. */
-:root[data-lite='on'] .contbtn:hover:not(:disabled) svg,
+:where(html[data-pointer="fine"]):root[data-lite='on'] .contbtn:hover:not(:disabled) svg,
 :root[data-lite='on'] .contbtn:focus-visible:not(:disabled) svg { transform: none; }
 
 /* It sits in the footer nav beside the legal links and had no rules of its own,
@@ -3824,9 +3935,9 @@ input[type=range]:focus-visible {
   background: none; border: 0; padding: 0; cursor: pointer;
   color: var(--text-2); font-size: .85rem;
 }
-.lite-toggle:hover { color: var(--text); }
+:where(html[data-pointer="fine"]) .lite-toggle:hover { color: var(--text); }
 .lite-toggle[aria-pressed='true'] { color: var(--accent); }
-.lite-toggle[aria-pressed='true']:hover { color: var(--accent-hover); }
+:where(html[data-pointer="fine"]) .lite-toggle[aria-pressed='true']:hover { color: var(--accent-hover); }
 
 .toasts { position: fixed; right: 1rem; bottom: 1rem; z-index: 90; display: grid; gap: .5rem; }
 .toast {
@@ -3845,7 +3956,7 @@ input[type=range]:focus-visible {
 
 .fb-details { margin-top: 1rem; }
 .fb-details summary { cursor: pointer; font-size: .88rem; color: var(--text-2); margin-bottom: .6rem; }
-.fb-details summary:hover { color: var(--text); }
+:where(html[data-pointer="fine"]) .fb-details summary:hover { color: var(--text); }
 .fb-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.25rem; }
 textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 
@@ -3936,7 +4047,7 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
    `[hidden] { display: none }` by cascade origin — not by source order. */
 .sharebtn[hidden] { display: none; }
 
-.sharebtn:hover:not(:disabled) {
+:where(html[data-pointer="fine"]) .sharebtn:hover:not(:disabled) {
   background: var(--accent-quiet);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }
@@ -4027,13 +4138,13 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
     opacity .16s var(--ease);
 }
 
-.xdel:hover,
+:where(html[data-pointer="fine"]) .xdel:hover,
 .xdel:focus-visible { background: var(--danger-quiet); border-color: var(--danger); }
 
 /* :focus-visible sits alongside :hover deliberately. The original expands on
    hover only, which no keyboard can reach — the reader would tab onto an icon
    whose label they can hear but not see. */
-.xdel:hover .xdel__label,
+:where(html[data-pointer="fine"]) .xdel:hover .xdel__label,
 .xdel:focus-visible .xdel__label {
   max-inline-size: 12ch;
   padding-inline: .35rem .15rem;
@@ -4097,13 +4208,16 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 /*
  * The seam does the structural work; the wash does the tonal work. The wash
  * ceiling is a measurement rather than a preference: `.privacy` is --text-3,
- * and mixing --accent into --surface pushes it to 4.49:1 light / 4.52:1 dark
- * at 10% and through the 4.5:1 floor just past that. At 8% it holds at 4.59:1
- * and 4.72:1, so 8% is both the ceiling and the value.
+ * and mixing --accent into --surface pushes it through the 4.5:1 floor.
  *
- * This is also why --accent-quiet is not reused here: at #e6f7ec / #1c3324 it
- * drops --text-3 to 4.31:1 in dark. That token is a fill for accent-coloured
- * text, not for body copy.
+ * Re-measured when the accent became ink. A green at 8% barely moved the
+ * surface; the ink moves it much faster in light and the near-white moves it
+ * much faster in dark, so the same 8% that held at 4.59:1 now lands at 4.23:1.
+ * 4% is the value that holds — 4.55:1 light, 4.83:1 dark — and it is enough to
+ * see, because the seam beside it is doing the structural work.
+ *
+ * This is also why --accent-quiet is not reused here: it is a flat fill sized
+ * for marked areas, not a wash, and it has no gradient in it to end.
  */
 .fb-split__aside {
   padding: 1.35rem;
@@ -4111,7 +4225,7 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
   align-content: start;
   border-inline-start: 1px solid var(--border);
   background: linear-gradient(180deg,
-    color-mix(in srgb, var(--accent) 8%, var(--surface)) 0%,
+    color-mix(in srgb, var(--accent) 4%, var(--surface)) 0%,
     var(--surface) 100%);
 }
 .fb-split__aside-title { font-size: .95rem; color: var(--text); margin-bottom: .75rem; }
@@ -4207,6 +4321,20 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
    states being a separate asset. An SVG path morph would need every keyframe
    to carry the same node count and would still not be as smooth.
 
+   It had a face — two round eyes and a mouth with four per-card expressions —
+   and the face was the problem. A filled circle with two dots and a curve is an
+   emoji whatever it is called in the stylesheet, and at 110px of flat green it
+   read as one: not an ink drop, a smiley. The drop is the idea; the face was a
+   second idea sitting on top of it and winning.
+
+   So the face is gone and the drop is ink-coloured, which is what a drop of ink
+   is. What it used to say with expressions, the prop beside it already said
+   better — a pen, a camera, a magnifier, a download arrow, one per step.
+
+   The pointer tracking survives, moved from the eyes to a highlight. A drop
+   with a specular gleam that follows the cursor is being lit by it, which is a
+   thing a drop of liquid does; a drop with eyeballs was being a character.
+
    Decoration throughout — the whole thing is aria-hidden, and every card's
    text says the same thing without it.
    ─────────────────────────────────────────────────────────────────────── */
@@ -4220,6 +4348,7 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
   position: absolute; inset: 0;
   background: linear-gradient(150deg, var(--accent-hover), var(--accent) 62%);
   border-radius: 58% 42% 44% 56% / 52% 48% 52% 48%;
+  overflow: hidden;
   animation:
     blob-morph 11s ease-in-out infinite,
     mascot-bob 3.4s ease-in-out infinite;
@@ -4237,76 +4366,43 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 }
 
 /*
- * Looking at the pointer. src/mascot.js writes --look-x and --look-y, each
- * clamped to -1..1, and everything below is derived from those two numbers —
- * the module measures and does not style.
+ * Lit by the pointer. src/mascot.js writes --look-x and --look-y, each clamped
+ * to -1..1, and everything below is derived from those two numbers — the module
+ * measures and does not style.
  *
- * The eyes travel further than the body leans, which is what makes it read as
- * looking rather than tilting: a face turns its eyes first.
+ * The gleam travels much further than the body leans. That difference is the
+ * whole effect: a highlight is where a light source happens to be, so it slides
+ * right across the surface while the drop itself barely moves. Two things
+ * moving by the same amount would read as one thing sliding.
  */
 .mascot__blob {
   translate: calc(var(--look-x, 0) * 5%) calc(var(--look-y, 0) * 4%);
   transition: translate .3s var(--ease);
 }
 
-.mascot__eye {
-  position: absolute; top: 40%;
-  width: 13%; aspect-ratio: 1; border-radius: 50%;
-  background: var(--accent-fg);
-  translate: calc(var(--look-x, 0) * 26%) calc(var(--look-y, 0) * 22%);
-  transition: translate .22s var(--ease);
-  animation: mascot-blink 5.2s steps(1, end) infinite;
-}
-.mascot__eye:nth-of-type(1) { left: 27%; }
-.mascot__eye:nth-of-type(2) { right: 27%; }
-
 /*
- * The mouth.
+ * The gleam.
  *
- * Drawn as the edge of a box rather than as a path, so its shape is three
- * numbers — which border it uses, how wide it is, and how the corners round —
- * and each card can have a different one without a second asset.
- *
- * Four cards, four expressions, in the order the steps happen: ready, then
- * concentrating while it lines up the shot, then a small pleased one for the
- * checking step, then an open grin when the font is finished.
+ * A soft radial in the page colour, at low opacity, clipped by the blob's own
+ * `overflow: hidden` so it takes the shape of whatever the morph is currently
+ * doing rather than sitting in a circle on top of it. --accent-fg rather than a
+ * literal, so it is white on the dark theme's ink drop and near-black on the
+ * light theme's, which is what a reflection does on either.
  */
-.mascot__mouth {
-  position: absolute; left: 50%; top: 56%;
-  width: 26%; height: 13%;
-  transform: translateX(-50%);
-  border-bottom: .18rem solid var(--accent-fg);
-  border-radius: 0 0 60% 60% / 0 0 100% 100%;
-  transition: width .25s var(--ease), height .25s var(--ease),
-              border-radius .25s var(--ease), border-width .25s var(--ease);
+.mascot__gleam {
+  position: absolute; inset: 0;
+  background: radial-gradient(
+    38% 30% at calc(38% + var(--look-x, 0) * 26%) calc(32% + var(--look-y, 0) * 24%),
+    color-mix(in srgb, var(--accent-fg) 38%, transparent) 0%,
+    transparent 70%);
+  transition: background .3s var(--ease);
 }
 
-/* 2 — a flat line: it is holding still to take the photograph. */
-#stepcard-2 .mascot__mouth {
-  width: 20%; height: 0;
-  border-radius: 999px;
-}
-/* 3 — small and to one side, the way a face goes when it is checking. */
-#stepcard-3 .mascot__mouth {
-  width: 15%; height: 9%;
-  left: 46%;
-  border-radius: 0 0 90% 40% / 0 0 100% 100%;
-}
-/* 4 — open, because the font exists now. */
-#stepcard-4 .mascot__mouth {
-  width: 30%; height: 22%;
-  background: var(--accent-fg);
-  border: 0;
-  border-radius: 18% 18% 52% 52% / 12% 12% 100% 100%;
-}
-
-/* Poked, it opens whatever it was doing. */
-.mascot__stage.is-poked .mascot__mouth,
-.mascot__stage.is-delighted .mascot__mouth {
-  width: 34%; height: 24%;
-  background: var(--accent-fg);
-  border: 0;
-  border-radius: 18% 18% 52% 52% / 12% 12% 100% 100%;
+/* Poked, it swells for a moment. The expression this replaces was a grin. */
+.mascot__stage.is-poked .mascot__blob,
+.mascot__stage.is-delighted .mascot__blob {
+  scale: 1.06;
+  transition: scale .22s var(--ease);
 }
 
 .mascot__shadow {
@@ -4332,11 +4428,6 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
   0%, 100% { transform: scaleX(1); opacity: .16; }
   50% { transform: scaleX(.8); opacity: .09; }
 }
-@keyframes mascot-blink {
-  0%, 92% { transform: scaleY(1); }
-  94%, 97% { transform: scaleY(.08); }
-  98%, 100% { transform: scaleY(1); }
-}
 @keyframes mascot-prop {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-4px) rotate(5deg); }
@@ -4344,21 +4435,29 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 
 /* Only the card you are looking at is alive. Four blobs morphing at once,
    three of them off screen, is work nobody sees. */
-.stepcard:not(.is-current) :is(.mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop) {
+.stepcard:not(.is-current) :is(.mascot__blob, .mascot__shadow, .mascot__prop) {
   animation-play-state: paused;
 }
 
+/* The three switches, all saying the same thing: hold still.
+ *
+ * The gleam is pinned to the middle rather than left where the pointer put it.
+ * A highlight frozen off to one side is a highlight that looks like a mistake,
+ * and mascot.js returns --look to zero under all three of these anyway — this
+ * is the copy that holds if the module never ran. */
 @media (prefers-reduced-motion: reduce) {
-  .mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop { animation: none; }
-  .mascot__blob, .mascot__eye { translate: none; transition: none; }
-  .mascot__mouth { transition: none; }
+  .mascot__blob, .mascot__shadow, .mascot__prop { animation: none; }
+  .mascot__blob { translate: none; transition: none; }
   .mascot__blob { border-radius: 52% 48% 46% 54% / 54% 50% 50% 46%; }
+  .mascot__gleam { --look-x: 0; --look-y: 0; transition: none; }
   .stepshow__dot { transition: none; }
 }
-:root[data-lite='on'] :is(.mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop),
-:root[data-decor='off'] :is(.mascot__blob, .mascot__eye, .mascot__shadow, .mascot__prop) { animation: none; }
-:root[data-lite='on'] :is(.mascot__blob, .mascot__eye),
-:root[data-decor='off'] :is(.mascot__blob, .mascot__eye) { translate: none; transition: none; }
+:root[data-lite='on'] :is(.mascot__blob, .mascot__shadow, .mascot__prop),
+:root[data-decor='off'] :is(.mascot__blob, .mascot__shadow, .mascot__prop) { animation: none; }
+:root[data-lite='on'] .mascot__blob,
+:root[data-decor='off'] .mascot__blob { translate: none; transition: none; }
+:root[data-lite='on'] .mascot__gleam,
+:root[data-decor='off'] .mascot__gleam { --look-x: 0; --look-y: 0; transition: none; }
 :root[data-lite='on'] .mascot__blob,
 :root[data-decor='off'] .mascot__blob { border-radius: 52% 48% 46% 54% / 54% 50% 50% 46%; }
 
@@ -4388,7 +4487,7 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
   color: var(--text); cursor: pointer;
   transition: background .16s var(--ease), border-color .16s var(--ease);
 }
-.stepshow__arrow:hover:not(:disabled) { background: var(--surface-3); border-color: var(--border-strong); }
+:where(html[data-pointer="fine"]) .stepshow__arrow:hover:not(:disabled) { background: var(--surface-3); border-color: var(--border-strong); }
 .stepshow__arrow:disabled { opacity: .4; cursor: default; }
 .stepshow__arrow svg { width: 1.2rem; height: 1.2rem; }
 
@@ -4402,11 +4501,11 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 .stepshow__dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .mascot__body, .mascot__shadow, .mascot__eyes, .mascot__prop { animation: none; }
+  /* `.mascot__body` and `.mascot__eyes` used to be named here and never
+     existed — an earlier mascot's class names, left behind when it was
+     rewritten. The live ones are suppressed beside the mascot itself, above. */
   .stepshow__dot { transition: none; }
 }
-:root[data-lite='on'] :is(.mascot__body, .mascot__shadow, .mascot__eyes, .mascot__prop),
-:root[data-decor='off'] :is(.mascot__body, .mascot__shadow, .mascot__eyes, .mascot__prop) { animation: none; }
 
 /* ── The demo's waiting state ────────────────────────────────────────────
    The same two panels the result uses, in the same order and shape, so the
@@ -4787,7 +4886,7 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 
 .contbtn--spark { position: relative; }
 
-.contbtn--spark:hover:not(:disabled) {
+:where(html[data-pointer="fine"]) .contbtn--spark:hover:not(:disabled) {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
@@ -4808,7 +4907,7 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
   opacity: 0;
 }
 
-.contbtn--spark:hover:not(:disabled) .contbtn__specks i,
+:where(html[data-pointer="fine"]) .contbtn--spark:hover:not(:disabled) .contbtn__specks i,
 .contbtn--spark:focus-visible:not(:disabled) .contbtn__specks i {
   animation: speck-fly 1.5s var(--ease) forwards;
 }
@@ -5016,7 +5115,7 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
   transition: background .16s var(--ease);
 }
 .exportfold > summary::-webkit-details-marker { display: none; }
-.exportfold > summary:hover { background: var(--surface-2); }
+:where(html[data-pointer="fine"]) .exportfold > summary:hover { background: var(--surface-2); }
 .exportfold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .exportfold > summary::after {
   content: ''; flex: none; width: 9px; height: 9px;

@@ -45,6 +45,12 @@ const TYPES = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.md': 'text/markdown; charset=utf-8',
+  // robots.txt, llms.txt and sitemap.xml. Without these they fall to
+  // application/octet-stream, which makes the browser download the file
+  // instead of showing it — and "did I break the sitemap" then looks
+  // identical to "the sitemap is fine".
+  '.txt': 'text/plain; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
 };
 
 createServer(async (req, res) => {

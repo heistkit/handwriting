@@ -1,9 +1,14 @@
 /**
- * mascot.js — the ink drop looks at the pointer.
+ * mascot.js — the ink drop is lit by the pointer.
  *
  * Two properties reach CSS: `--look-x` and `--look-y`, each clamped to -1..1,
- * where 0,0 is the drop looking straight ahead. Everything visual is done in
- * the stylesheet from those two numbers; this file only measures.
+ * where 0,0 is the highlight sitting in its resting place. Everything visual is
+ * done in the stylesheet from those two numbers; this file only measures.
+ *
+ * It used to move a pair of eyes, which is why the tests below and half the
+ * comments in this file still talk about looking and staring. The measuring is
+ * identical either way — where the pointer is relative to the card — so the
+ * names were left rather than churned across a passing suite for a rename.
  *
  * It only ever tracks the card in view. The other three are off screen, and
  * moving eyes nobody can see is work for nothing.

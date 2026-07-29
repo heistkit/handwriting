@@ -226,7 +226,15 @@ export function createDrawPad(mount, opts = {}) {
   let ink, lineColor, ghostColor;
   function readPalette() {
     ink = token('--text', { light: '#1c2128', dark: '#e4e9ef' });
-    lineColor = token('--accent', { light: '#1a7f37', dark: '#3fb950' });
+    // The two guides that matter were --accent, back when the accent was green
+    // and being a different hue from the ink was the whole distinction. The
+    // accent is the ink now, so borrowing it would have painted a solid
+    // baseline rule in the same colour as the writing resting on it.
+    //
+    // With no hue to separate them, the separation is value: ink at --text,
+    // these two at --text-2, the ascender and descender hints at --text-3. Three
+    // tiers, darkest is what you drew.
+    lineColor = token('--text-2', { light: '#57606a', dark: '#a5adb8' });
     ghostColor = token('--text-3', { light: '#656d76', dark: '#8a929c' });
   }
   readPalette();
@@ -362,9 +370,9 @@ export function createDrawPad(mount, opts = {}) {
     //
     // They are not decoration. The printable sheet tells the writer to "rest
     // each letter on the dotted baseline and size it to the dashed mid-line".
-    line(yAsc, ghostColor, 0.8, [4, 4]);
-    line(yX, lineColor, 0.75, [6, 4]);   // 4.27:1 dark / 3.17:1 light
-    line(yBase, lineColor, 0.85, []);    // 5.13:1 dark / 3.76:1 light
+    line(yAsc, ghostColor, 0.8, [4, 4]);  // 3.91:1 dark / 3.33:1 light
+    line(yX, lineColor, 0.75, [6, 4]);    // 4.74:1 dark / 3.46:1 light
+    line(yBase, lineColor, 0.85, []);     // 5.74:1 dark / 4.26:1 light
     line(yDesc, ghostColor, 0.8, [4, 4]);
   }
 

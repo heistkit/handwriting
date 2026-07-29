@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The addresses that are pages, which is not the same as the addresses that
+  exist.
+
+  Every screen has its own path — see src/routes.js — but most of them name a
+  position in a piece of work rather than a document: /refine is the tuner, and
+  the tuner with nobody's font in it is the landing page with a different URL.
+  Those are answered with `X-Robots-Tag: noindex, follow` in vercel.json rather
+  than listed here, so the two files together say one thing instead of
+  contradicting each other. What is left is the five addresses that are worth
+  arriving at cold.
+
+  Guide lessons (/guide/pen and the rest) are deliberately absent. A lesson is a
+  section of the guide, not a page of its own, and src/meta.js points its
+  canonical at /guide accordingly.
+
+  No <lastmod>. It is only useful to a search engine that finds it reliable, and
+  a date maintained by hand in a repo with no build step is a date that will be
+  wrong within a month. An absent element is read as "unknown"; a stale one is
+  read as a claim.
+
+  <loc> must be absolute — that is the sitemap specification, not a choice — so
+  this is the one file besides robots.txt that names the deployment. A
+  self-hosted copy should change the host or delete both.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://handwritingfont.vercel.app/</loc>
+  </url>
+  <url>
+    <loc>https://handwritingfont.vercel.app/guide</loc>
+  </url>
+  <url>
+    <loc>https://handwritingfont.vercel.app/privacy</loc>
+  </url>
+  <url>
+    <loc>https://handwritingfont.vercel.app/terms</loc>
+  </url>
+  <url>
+    <loc>https://handwritingfont.vercel.app/licences</loc>
+  </url>
+</urlset>
