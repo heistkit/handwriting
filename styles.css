@@ -1400,24 +1400,29 @@ main { flex: 1; }
 .learn-more:active .circle { background: var(--accent-hover); }
 
 /*
- * Centred on the ink, not on the shaft.
+ * The arrow has two jobs, and they want different positions.
  *
- * The shaft is transparent until hover, so at rest the only thing visible in
- * this circle is the chevron — and the chevron is drawn at the shaft's *right
- * end*. Centring the shaft therefore put the visible mark about 4.5px right of
- * the circle's middle, which reads as a mark that missed rather than as an
- * arrow pointing somewhere.
- *
- * Derived rather than nudged. The chevron's centre sits at
+ * At rest the circle is 3rem and only the chevron is visible — the shaft has no
+ * background until hover — so the chevron has to sit in the middle of that
+ * circle. Its centre is
  *
  *     left + shaft width − its own inset − half its own width
  *   = left + 1.125rem − .0625rem − .375rem
  *   = left + .6875rem
  *
- * and the circle is 3rem, so its middle is 1.5rem. That gives left = .8125rem,
- * where it was .95rem — the old value centred the shaft, which put the chevron
- * .1375rem right of the middle. Every term is in rem, so it stays centred at
- * both text sizes.
+ * and half of 3rem is 1.5rem, which gives left = .8125rem.
+ *
+ * Expanded, the circle is the whole pill and the shaft is visible, so the arrow
+ * is no longer a mark in a disc — it is the first thing in a row that ends with
+ * the label. What matters then is that it sits as far from the left edge as the
+ * label sits from the right, and the label's inset is the button's own
+ * padding-right: 1.7rem. At .8125rem it was hugging the edge, which is what was
+ * still wrong after the centring was fixed. The centring was not wrong; it was
+ * answering the resting state and being asked about the expanded one.
+ *
+ * So it moves, on the same duration and easing as the width it is moving with —
+ * the arrow slides out as the pill opens rather than jumping to a new place
+ * once it has.
  */
 .learn-more .icon {
   position: absolute;
@@ -1434,7 +1439,13 @@ main { flex: 1; }
 .learn-more .icon::before {
   content: '';
   position: absolute;
-  top: -.29rem;
+  /* The chevron's box is .625rem plus a .125rem top border, so .75rem tall, and
+     it has to sit centred on a shaft that is .125rem tall:
+       top = shaft centre − half the box = .0625rem − .375rem = −.3125rem.
+     It was −.29rem, which hung the chevron .0225rem low — half a pixel, and
+     exactly the kind of half a pixel that reads as "not quite right" without
+     being nameable. */
+  top: -.3125rem;
   right: .0625rem;
   width: .625rem;
   height: .625rem;
@@ -1443,15 +1454,32 @@ main { flex: 1; }
   transform: rotate(45deg);
 }
 
+/*
+ * Expanded, the arrow is not a mark in a disc any more — it is the first thing
+ * in a row that ends with the label, and it should sit as far from the left
+ * edge as the label sits from the right.
+ *
+ * The label's inset is the button's own padding-right, 1.7rem. The arrow starts
+ * at left: .8125rem — the value that centres the chevron in the 3rem disc at
+ * rest — so the travel is the difference:
+ *
+ *     1.7rem − .8125rem = .8875rem
+ *
+ * It was 1rem, which overshot by .1125rem and left the arrow sitting nearer the
+ * edge than the label. Moved by `transform` rather than by `left`, which is
+ * both what was here already and the one of the two that runs on the
+ * compositor.
+ */
 :where(html[data-pointer="fine"]) .learn-more:hover .icon,
 .learn-more:focus-visible .icon {
   background: var(--accent-fg);
-  transform: translateX(1rem);
+  transform: translateX(.8875rem);
 }
 
 /* The arrow leads the press by a hair, so the button reads as moving forward
-   rather than merely being squashed. */
-.learn-more:active .icon { transform: translateX(1.35rem); }
+   rather than merely being squashed. Same .3375rem beyond the hover position
+   it always had. */
+.learn-more:active .icon { transform: translateX(1.225rem); }
 
 .learn-more .button-text {
   position: relative;
