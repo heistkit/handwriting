@@ -319,6 +319,157 @@ function buildProfiles(extracted, rowMetric, shift) {
   return { ys, left, right };
 }
 
+/**
+ * The same profile, measured off outlines instead of off a raster.
+ *
+ * A glyph that arrived as a font rather than as a photograph has no bitmap and
+ * never had one: opentype.js hands over curves, and there is nothing behind
+ * them to scan. buildProfiles is not adaptable to that — every line of it
+ * indexes `bitmap` — so the measurement is done again here, from the only
+ * representation an imported glyph has.
+ *
+ * It lives beside buildProfiles deliberately. These two must agree: computeSpacing
+ * cannot tell them apart, and a font whose bearings were set from one and whose
+ * kerning was calibrated against the other would be wrong in a way that shows up
+ * only as "the spacing feels off" — the hardest kind of defect to trace back.
+ *
+ * Rasterising the outline instead would have been fewer lines, and it is worth
+ * saying why it was not done. Two reasons, and the second is the real one.
+ * A canvas would drag a DOM dependency into the one module that has none, which
+ * is what currently lets the metrics stage be tested in plain Node. And it would
+ * put a raster round-trip back into the path — sampling the shape onto a pixel
+ * grid and then measuring the grid — when the exact curves are already in hand.
+ * The bitmap is ground truth for a photograph because a photograph is pixels.
+ * For a font it is a downgrade performed on purpose.
+ *
+ * Accuracy runs the other way from what the code above assumes. buildProfiles
+ * quantises to whole source pixels and widens the span by one to reach the far
+ * edge of the last inked pixel; the crossings computed here land on the true
+ * edge with no quantisation at all.
+ *
+ * Preconditions, both of which normalizeGlyph's imported counterpart must have
+ * established already: contours are in font units, the baseline is y = 0, and
+ * the ink has been shifted so its leftmost point is x = 0. perceivedMargin reads
+ * `left[i]` as a margin rather than as a coordinate, so a contour set that still
+ * carries its original x origin produces bearings that are wrong by that origin.
+ *
+ * @param {Array<{curves: Array<Array<{x: number, y: number}>>}>} contours
+ * @param {object} [opts]
+ * @param {number} [opts.step]     spacing between scanlines, in font units
+ * @param {number} [opts.flatness] longest polyline segment a curve is cut into
+ * @returns {{ys: number[], left: number[], right: number[]}}
+ */
+export function profilesFromContours(contours, opts = {}) {
+  const {
+    // Eight units against a 500-unit x-height is about sixty scanlines through
+    // the body of a letter, which is the density buildProfiles gets from an
+    // ordinary photograph. It also stays comfortably inside the 14-unit
+    // tolerance onGrid uses when it resamples these onto the kerning grid — at
+    // a coarser step than that, pairs would start being silently dropped.
+    step = 8,
+    flatness = 4,
+  } = opts;
+
+  const edges = [];
+  let yMin = Infinity;
+  let yMax = -Infinity;
+
+  const addEdge = (a, b) => {
+    if (a.y < yMin) yMin = a.y;
+    if (a.y > yMax) yMax = a.y;
+    if (b.y < yMin) yMin = b.y;
+    if (b.y > yMax) yMax = b.y;
+    // A horizontal edge crosses no scanline. Keeping it would contribute a
+    // division by zero below rather than a crossing.
+    if (a.y === b.y) return;
+    edges.push(a.y < b.y ? { x0: a.x, y0: a.y, x1: b.x, y1: b.y }
+                         : { x0: b.x, y0: b.y, x1: a.x, y1: a.y });
+  };
+
+  for (const contour of contours ?? []) {
+    let first = null;
+    let last = null;
+    for (const bez of contour.curves ?? []) {
+      if (bez.length < 4) continue;
+      const points = flattenCubic(bez, flatness);
+      if (!first) first = points[0];
+      for (let i = 1; i < points.length; i++) addEdge(points[i - 1], points[i]);
+      last = points[points.length - 1];
+    }
+    // Close it explicitly. The tracer's contours already return to their start —
+    // traceContours appends the first point to the run — but an outline parsed
+    // out of a font file need not: there, closing is an instruction at the end
+    // of the path rather than a repeated point. An unclosed loop is missing one
+    // edge, and a scanline crossing the gap sees an odd number of crossings, so
+    // the span runs off to whatever lies beyond it.
+    if (first && last && (first.x !== last.x || first.y !== last.y)) addEdge(last, first);
+  }
+
+  const ys = [];
+  const left = [];
+  const right = [];
+  if (!edges.length) return { ys, left, right };
+
+  // Descending, because that is the order buildProfiles produces — it walks a
+  // bitmap top-down, which is increasing y on the page and decreasing y in font
+  // units. onGrid searches rather than seeks, so nothing breaks either way, but
+  // two profiles that disagree about their own direction are a trap for whoever
+  // reads this next.
+  const first = Math.floor(yMax / step) * step;
+  for (let y = first; y >= yMin; y -= step) {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const e of edges) {
+      // Half-open, so a vertex shared by two edges is counted once. Closing both
+      // ends would double it and, on a scanline grazing the apex of an 'A', turn
+      // one crossing into two — which is harmless for a min/max but not for
+      // anyone who later wants a fill rule out of this.
+      if (y < e.y0 || y >= e.y1) continue;
+      const x = e.x0 + ((y - e.y0) / (e.y1 - e.y0)) * (e.x1 - e.x0);
+      if (x < lo) lo = x;
+      if (x > hi) hi = x;
+    }
+    if (lo > hi) continue;
+    ys.push(y);
+    left.push(lo);
+    right.push(hi);
+  }
+
+  return { ys, left, right };
+}
+
+/**
+ * Cut one cubic into a polyline no coarser than `flatness` font units.
+ *
+ * The segment count comes from the control polygon, which is an upper bound on
+ * the curve's own length — so a nearly straight curve gets few segments and a
+ * tight bend gets many, without measuring arc length properly. Overestimating
+ * costs a handful of points on a shape that is about to be reduced to two
+ * numbers per scanline.
+ */
+function flattenCubic([p0, c1, c2, p3], flatness) {
+  const hull =
+    Math.hypot(c1.x - p0.x, c1.y - p0.y) +
+    Math.hypot(c2.x - c1.x, c2.y - c1.y) +
+    Math.hypot(p3.x - c2.x, p3.y - c2.y);
+  const n = Math.max(2, Math.min(64, Math.ceil(hull / Math.max(0.5, flatness))));
+
+  const out = [p0];
+  for (let i = 1; i <= n; i++) {
+    const t = i / n;
+    const m = 1 - t;
+    const a = m * m * m;
+    const b = 3 * m * m * t;
+    const c = 3 * m * t * t;
+    const d = t * t * t;
+    out.push({
+      x: a * p0.x + b * c1.x + c * c2.x + d * p3.x,
+      y: a * p0.y + b * c1.y + c * c2.y + d * p3.y,
+    });
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // 3. Side bearings
 // ---------------------------------------------------------------------------

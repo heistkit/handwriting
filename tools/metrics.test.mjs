@@ -20,8 +20,11 @@ import {
   computeSpacing,
   computeKerning,
   deriveSpaceWidth,
+  normalizeGlyph,
+  profilesFromContours,
   TARGET_X_HEIGHT,
 } from '../src/metrics.js';
+import { vectorize } from '../src/trace.js';
 
 const results = [];
 function check(name, pass, detail) {
@@ -386,6 +389,182 @@ export async function run() {
     check('a single-character row does not produce NaN',
       Number.isFinite(m.scale) && Number.isFinite(m.baseline) && m.xHeight > 0,
       JSON.stringify({ scale: m.scale, baseline: m.baseline, xHeight: m.xHeight }));
+  }
+
+  // -- Ink profiles measured off outlines instead of off a raster ------------
+  //
+  // These exist for imported fonts, which arrive as curves and never had a
+  // bitmap. The claim under test is not that the new measurement is reasonable
+  // on its own — it is that it AGREES with the raster one, because computeSpacing
+  // cannot tell them apart and a font whose bearings came from one and whose
+  // kerning was calibrated against the other would be subtly, untraceably wrong.
+  {
+    // A straight edge as a cubic: control points on the line, so the curve is
+    // the segment. This is the shape the analytic answer is known for.
+    const line = (a, b) => [
+      a,
+      { x: a.x + (b.x - a.x) / 3, y: a.y + (b.y - a.y) / 3 },
+      { x: a.x + (2 * (b.x - a.x)) / 3, y: a.y + (2 * (b.y - a.y)) / 3 },
+      b,
+    ];
+    const loop = (pts) => ({
+      closed: true,
+      curves: pts.slice(1).map((p, i) => line(pts[i], p)),
+    });
+
+    const W = 300;
+    const H = 500;
+    const box = [loop([
+      { x: 0, y: 0 }, { x: 0, y: H }, { x: W, y: H }, { x: W, y: 0 }, { x: 0, y: 0 },
+    ])];
+
+    const p = profilesFromContours(box, { step: 25 });
+    const flatLeft = p.left.every((v) => Math.abs(v) < 1e-9);
+    const flatRight = p.right.every((v) => Math.abs(v - W) < 1e-9);
+    check('a rectangle profiles as flat sides at every scanline',
+      p.ys.length > 15 && flatLeft && flatRight,
+      `${p.ys.length} scanlines, left max ${Math.max(...p.left).toFixed(6)}, ` +
+      `right min ${Math.min(...p.right).toFixed(6)}`);
+
+    check('and the scanlines run descending, as the raster profile does',
+      p.ys.every((y, i) => i === 0 || y < p.ys[i - 1]),
+      `${p.ys[0]} … ${p.ys[p.ys.length - 1]}`);
+
+    // An unclosed contour is the shape a font file actually produces: closepath
+    // is an instruction, not a repeated point. Drop the final edge and the loop
+    // has a gap; if it is not closed back up, a scanline crossing that gap sees
+    // an odd number of crossings and the span runs away.
+    const open = [{ closed: true, curves: box[0].curves.slice(0, -1) }];
+    const q = profilesFromContours(open, { step: 25 });
+    check('an unclosed contour is closed before measuring, not measured open',
+      q.ys.length === p.ys.length &&
+      q.right.every((v, i) => Math.abs(v - p.right[i]) < 1e-9),
+      `${q.ys.length} scanlines against ${p.ys.length}`);
+  }
+
+  // -- The two measurements agree on the same real shape ---------------------
+  {
+    // A disc, rasterised, traced, then normalised — the whole photograph path,
+    // so the raster profile under test is the one the app actually computes.
+    const R = 20;
+    const pad = 2;
+    const ink = R * 2;
+    const w = ink + pad * 2;
+    const h = ink + pad * 2;
+    const bitmap = new Uint8Array(w * h);
+    for (let y = 0; y < ink; y++) {
+      for (let x = 0; x < ink; x++) {
+        const dx = x - R + 0.5;
+        const dy = y - R + 0.5;
+        if (dx * dx + dy * dy <= R * R) bitmap[(y + pad) * w + (x + pad)] = 1;
+      }
+    }
+
+    const { contours } = vectorize(bitmap, w, h);
+    const scale = 10;
+    const extracted = {
+      ch: 'o', bitmap, w, h, pad, contours, row: 0, col: 0,
+      page: { x0: 100, y0: 200, x1: 100 + ink, y1: 200 + ink },
+    };
+    // Baseline at the foot of the ink, which is where a round lowercase sits.
+    const g = normalizeGlyph(extracted, { scale, baseline: 200 + ink, xHeight: ink * scale });
+
+    const fromCurves = profilesFromContours(g.contours, { step: 8 });
+
+    // Compare scanline for scanline, taking the nearest raster scanline to each
+    // curve one. The raster profile is quantised to whole source pixels, so one
+    // pixel — `scale` font units — is the floor on how well they can agree.
+    const yTop = Math.max(...g.profiles.ys);
+    const yBot = Math.min(...g.profiles.ys);
+    let worstMid = 0;
+    let sum = 0;
+    let n = 0;
+    let mid = 0;
+    for (let i = 0; i < fromCurves.ys.length; i++) {
+      const y = fromCurves.ys[i];
+      let best = -1;
+      let bestD = Infinity;
+      for (let j = 0; j < g.profiles.ys.length; j++) {
+        const d = Math.abs(g.profiles.ys[j] - y);
+        if (d < bestD) { bestD = d; best = j; }
+      }
+      if (best < 0 || bestD > scale) continue;
+      const frac = (y - yBot) / (yTop - yBot);
+      for (const side of ['left', 'right']) {
+        const d = Math.abs(fromCurves[side][i] - g.profiles[side][best]);
+        sum += d;
+        n++;
+        // The band where a bound can exist at all — see below.
+        if (frac > 0.08 && frac < 0.92) {
+          if (d > worstMid) worstMid = d;
+          mid++;
+        }
+      }
+    }
+    const mean = n ? sum / n : Infinity;
+
+    check('outline profiles track raster profiles to within a source pixel on average',
+      n > 40 && mean < scale,
+      `mean ${mean.toFixed(2)} units over ${n} comparisons, one pixel = ${scale}`);
+
+    // Stated over the middle of the letter, and that restriction is not a
+    // convenience. At the very top and bottom of a round shape the outline is
+    // horizontal, so dx/dy runs away and the raster's one-pixel quantisation in
+    // y lands several pixels off in x — measured at 32 units on this disc,
+    // against 11 across the middle 84%. No threshold covering those scanlines
+    // would be a statement about the measurement rather than about the geometry.
+    // Nothing is lost by excluding them: bandWeight already discounts the
+    // extremes, and the bearings check below is what decides the font.
+    check('and disagree by at most a pixel and a half away from horizontal tangents',
+      mid > 30 && worstMid < scale * 1.5,
+      `worst ${worstMid.toFixed(2)} units over ${mid} comparisons in the middle 84%`);
+  }
+
+  // -- And the bearings that come out the far end agree ----------------------
+  //
+  // The one that actually matters. The profiles are an intermediate; what ships
+  // in the font is the advance width, and that is what must not move.
+  {
+    const build = (ch, shape, width) => glyph(ch, { width, shape });
+    const set = [
+      build('n', flat, 300),
+      build('o', round, 300),
+      build('A', triangleUp, 300),
+    ];
+
+    const viaRaster = set.map((g) => ({ ...g, profiles: g.profiles }));
+    // Re-measure each glyph's own profile through the outline path by rebuilding
+    // a contour that reproduces it exactly: a polygon through the profile's own
+    // left and right edges. Same shape, different measurement route.
+    const viaCurves = set.map((g) => {
+      const { ys, left, right } = g.profiles;
+      const pts = [];
+      for (let i = ys.length - 1; i >= 0; i--) pts.push({ x: left[i], y: ys[i] });
+      for (let i = 0; i < ys.length; i++) pts.push({ x: right[i], y: ys[i] });
+      pts.push(pts[0]);
+      const seg = (a, b) => [
+        a,
+        { x: a.x + (b.x - a.x) / 3, y: a.y + (b.y - a.y) / 3 },
+        { x: a.x + (2 * (b.x - a.x)) / 3, y: a.y + (2 * (b.y - a.y)) / 3 },
+        b,
+      ];
+      const contour = { closed: true, curves: pts.slice(1).map((p, i) => seg(pts[i], p)) };
+      return { ...g, profiles: profilesFromContours([contour], { step: 4 }) };
+    });
+
+    computeSpacing(viaRaster, {});
+    computeSpacing(viaCurves, {});
+
+    const drift = viaRaster.map((g, i) =>
+      Math.max(Math.abs(g.lsb - viaCurves[i].lsb), Math.abs(g.rsb - viaCurves[i].rsb)));
+    check('bearings from outline profiles match bearings from raster profiles',
+      Math.max(...drift) < XH * 0.01,
+      drift.map((d, i) => `${viaRaster[i].ch} ${d.toFixed(1)}`).join(', ') +
+      ` — tolerance ${(XH * 0.01).toFixed(0)} units`);
+
+    check('and the flat > round > diagonal ordering survives the new route',
+      viaCurves[0].lsb > viaCurves[1].lsb && viaCurves[1].lsb > viaCurves[2].lsb,
+      viaCurves.map((g) => `${g.ch}=${g.lsb.toFixed(0)}`).join(' '));
   }
 
   return results;
