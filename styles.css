@@ -137,10 +137,43 @@
   --paper: #f4f1e9;
   --ink: #1b1d20;
 
-  --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 16px;
-  --r-xl: 22px;
+  /*
+   * Corners.
+   *
+   * Raised across the board, and a pill added. The old scale — 6/10/16/22 —
+   * was the cautious default a stylesheet reaches for before anyone has
+   * decided what the thing looks like, and the result is a page of shapes
+   * that are neither square nor round and read as neither.
+   *
+   * Softer corners are also what makes a monochrome page survive. With a hue
+   * doing none of the work, the only things left to distinguish one surface
+   * from another are value, spacing and shape, and shape is the one with the
+   * most room in it.
+   */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /*
+   * The accent, in one place, on purpose.
+   *
+   * Every button, link, focus ring and marked area on this page resolves to
+   * --accent and --accent-hover above, which means the whole thing changes hue
+   * by editing two lines. It is monochrome because that is the decision, not
+   * because the stylesheet could not express anything else.
+   *
+   * To make it blue, replace the two accent declarations above with:
+   *
+   *     --accent:       light-dark(#0052ff, #4d7fff);
+   *     --accent-hover: light-dark(#0043cc, #6b93ff);
+   *
+   * and nothing else. --accent-fg is already the page colour at both ends, so
+   * white-on-blue and near-black-on-light-blue both come out right, and both
+   * pairs clear 4.5:1. --accent-quiet is a tint of the page rather than of the
+   * accent, so it does not need to move with it.
+   */
 
   /*
    * These have to be built from a light-dark() *colour*, not wrapped in one.
@@ -584,7 +617,11 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-  padding: .6rem 1.05rem; border-radius: var(--r-md);
+  /* A pill. Every control on this page used the same 10px corner as every
+     panel, so a button and the box it sat in were the same object at two
+     sizes. Rounding the controls all the way and leaving the surfaces
+     rectangular-with-soft-corners is what separates the two families. */
+  padding: .6rem 1.15rem; border-radius: var(--r-pill);
   background: var(--surface-2); color: var(--text);
   border: 1px solid var(--border); cursor: pointer;
   font-size: .95rem; font-weight: 500; letter-spacing: -.01em;
@@ -601,9 +638,9 @@ code, pre, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 .btn-ghost { background: none; border-color: transparent; color: var(--text-2); }
 :where(html[data-pointer="fine"]) .btn-ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
 
-.btn-lg { padding: .8rem 1.5rem; font-size: 1.02rem; border-radius: var(--r-lg); }
+.btn-lg { padding: .85rem 1.7rem; font-size: 1.02rem; border-radius: var(--r-pill); }
 .btn-block { width: 100%; }
-.btn-icon { padding: .5rem; border-radius: var(--r-md); }
+.btn-icon { padding: .5rem; border-radius: var(--r-pill); }
 .btn-icon svg { width: 1.15em; height: 1.15em; }
 
 /* ── Steps ──────────────────────────────────────────────────────────── */
@@ -2577,7 +2614,30 @@ details[data-fold] > summary::-webkit-details-marker { display: none; }
  * section rule is for. With the margin there it sat at a third of the gap and
  * read as belonging to the section below it.
  */
-.band { padding-block: clamp(3.5rem, 9vw, 6.5rem); border-top: 1px solid var(--border); }
+.band { padding-block: clamp(3.5rem, 9vw, 6.5rem); }
+
+/*
+ * Alternating panels instead of hairline rules.
+ *
+ * A 1px border between sections is the weakest possible way to say "this is a
+ * different subject", and on a page with no hue left it was doing that job
+ * alone. Every other section now sits on a panel a shade off the page, which
+ * gives the scroll a rhythm you can feel rather than one you have to look for.
+ *
+ * `nth-of-type` counts sections, and the closing call is a section that is not
+ * a band, so the run is: the demo plain, the four steps panelled, the detail
+ * articles plain, the questions panelled, the call plain.
+ *
+ * Inside the wrap rather than bleeding to the viewport edges. Full-bleed needs
+ * `100vw` arithmetic, and `100vw` includes the scrollbar on every desktop
+ * browser that still reserves space for one — which is a horizontal scrollbar
+ * on the whole document, appearing only for people who have a vertical one.
+ */
+.band:nth-of-type(even) {
+  background: var(--bg-deep);
+  border-radius: var(--r-xl);
+  padding-inline: clamp(1.25rem, 4vw, 3.25rem);
+}
 .band-head { max-width: 58ch; margin-bottom: 2.75rem; }
 .band-head h2 { margin-top: .35rem; }
 .band-head .lede { font-size: 1.08rem; margin-top: 1rem; }
