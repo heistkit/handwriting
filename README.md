@@ -2,6 +2,8 @@
 
 **Upload your handwriting. Apply everywhere.**
 
+**[Try it →](https://handwritingfont.vercel.app)**
+
 Write about 120 characters on blank paper, photograph the page, and get back an
 OpenType family — Regular, Bold, Italic, Bold Italic — in your own hand, with
 proper spacing, kerning, and letters that vary the way real writing does.
@@ -108,12 +110,13 @@ is a property of the app, not of the host.
 node tools/run-tests.mjs
 ```
 
-487 checks covering the vectoriser (against analytically-defined shapes, so
-"how wrong is it" is an exact question), the spacing engine, the drawing pad,
-a full round trip of the font binary — built, then handed back to an
-independent parser to confirm every table survived — and the surrounding
-machinery: both rate limits, the edge matcher, the docs index, and the ETA
-estimator.
+The suite prints its own check count on completion. It covers the vectoriser
+(against analytically-defined shapes, so "how wrong is it" is an exact
+question), the spacing engine, the drawing pad, a full round trip of the font
+binary — built, then handed back to an independent parser to confirm every
+table survived — the segmentation repairs, the markup and the deployed
+content-security policy, and the surrounding machinery: both rate limits, the
+edge matcher, the docs index, and the ETA estimator.
 
 ## Layout
 

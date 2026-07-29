@@ -8,6 +8,34 @@
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#14161a">
 
+<!--
+  Link previews. Without these every share of this URL — Slack, Discord,
+  iMessage — renders as a bare link, which for a visual tool is the worst
+  possible first impression.
+
+  The description is the `<meta name="description">` above, verbatim rather than
+  reworded. Two descriptions of the same page drift apart, and then the one a
+  reader sees depends on where they saw it.
+
+  og:url is deliberately absent. It is an absolute URL, and this app is meant to
+  be servable from any static host or straight off a folder — a hard-coded
+  canonical would tell every scraper that a self-hosted copy is really
+  handwritingfont.vercel.app.
+
+  There is deliberately no og:image yet. The card that belongs here is the
+  character review grid beside a paragraph set in the finished font, and that
+  needs a photograph of real handwriting to exist first. summary_large_image is
+  declared now so the card is the right shape the moment there is one; until
+  then platforms fall back to a text card rather than showing something wrong.
+-->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Handwrite">
+<meta property="og:title" content="Handwrite — turn your handwriting into a real font">
+<meta property="og:description" content="Write on a sheet of paper, photograph it, and get an installable font of your own handwriting. Runs entirely in your browser — nothing is uploaded.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Handwrite — turn your handwriting into a real font">
+<meta name="twitter:description" content="Write on a sheet of paper, photograph it, and get an installable font of your own handwriting. Runs entirely in your browser — nothing is uploaded.">
+
 <!-- Applied before first paint, so the page never flashes the wrong theme. A
      plain blocking classic script, not defer and not a module: both of those run
      after the parse, which is the thing this exists to avoid. See src/preflight.js. -->
