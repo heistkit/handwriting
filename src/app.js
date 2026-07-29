@@ -565,16 +565,23 @@ function paperFor(sheet) {
  * its own is a font. The page said "about thirty characters" and then showed a
  * hundred and twelve, and the sentence loses that argument every time.
  *
- * So the essential sheet is the screen, and the rest are one closed disclosure.
- * The tiers are already in charset.js, decided where the character set is
- * decided; nothing here is a second opinion about which sheet matters, it only
- * lays out the answer that is already recorded.
+ * So the essential sheet is the screen, and the rest are folded away — one fold
+ * each, not one fold for all of them. The tiers are already in charset.js,
+ * decided where the character set is decided; nothing here is a second opinion
+ * about which sheet matters, it only lays out the answer that is recorded.
  *
- * The copy under the disclosure does not promise you can return to *this* font
- * later, because you cannot: nothing about a session is stored — that is the
- * whole privacy design — so coming back means starting a new one. It says
- * "another time", which is true, rather than "come back and add them", which
- * would not be.
+ * One fold each, and this is the part worth stating. A single "add the other
+ * 98 characters" control is a single decision about ninety-eight characters,
+ * which is the same wall with a lid on it — you either take all of it or none
+ * of it, and most people faced with that take none. Four separate controls are
+ * four small decisions, and somebody who wants capitals and nothing else can
+ * have exactly that. The sheets were always independent; the interface was the
+ * only thing bundling them.
+ *
+ * The copy does not promise you can return to *this* font later, because you
+ * cannot: nothing about a session is stored — that is the whole privacy design
+ * — so coming back means starting a new one. It says "another time", which is
+ * true, rather than "come back and add them", which would not be.
  */
 function renderSheets() {
   const stack = $('#sheet-stack');
@@ -584,28 +591,38 @@ function renderSheets() {
   const children = essential.map(paperFor);
 
   if (rest.length) {
-    const more = document.createElement('details');
-    more.className = 'paper-more';
-
-    const summary = document.createElement('summary');
-    const label = document.createElement('span');
-    label.className = 'paper-more__label';
-    label.textContent = 'Add capitals, numbers, symbols and joined pairs';
-    const extra = rest.reduce((n, s) => n + s.rows.flat().length, 0);
-    const count = document.createElement('span');
-    count.className = 'paper-count';
-    count.textContent = `${extra} more characters`;
-    summary.append(label, count);
-
     const note = document.createElement('p');
-    note.className = 'paper-more__note';
+    note.className = 'paper-more__intro';
     note.textContent =
-      'Optional. The letters above already make a font you can install and type with — '
-      + 'these widen what it covers. Write them now if you want the full set, or make the '
-      + 'short one first and do a fuller sheet another time.';
+      'The letters above already make a font you can install and type with. Each of these '
+      + 'widens what it covers, and they are independent — take any one of them, in any '
+      + 'order, or none. Anything you skip falls back to your system font.';
+    children.push(note);
 
-    more.append(summary, note, ...rest.map(paperFor));
-    children.push(more);
+    for (const sheet of rest) {
+      const fold = document.createElement('details');
+      fold.className = 'paper-more';
+
+      const summary = document.createElement('summary');
+      const label = document.createElement('span');
+      label.className = 'paper-more__label';
+      label.textContent = sheet.title;
+      const n = sheet.rows.flat().length;
+      const count = document.createElement('span');
+      count.className = 'paper-count';
+      count.textContent = `${n} character${n === 1 ? '' : 's'}`;
+      summary.append(label, count);
+
+      // The one-line reason to bother, from charset.js, so the reader can
+      // decide without opening it. `blurb` exists for exactly this and was
+      // going unused on this screen.
+      const why = document.createElement('p');
+      why.className = 'paper-more__why';
+      why.textContent = sheet.blurb ?? '';
+
+      fold.append(summary, why, paperFor(sheet));
+      children.push(fold);
+    }
   }
 
   stack.replaceChildren(...children);
@@ -1217,6 +1234,51 @@ function applyPreviewFont() {
   el.style.fontWeight = bold ? 700 : 400;
   el.style.fontStyle = italic ? 'italic' : 'normal';
   el.style.fontSize = `${state.previewSize}px`;
+  // The font just changed, so what it is missing may have changed with it —
+  // adding a sheet and rebuilding is exactly the case this has to notice.
+  renderMissingNotice();
+}
+
+/**
+ * Say which of the characters on screen the font does not have.
+ *
+ * A font built from the everyday sheet alone has no capitals and no digits, and
+ * typing "Hello 2026" into the preview renders half of it in the reader's
+ * system font — correctly, and with nothing anywhere saying so. The effect from
+ * the other side of the screen is that the font looks broken on exactly the
+ * screen where somebody is deciding whether it worked.
+ *
+ * Mild on purpose. This is not a warning about a mistake: a missing character
+ * is a sheet not yet written, the substitute is the system font, and both of
+ * those are fine. So it states the fact, names the characters, and says what
+ * happens — no icon, no colour, no tone. --warn is for things that went wrong,
+ * and nothing here has.
+ *
+ * Whitespace is excluded because a space is not a glyph anybody writes on a
+ * sheet — it is derived from the width of the lowercase letters — and listing
+ * it as missing would be both wrong and impossible to act on.
+ */
+function renderMissingNotice() {
+  const el = $('#preview-missing');
+  if (!el) return;
+
+  const have = new Set(state.glyphs.map((g) => g.ch));
+  if (!have.size) { el.hidden = true; return; }
+
+  const text = $('#preview-text')?.textContent ?? '';
+  // A Set, so "aaa" reports one missing character rather than three, and in
+  // first-seen order, which is the order the reader's eye met them in.
+  const missing = [...new Set([...text])].filter((ch) => !/\s/.test(ch) && !have.has(ch));
+
+  if (!missing.length) { el.hidden = true; return; }
+
+  const shown = missing.slice(0, 12);
+  const rest = missing.length - shown.length;
+  const list = shown.join(' ') + (rest ? ` and ${rest} more` : '');
+  el.textContent = missing.length === 1
+    ? `Your font does not have ${list} yet, so it is showing in your system font.`
+    : `Your font does not have these yet, so they are showing in your system font: ${list}`;
+  el.hidden = false;
 }
 
 function renderHealth() {
@@ -1289,6 +1351,7 @@ function renderSamples() {
       b.textContent = text.length > 42 ? `${text.slice(0, 40)}…` : text;
       b.addEventListener('click', () => {
         $('#preview-text').textContent = text;
+        renderMissingNotice();
       });
       return b;
     })
@@ -2871,6 +2934,11 @@ function init() {
   const preview = $('#preview-text');
   preview.dataset.placeholder = 'Type something…';
   preview.textContent = PREVIEW_SAMPLES[0];
+  // On every keystroke rather than on blur: the reader types a capital, sees it
+  // come out in a different hand, and the line explaining why has to already be
+  // there — after they have stopped and looked away is too late to be the
+  // answer to the question they just asked.
+  preview.addEventListener('input', renderMissingNotice);
 
   $$('[data-goto]').forEach((btn) =>
     btn.addEventListener('click', () => {

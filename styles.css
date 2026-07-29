@@ -2939,11 +2939,21 @@ details.legal-section > summary:focus-visible {
 .paper-more > summary .paper-count { color: var(--text-3); }
 :where(html[data-pointer="fine"]) .paper-more > summary:hover .paper-more__label { color: var(--text); }
 .paper-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--r-sm); }
-.paper-more__note {
-  font-size: .9rem; color: var(--text-2); max-width: 62ch;
-  margin: .35rem 0 1.35rem;
+/* One line above the four folds, not inside any of them — it is about all of
+   them, and repeating it four times would be four times as much reading for
+   the same fact. */
+.paper-more__intro {
+  font-size: .95rem; color: var(--text-2); max-width: 62ch;
+  margin: .5rem 0 -.35rem;
 }
-.paper-more .paper + .paper { margin-top: 1.25rem; }
+/* The reason to bother, visible without opening the fold. Straight from
+   charset.js's `blurb`, which is where the sheet's own purpose is recorded. */
+.paper-more__why {
+  font-size: .87rem; color: var(--text-3);
+  margin: 0 0 1.1rem 1.1em;
+}
+.paper-more[open] .paper-more__why { margin-bottom: 1.35rem; }
+.paper-more .paper { margin-top: 0; }
 
 /* Scrolled to from a link that named it. A jump on a long document is
    ambiguous about which of the headings now on screen was the one asked for,

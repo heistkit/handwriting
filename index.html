@@ -821,6 +821,14 @@
             </div>
           </div>
 
+          <!-- Says which of the characters you just typed your font does not
+               have. Quiet by design: a missing character is not an error, it is
+               a sheet you have not written yet, and the substitute is simply
+               your system font. `polite` so it is announced after the typing
+               rather than interrupting it, and `hidden` until there is
+               something to say. -->
+          <p class="preview-missing" id="preview-missing" role="status" aria-live="polite" hidden></p>
+
           <div class="preview-surface">
             <div class="skel-preview" id="preview-skeleton" aria-hidden="true">
               <span class="skel skel-line" style="width:92%"></span>
