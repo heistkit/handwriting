@@ -448,7 +448,7 @@ export const LICENSES = {
       heading: 'Interface components from Uiverse.io — MIT Licence',
       body: [
         'Twelve interface pieces began as components published on uiverse.io, all under the MIT Licence: the theme switch, the volume sliders and the copy button by Galahhad; the search field by Lakshay-art; the expanding call-to-action by cssbuttons-io; the download button by Na3ar-17; the envelope checkbox by SelfMadeSystem; the arc loader by mobinkakei; the letter wave by joao-canais; the progress bar by satyamchaudharydev; the skeleton placeholder by Nawsome; and the forward button by alexmaracinaru.',
-        'Each was re-graded onto this palette and reworked for accessibility, so what ships is a modified version rather than the original. A comment above each block in the stylesheet names its author, and COMPONENTS.md in the repository records every change made and why.',
+        'Each was re-graded onto this palette and reworked for accessibility, so what ships is a modified version rather than the original. A comment above each block in the stylesheet names its author, and docs/COMPONENTS.md in the repository records every change made and why.',
         ...MIT_TEXT,
       ],
     },
