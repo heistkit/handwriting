@@ -3,7 +3,7 @@
 Handwrite turns a photograph of handwriting into an installable OpenType family.
 Static site, no build step, no bundler, one vendored dependency.
 
-`node tools/run-tests.mjs` — 615 checks, plain Node, no framework. Run it before
+`node tools/run-tests.mjs` — 622 checks, plain Node, no framework. Run it before
 every commit.
 
 Read `docs/HANDOFF.md` first — the pipeline's stage-by-stage data contract and the
