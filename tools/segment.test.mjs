@@ -238,23 +238,48 @@ export async function run() {
     const { identifySheet } = await import('../src/segment.js');
     const { SHEETS } = await import('../src/charset.js');
 
-    const everyday = SHEETS.find((s) => s.id === 'everyday');
-    const capitals = SHEETS.find((s) => s.id === 'capitals');
-    check('the fixture sheets have different silhouettes',
-      JSON.stringify(everyday.rows.map((r) => r.length)) !==
-      JSON.stringify(capitals.rows.map((r) => r.length)),
-      `${everyday.rows.map((r) => r.length)} vs ${capitals.rows.map((r) => r.length)}`);
+    // Splitting the four sheets into fourteen steps cost this guard some of its
+    // reach, and that is recorded here rather than quietly absorbed. A step of
+    // thirteen lowercase letters and a step of thirteen capitals now have the
+    // same silhouette — one row of thirteen — and nothing in this file reads a
+    // letter, so nothing can tell them apart. What survives is separation
+    // between steps of DIFFERENT shapes, which is most pairs of the fourteen.
+    const bySize = new Map();
+    for (const sheet of SHEETS) {
+      const key = JSON.stringify(sheet.rows.map((r) => r.length));
+      bySize.set(key, [...(bySize.get(key) ?? []), sheet.id]);
+    }
+    const ambiguous = [...bySize.values()].filter((ids) => ids.length > 1);
+    const distinct = [...bySize.keys()].length;
 
-    // A photograph of the capitals sheet: two rows of thirteen.
-    const asCapitals = { observedPerRow: [13, 13], observedBands: 2 };
-    check('a two-row page is recognised as the capitals sheet',
-      identifySheet(asCapitals, SHEETS)?.id === 'capitals',
-      identifySheet(asCapitals, SHEETS)?.id);
-    check('and does not pass as the everyday sheet',
-      (identifySheet(asCapitals, [everyday])?.score ?? 0) < 0.75,
-      String(identifySheet(asCapitals, [everyday])?.score));
+    check('most steps still have a silhouette of their own',
+      distinct >= 5, `${distinct} distinct shapes across ${SHEETS.length} steps`);
 
-    // The real everyday sheet: 13, 13, 6.
+    // Named, so that a future change either keeps this list or has to update it.
+    check('and the ones that do not are exactly the same-length steps',
+      ambiguous.every((ids) => ids.length >= 2)
+      && ambiguous.flat().length < SHEETS.length,
+      ambiguous.map((ids) => ids.join('=')).join(', ') || 'none');
+
+    const thirteen = SHEETS.filter((s) => s.rows.flat().length === 13);
+    check('a thirteen-character step cannot be told from another one',
+      thirteen.length > 1
+      && identifySheet({ observedPerRow: [13], observedBands: 1 }, thirteen) !== null,
+      'the guard cannot protect these; the step-by-step flow is what does');
+
+    // Steps of different sizes are still separated, which is what the guard is
+    // for on the majority of pairs.
+    const marks = SHEETS.find((x) => x.id === 'marks');
+    const digits = SHEETS.find((x) => x.id === 'digits');
+    check('a ten-character page is not accepted as the six-character step',
+      (identifySheet({ observedPerRow: [10], observedBands: 1 }, [marks])?.score ?? 0) < 0.75,
+      String(identifySheet({ observedPerRow: [10], observedBands: 1 }, [marks])?.score));
+    check('and is recognised as the digits step',
+      identifySheet({ observedPerRow: [10], observedBands: 1 }, SHEETS)?.id === 'digits',
+      String(identifySheet({ observedPerRow: [10], observedBands: 1 }, SHEETS)?.id));
+
+    const everyday = digits;
+    // The digits step, as itself.
     const asEveryday = {
       observedPerRow: everyday.rows.map((r) => r.length),
       observedBands: everyday.rows.length,
@@ -273,9 +298,12 @@ export async function run() {
       (identifySheet(slightlyOff, [everyday])?.score ?? 0) >= 0.75,
       String(identifySheet(slightlyOff, [everyday])?.score));
 
+    // Was [3], which stopped being unrecognisable the moment the sheets were
+    // split into steps and one of them — the copyright and degree marks — came
+    // to hold exactly three characters. A shape no step has any more.
     check('an unrecognisable page matches nothing',
-      identifySheet({ observedPerRow: [3], observedBands: 1 }, SHEETS) === null ||
-      identifySheet({ observedPerRow: [3], observedBands: 1 }, SHEETS).score < 0.75);
+      identifySheet({ observedPerRow: [40, 40], observedBands: 2 }, SHEETS) === null ||
+      identifySheet({ observedPerRow: [40, 40], observedBands: 2 }, SHEETS).score < 0.75);
     check('no observation at all yields no claim',
       identifySheet({}, SHEETS) === null);
   }

@@ -297,45 +297,93 @@ const isEveryday = (e) => EVERYDAY_PUNCT.includes(e.ch);
  *   recommended  most people will want these before they use it in earnest
  *   extra        worth it only if you type them
  */
+/**
+ * One step, holding one small set of characters.
+ *
+ * This used to be four sheets of about thirty characters each, and the first of
+ * them was thirty-two. That is a page of writing before anything happens, and a
+ * page of writing is where people stop. Fourteen steps of six to thirteen
+ * characters is the same 112 characters and a different proposition: each one is
+ * a minute, each one finishes, and each one can be photographed and seen to have
+ * worked before the next is offered.
+ *
+ * Returned as an array so the list above can spread them, which keeps each entry
+ * on one call rather than one object literal of six fields.
+ */
+function group(id, title, tier, blurb, chars, hint) {
+  return [{ id, title, tier, blurb, hint, rows: chunk(chars, ROW) }];
+}
+
 export const SHEETS = [
-  {
-    id: 'everyday',
-    title: 'Everyday letters',
-    tier: 'essential',
-    blurb: 'One photograph of this sheet is a working font.',
-    hint: 'Let tall letters (b d f h k l) and tails (g p q y) run their natural length — the app reads your baseline from them. The six marks at the end are what let you write a sentence.',
-    rows: chunk([...LOWER.map((e) => e.ch), ...EVERYDAY_PUNCT], ROW),
-  },
-  {
-    id: 'capitals',
-    title: 'Capitals',
-    tier: 'recommended',
-    blurb: 'Sentences start with these.',
-    hint: 'Write each capital letter once, keeping a clear gap between them.',
-    rows: chunk(UPPER.map((e) => e.ch), ROW),
-  },
-  {
-    id: 'numbers',
-    title: 'Numbers and the rest of the punctuation',
-    tier: 'recommended',
-    blurb: 'Dates, prices, brackets, quotes.',
-    hint: 'Small marks matter. Write the colon and semicolon at their true size, not enlarged.',
-    rows: [
-      ...chunk(DIGITS.map((e) => e.ch), ROW),
-      ...chunk(PUNCT.filter((e) => !isEveryday(e)).map((e) => e.ch), ROW),
-    ],
-  },
-  {
-    id: 'symbols',
-    title: 'Symbols and maths',
-    tier: 'extra',
-    blurb: 'Currency, arrows, operators.',
-    hint: 'Skip any you will never type — anything left blank simply falls back to the font behind yours.',
-    rows: [
-      ...chunk([...CURRENCY, ...MARKS].map((e) => e.ch), ROW),
-      ...chunk([...MATH, ...ARROWS].map((e) => e.ch), ROW),
-    ],
-  },
+  ...group('lower-1', 'Lowercase, a to m', 'essential',
+    'The first half of the alphabet.',
+    LOWER.slice(0, 13).map((e) => e.ch),
+    'Let the tall letters (b d f h k) and the tail on g run their natural length — the app reads your baseline from them.'),
+
+  ...group('lower-2', 'Lowercase, n to z', 'essential',
+    'The second half. With the first, this is a font.',
+    LOWER.slice(13).map((e) => e.ch),
+    'Keep p q y reaching properly below the line. Those descenders are half of what pins your baseline.'),
+
+  ...group('marks', 'Everyday punctuation', 'essential',
+    'Six marks, and you can write a sentence.',
+    EVERYDAY_PUNCT,
+    'Write them at their true size. A full stop enlarged to fill the space comes out as a full stop that is too big in every word you type.'),
+
+  ...group('caps-1', 'Capitals, A to M', 'recommended',
+    'Sentences start with these.',
+    UPPER.slice(0, 13).map((e) => e.ch),
+    'Write each one once, with a clear gap between them.'),
+
+  ...group('caps-2', 'Capitals, N to Z', 'recommended',
+    'The rest of them.',
+    UPPER.slice(13).map((e) => e.ch),
+    'Watch the gap around W and X — they are the widest letters here and the easiest to let touch.'),
+
+  ...group('digits', 'Numbers', 'recommended',
+    'Dates, prices, anything counted.',
+    DIGITS.map((e) => e.ch),
+    'Write them at the height you write capitals, which is what most hands do naturally.'),
+
+  ...group('punct-pairs', 'Brackets and quotes', 'recommended',
+    'Things that come in pairs.',
+    ['(', ')', '[', ']', '{', '}', '"', ':', ';'],
+    'Small marks matter. Write the colon and semicolon at their real size rather than enlarged to fill the gap.'),
+
+  ...group('punct-lines', 'Slashes and lines', 'recommended',
+    'Dividers, and the underscore.',
+    ['/', '\\', '|', '_', '*', '&'],
+    'Keep the slash and backslash clearly different in lean. They are the one pair here that can be told apart only by angle.'),
+
+  ...group('symbols', 'Symbols', 'extra',
+    'The ones above the number row.',
+    ['#', '%', '@', '$', '^', '~'],
+    'The percent sign has three parts and the at-sign is one long spiral. Both are worth writing slowly.'),
+
+  ...group('currency', 'Currency', 'extra',
+    'Money, in your hand.',
+    CURRENCY.map((e) => e.ch),
+    'Skip any you will never type. Anything left out simply falls back to the font behind yours.'),
+
+  ...group('legal-marks', 'Copyright and degree', 'extra',
+    'Three marks that are hard to fake.',
+    MARKS.map((e) => e.ch),
+    'The circle around C and R should close cleanly. An open circle traces as a crescent.'),
+
+  ...group('maths-1', 'Maths, the common ones', 'extra',
+    'Plus, minus, equals, and comparison.',
+    ['+', '=', '<', '>', '×', '÷'],
+    'Write the equals sign as two clearly separate strokes with a gap between them.'),
+
+  ...group('maths-2', 'Maths, the rest', 'extra',
+    'For anyone who writes equations.',
+    ['±', '≠', '≤', '≥', '∞', '√'],
+    'These stack marks on top of each other. Keep the parts from touching, or they trace as one shape.'),
+
+  ...group('arrows', 'Arrows', 'extra',
+    'Four directions.',
+    ARROWS.map((e) => e.ch),
+    'A long shaft and a small head reads better at text size than the other way round.'),
 ];
 
 /**

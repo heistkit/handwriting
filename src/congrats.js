@@ -2,7 +2,7 @@
  * congrats.js — one panel per sheet, set in the reader's own handwriting.
  *
  * The drop-off on the capture screen is not where anything is hard. It is after
- * a sheet comes back readable: thirty-two characters have been written by hand,
+ * a step comes back readable: a row of characters has been written by hand,
  * photographed, and read correctly, and the screen replies by enabling a button.
  * Nothing says the work paid off, and the natural reading of nothing is that it
  * did not.
@@ -13,11 +13,14 @@
  * screen, ten seconds after they photographed it. That is the only claim this app
  * makes, and this is the first moment it can be demonstrated rather than asserted.
  *
- * Fresh per sheet, and the last one is different
- * ----------------------------------------------
- * Four sheets, four panels, each naming what it added and what that unlocked.
- * When the last of them lands the panel becomes "You are all set" instead, which
- * is the one moment there is nothing left to ask for.
+ * Fresh per step, and the last one is different
+ * ---------------------------------------------
+ * One panel per step — fourteen of them — each naming what it added and what
+ * that unlocked. When the last required step lands the panel becomes "You are
+ * all set" instead, which is the one moment there is nothing left to ask for.
+ * Fourteen small acknowledgements beat four large ones for the same reason
+ * fourteen short steps beat four long sheets: the encouragement arrives while
+ * there is still something left to do.
  *
  * Only what was actually read
  * ---------------------------
@@ -43,21 +46,61 @@ export const FAMILY = 'HandwriteCongrats';
  * optional ligature sheet and for anything added later.
  */
 const COPY = {
-  everyday: {
-    title: 'These are your letters',
-    line: 'That is already a font. It installs, and it types ordinary sentences.',
+  'lower-1': {
+    title: 'Half the alphabet, in your hand',
+    line: 'Thirteen letters down. The next thirteen finish a font you can install.',
   },
-  capitals: {
-    title: 'Capitals, in your hand',
-    line: 'Sentences can start properly now, and names look like names.',
+  'lower-2': {
+    title: 'That is a working font',
+    line: 'The whole lowercase alphabet. Add the six marks below and it sets ordinary English.',
   },
-  numbers: {
-    title: 'Numbers and the rest of the punctuation',
-    line: 'Dates, prices, brackets and quotes all come out in your writing.',
+  marks: {
+    title: 'Now it writes sentences',
+    line: 'A full stop, a comma and four more. This is the point where it stops being letters and starts being writing.',
+  },
+  'caps-1': {
+    title: 'Capitals, A to M',
+    line: 'Sentences can start properly now.',
+  },
+  'caps-2': {
+    title: 'Every capital you have',
+    line: 'Names look like names, and headings look deliberate.',
+  },
+  digits: {
+    title: 'Numbers, in your handwriting',
+    line: 'Dates, prices, page numbers — anything counted.',
+  },
+  'punct-pairs': {
+    title: 'Brackets and quotes',
+    line: 'Asides, quotations and code all set properly from here.',
+  },
+  'punct-lines': {
+    title: 'Slashes and lines',
+    line: 'Dates, paths, and the underscore.',
   },
   symbols: {
-    title: 'Symbols and maths',
-    line: 'Currency, arrows and operators, which most handwriting fonts never cover.',
+    title: 'The row above the numbers',
+    line: 'Hashes, percentages and addresses, which most handwriting fonts never cover.',
+  },
+  currency: {
+    title: 'Money, in your hand',
+    line: 'Four currencies that almost no handwriting font includes.',
+  },
+  'legal-marks': {
+    title: 'Copyright and degree',
+    line: 'Three marks that are surprisingly hard to fake convincingly.',
+  },
+  'maths-1': {
+    title: 'The common operators',
+    line: 'Plus, minus, equals and comparison, all in your writing.',
+  },
+  'maths-2': {
+    title: 'The rest of the maths',
+    line: 'Enough to set an equation without falling back to another font halfway.',
+  },
+  arrows: {
+    title: 'Four directions',
+    line: 'Arrows, which is the last of the characters this app asks for.',
   },
   ligatures: {
     title: 'Your joined pairs',
