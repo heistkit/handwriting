@@ -50,6 +50,7 @@ import { describe as describeScreen } from './meta.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { init as initPointer } from './pointer.js';
 import { once as celebrateOnce } from './celebrate.js';
+import { panel as congratsPanel, shown as congratsChars, FAMILY as CONGRATS_FAMILY } from './congrats.js';
 import * as session from './session.js';
 import { mount as mountWelcome } from './welcome.js';
 import { record as recordTiming, estimate as estimateTiming } from './timings.js';
@@ -891,6 +892,8 @@ function renderCaptureList() {
 
         del.addEventListener('click', () => {
           state.captures.delete(sheet.id);
+          // The panel celebrated a sheet that is no longer there.
+          $('#congrats')?.replaceChildren();
           refreshCaptureState();
 
           // This button destroys itself: refreshCaptureState re-renders the
@@ -1023,6 +1026,10 @@ async function handleFile(file, sheetId, retried = false) {
       else toast(`Found ${capture.stats.found} characters.`);
     }
     refreshCaptureState();
+    // After the list, so the panel lands under a row that already reads as done.
+    // Not awaited on the fatal path: there is nothing to celebrate and the
+    // capture was thrown away.
+    if (!fatal) await showCongrats(sheetId);
   } catch (err) {
     // Stopping is not failing, and there is nothing to repair. The only write
     // to state.captures on this path is the `set` above, which is downstream of
@@ -1059,6 +1066,79 @@ async function handleFile(file, sheetId, retried = false) {
   } finally {
     busy(false);
   }
+}
+
+/**
+ * Compile just enough of the font to set one line of text in it.
+ *
+ * Regular only, and under its own family name. Sharing the tuner's family would
+ * mean this compile clearing four registered styles and replacing them with one,
+ * so a reader who had reached the Refine screen, gone back, and added a sheet
+ * would find the live preview showing Regular no matter which style was selected.
+ * Two families cost one extra compile of arithmetic over a few thousand curve
+ * points, which is the same work the tuner does on every slider drag.
+ *
+ * Never rate-limited and never fatal: this is decoration on the capture screen,
+ * and a font that will not compile yet is a normal state on the first sheet, not
+ * an error worth a message.
+ */
+async function congratsFace() {
+  if (!state.glyphs.length) return false;
+  try {
+    const family = compile(state.glyphs, {
+      ...state.settings,
+      naturalSlant: state.naturalSlant,
+      styles: STYLES.filter((s) => s.name === 'Regular'),
+    });
+    const built = serialise(family);
+    clearPreviewFonts(CONGRATS_FAMILY);
+    await Promise.all(
+      built.map((s) => registerPreviewFont(s.otf, CONGRATS_FAMILY, {
+        italic: s.italic,
+        weightClass: s.weightClass,
+      }))
+    );
+    return true;
+  } catch (err) {
+    // The panel simply does not appear. Nothing downstream depends on it.
+    console.error(err);
+    return false;
+  }
+}
+
+/**
+ * Show what this sheet just added, in the font it just contributed to.
+ *
+ * The characters are filtered against what actually traced rather than taken from
+ * the sheet definition, because a character the capture missed is not in the font
+ * — and rendering it here would fall back to the system font on the one screen
+ * whose entire job is to show somebody their own handwriting.
+ */
+async function showCongrats(sheetId) {
+  const slot = $('#congrats');
+  if (!slot) return;
+  const sheet = ALL_SHEETS.find((s) => s.id === sheetId);
+  // Re-read rather than trusted: a fatal issue deletes the capture again.
+  if (!sheet || !state.captures.has(sheetId)) return;
+
+  buildGlyphSet();
+  const chars = (await congratsFace()) ? congratsChars(sheet, state.glyphs) : [];
+  if (!chars.length) { slot.replaceChildren(); return; }
+
+  // "All set" means every sheet that is actually asked for. The ligature sheet is
+  // optional by design, so requiring it would leave most people permanently one
+  // sheet short of a finish they were never asked to reach.
+  const required = ALL_SHEETS.filter((s) => !s.optional);
+  const complete = required.every((s) => state.captures.has(s.id));
+
+  const built = congratsPanel({
+    sheet, chars, complete, total: sheet.rows.flat().length,
+  });
+  slot.replaceChildren(built);
+
+  // Once per sheet. Replacing a photograph is not new work, and a burst every
+  // time somebody retakes a blurry shot is a burst that stops meaning anything.
+  celebrateOnce(complete ? 'all-set' : `sheet:${sheetId}`, built, complete ? 'large' : 'small');
 }
 
 function refreshCaptureState() {

@@ -5140,3 +5140,58 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 }
 :root[data-lite='on'] .shield__tick,
 :root[data-decor='off'] .shield__tick { stroke-dashoffset: 0; animation: none; }
+
+/* ── Congratulations panel ──────────────────────────────────────────────
+   One per sheet, written in after a photograph comes back readable. See
+   src/congrats.js for why it exists at all; this is only how it sits.
+
+   The specimen line is the point of the panel, so it gets the size. Everything
+   else is deliberately quiet: a heading, one sentence, and a count. A panel that
+   competed with the capture rows underneath it would be pushing the reader away
+   from the next thing to do, which is photograph another sheet.
+
+   `:empty` rather than a hidden attribute, so app.js can clear the slot with
+   replaceChildren() and the margin goes with it. A slot holding nothing but its
+   own spacing reads as a gap somebody forgot to fill.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.congrats-slot:empty { display: none; }
+
+.congrats {
+  display: grid;
+  gap: .4rem;
+  margin: 0 0 1.5rem;
+  padding: 1.35rem 1.5rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  animation: rise .34s var(--ease) both;
+}
+
+.congrats__title { margin: 0; font-size: 1.35rem; line-height: 1.25; }
+.congrats__line { margin: 0; color: var(--text-2); max-width: 46ch; }
+
+.congrats__specimen {
+  margin: .55rem 0 0;
+  /* Large, because a specimen that has to be squinted at is not evidence. Capped
+     so a sheet of thirty-two characters still wraps to two or three lines rather
+     than filling the screen. */
+  font-size: clamp(1.6rem, 5.5vw, 2.9rem);
+  line-height: 1.4;
+  word-spacing: .12em;
+  /* These are single characters separated by spaces, so there are no words to
+     keep whole; anywhere is the only break that cannot overflow the panel. */
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.congrats__count { margin: .2rem 0 0; font-size: .85rem; color: var(--text-2); }
+
+/* Decoration, so it goes when decoration goes. The panel still appears — it is
+   the news, not the flourish — it simply arrives without moving. */
+:root[data-lite='on'] .congrats,
+:root[data-decor='off'] .congrats { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .congrats { animation: none; }
+}
