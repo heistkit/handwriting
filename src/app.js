@@ -26,7 +26,7 @@ import { download } from './export.js';
 import { FALLBACK_LESSONS, FALLBACK_INSTALL, FALLBACK_FAQ } from './content.js';
 import { DOCUMENTS, documentById, LEGAL_VERSION, LEGAL_UPDATED } from './legal.js';
 import { limiter, describeWait } from './ratelimit.js';
-import { bindToggle, bindChoice as bindThemeChoice } from './theme.js';
+import { bindCycle as bindThemeCycle, bindChoice as bindThemeChoice } from './theme.js';
 import {
   bindToggle as bindLite,
   bindCheckbox as bindLiteCheckbox,
@@ -2987,9 +2987,9 @@ function init() {
   // about; picking System writes no side at all, and the header then has to
   // re-read what the operating system resolved to. Hence a listener each way
   // rather than one shared handler.
-  const theme = bindToggle($('#theme-toggle'));
+  const theme = bindThemeCycle($('#theme-cycle'));
   const themeSetting = bindThemeChoice($('#set-theme'));
-  $('#theme-toggle').addEventListener('change', () => themeSetting?.sync());
+  $('#theme-cycle').addEventListener('themechange', () => themeSetting?.sync());
   $('#set-theme').addEventListener('themechange', () => theme?.sync());
 
   const lite = bindLite($('#lite-toggle'));

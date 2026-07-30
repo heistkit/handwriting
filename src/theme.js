@@ -71,31 +71,68 @@ export function apply(theme) {
   if (meta) meta.setAttribute('content', CHROME[resolved()]);
 }
 
+/** The three states, in the order the header button walks through them. */
+const ORDER = ['system', 'light', 'dark'];
+const ICON = {
+  system: '#i-theme-system',
+  light: '#i-theme-light',
+  dark: '#i-theme-dark',
+};
+const NAME = { system: 'System', light: 'Light', dark: 'Dark' };
+
+const nextAfter = (current) => ORDER[(ORDER.indexOf(current) + 1) % ORDER.length];
+
 /**
- * Bind the toggle. `checked` means dark, matching the control's own imagery —
- * the moon slides in when it is on.
+ * Bind the header control: one button, cycling System → Light → Dark.
  *
- * @param {HTMLInputElement} checkbox
+ * It replaces a checkbox, and the checkbox was the problem rather than its
+ * styling. Two states cannot express the three this module has always had, so
+ * flipping it wrote 'light' or 'dark' and there was no way back to following the
+ * operating system — the state the app starts in. It therefore disagreed with the
+ * three-way control in Settings, and the disagreement was silent: turn the header
+ * switch to light once and System was gone until storage was cleared.
+ *
+ * The visible text names the current state rather than the action. A reader
+ * coming to it wants to know which of the three is in force before they want to
+ * know what pressing it does; the accessible name carries both.
+ *
+ * @param {HTMLButtonElement} button
+ * @returns {{sync(): void}|undefined}
  */
-export function bindToggle(checkbox) {
-  if (!checkbox) return;
+export function bindCycle(button) {
+  if (!button) return;
+
+  const use = button.querySelector('use');
+  const label = button.querySelector('span');
 
   const sync = () => {
-    checkbox.checked = resolved() === 'dark';
+    const current = chosen() ?? 'system';
+    // setAttribute, not the href property: SVGUseElement's is an SVGAnimatedString
+    // and read-only, and assigning to it fails silently rather than throwing.
+    use?.setAttribute('href', ICON[current]);
+    if (label) label.textContent = NAME[current];
+    button.setAttribute(
+      'aria-label',
+      `Theme: ${NAME[current]}. Change to ${NAME[nextAfter(current)]}`
+    );
+    button.title = `Theme: ${NAME[current]}`;
   };
+
   sync();
   apply(chosen()); // normalises the meta colour on first load
 
-  checkbox.addEventListener('change', () => {
-    apply(checkbox.checked ? 'dark' : 'light');
+  button.addEventListener('click', () => {
+    const next = nextAfter(chosen() ?? 'system');
+    apply(next === 'system' ? null : next);
+    sync();
+    button.dispatchEvent(new CustomEvent('themechange', { bubbles: true }));
   });
 
-  // While no explicit choice has been made, keep following the system. Without
-  // this, a machine that switches at sunset would leave the toggle showing the
-  // wrong state until the next reload.
-  const q = systemQuery();
-  q?.addEventListener?.('change', () => {
-    if (!chosen()) sync();
+  // While System is in force, a machine that switches at sunset has to be
+  // followed. Nothing about this control changes — it still says System — but the
+  // meta colour behind it does.
+  systemQuery()?.addEventListener?.('change', () => {
+    if (!chosen()) { apply(null); sync(); }
   });
 
   return { sync };
