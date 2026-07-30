@@ -711,6 +711,41 @@ function renderSheets() {
 // Capture step
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether this device has a camera worth handing a capture request to.
+ *
+ * There is no feature test for "has a rear camera", so this is a judgement about
+ * which way to be wrong.
+ *
+ * The first attempt also required `any-pointer: fine` to be absent, reasoning
+ * that a device with a precise pointer has a mouse and therefore a webcam rather
+ * than a camera. That excludes every phone with a stylus: an S Pen reports as a
+ * fine pointer, so a Galaxy with the pen docked would have been told it has no
+ * camera — which is the exact device the request came from. The test was removed
+ * rather than tuned, because the theory behind it was wrong and not merely
+ * mis-parameterised.
+ *
+ * What is left is touch points and a media device API. That does include a
+ * touchscreen laptop, where `capture` will reach for a webcam pointing at the
+ * ceiling. The asymmetry is the whole argument: on that machine the reader sees
+ * one extra button and ignores it, while the alternative hides the feature from
+ * every phone that has a pen. An unhelpful button costs a glance; a missing one
+ * costs the entire flow the feature exists to shorten.
+ *
+ * Read once. It cannot change during a session, and the capture list re-renders
+ * on every photograph.
+ */
+let cameraLikely = null;
+function hasCamera() {
+  if (cameraLikely !== null) return cameraLikely;
+  try {
+    cameraLikely = (navigator.maxTouchPoints ?? 0) > 0 && Boolean(navigator.mediaDevices);
+  } catch {
+    cameraLikely = false;
+  }
+  return cameraLikely;
+}
+
 function renderCaptureList() {
   const list = $('#capture-list');
   list.replaceChildren(
@@ -761,18 +796,46 @@ function renderCaptureList() {
       const actions = document.createElement('div');
       actions.className = 'drop-actions';
 
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
+      /*
+       * A file input, and optionally a second one wired to the camera.
+       *
+       * `capture="environment"` is the whole of it. On a phone it tells the
+       * browser to hand the request straight to the camera app with the rear
+       * lens, which is what somebody standing over a sheet of paper wants — the
+       * alternative is Choose photo, then the gallery, then finding the shot they
+       * took ten seconds ago. getUserMedia would be the other way to do this and
+       * is worse: a permission prompt, a live preview to build, a shutter button,
+       * and a still frame that is lower resolution than the camera app's own
+       * capture. This asks the camera app to do its job and take the photograph.
+       *
+       * It is a second button rather than an attribute on the first, because
+       * `capture` does not mean "prefer the camera", it means "do not offer the
+       * gallery". Setting it on the only input would take away the ability to use
+       * a photo already taken, or one moved over from a scanner.
+       */
+      const makeInput = (fromCamera) => {
+        const el = document.createElement('input');
+        el.type = 'file';
+        el.accept = 'image/*';
+        if (fromCamera) el.setAttribute('capture', 'environment');
+        el.setAttribute(
+          'aria-label',
+          fromCamera
+            ? `Take a photograph of the ${sheet.title} sheet`
+            : `Photograph of the ${sheet.title} sheet`
+        );
+        el.hidden = true;
+        el.addEventListener('change', () => {
+          if (el.files?.[0]) handleFile(el.files[0], sheet.id);
+        });
+        return el;
+      };
+
       // Hidden because the button beside it is the real control, but it still
       // needs a name: a file input with none announces as "file, button" with
       // no clue which of the five sheets it belongs to, and browsers surface
       // these in their own file-picker chrome regardless of this attribute.
-      input.setAttribute('aria-label', `Photograph of the ${sheet.title} sheet`);
-      input.hidden = true;
-      input.addEventListener('change', () => {
-        if (input.files?.[0]) handleFile(input.files[0], sheet.id);
-      });
+      const input = makeInput(false);
 
       const pick = document.createElement('button');
       pick.type = 'button';
@@ -781,6 +844,25 @@ function renderCaptureList() {
       pick.textContent = capture ? 'Replace' : 'Choose photo';
       pick.addEventListener('click', () => input.click());
       actions.append(pick, input);
+
+      // Only where there is a camera to hand the request to. On a desktop the
+      // attribute is ignored, so the button would open the same file picker as
+      // the one beside it — two controls that look different and do the same
+      // thing, which is worse than not offering it. Asked of the device rather
+      // than of the pointer, because a touchscreen laptop reports coarse while
+      // being touched and still has no rear camera worth using.
+      if (hasCamera()) {
+        const shoot = makeInput(true);
+        const snap = document.createElement('button');
+        snap.type = 'button';
+        snap.className = 'btn drop-snap';
+        snap.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-camera"/></svg>';
+        const label = document.createElement('span');
+        label.textContent = capture ? 'Retake' : 'Take photo';
+        snap.append(label);
+        snap.addEventListener('click', () => shoot.click());
+        actions.append(snap, shoot);
+      }
 
       if (capture) {
         const del = document.createElement('button');
