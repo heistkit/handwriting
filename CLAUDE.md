@@ -3,7 +3,7 @@
 Handwrite turns a photograph of handwriting into an installable OpenType family.
 Static site, no build step, no bundler, one vendored dependency.
 
-`node tools/run-tests.mjs` — 598 checks, plain Node, no framework. Run it before
+`node tools/run-tests.mjs` — 615 checks, plain Node, no framework. Run it before
 every commit.
 
 Read `docs/HANDOFF.md` first — the pipeline's stage-by-stage data contract and the
@@ -51,8 +51,10 @@ A change that breaks one of these is wrong regardless of how well it works.
 ## Open work
 
 ### Next
-- **README still says blank paper.** The app's own copy was corrected when
-  `removeRules` landed; the README is the maintainer's prose, so ask first.
+- **Font import has no UI yet.** `src/fontimport.js` is the engine and is tested;
+  what is missing is a way to reach it — a drop target, the licence panel showing
+  `fsType` and name IDs 13/14 before anything is built, and `filetype.js` no
+  longer refusing `.otf`/`.ttf` with "that looks like a font".
 
 
 ### Phase 2 — sub-pixel tracing on the photo path
@@ -63,12 +65,5 @@ threshold is local, so raw greyscale's 0.5 level is not the edge. Then
 padded window, `pipeline.capturePage` threads it. Store as `Uint8Array` 0–255,
 cropped per glyph, never page-wide. Keep it away from `session.js`, which
 `JSON.stringify`s everything it does not strip by name.
-
-### Font import (.ttf/.otf)
-A parallel normaliser that skips `solveAllRows` and feeds `computeSpacing`
-directly — `metrics.profilesFromContours` exists for this and is not yet called.
-Preserve imported bearings by default. Read OS/2 `fsType` and name IDs 13/14,
-show them, refuse restricted embedding. UPM normalise to 1000 by *measured*
-x-height, quad→cubic via `glyph.path`.
 
 The rest — drop-off, traffic, Hangul — is in `TODO.md`.
