@@ -176,6 +176,10 @@ export function snapshot(state, { lean = false, at = 0 } = {}) {
     savedAt: at,
     step: state.step,
     naturalSlant: state.naturalSlant,
+    // Whether these glyphs came out of a font file. Without it a restored
+    // session hands imported outlines to the photograph path, where solveAllRows
+    // looks for page coordinates that were never there.
+    imported: state.imported ? { ...state.imported } : null,
     settings: { ...state.settings },
     // The sheets, without their photographs. `page` is deliberately absent.
     sheets: [...state.captures.entries()].map(([id, capture]) => ({
@@ -194,6 +198,12 @@ export function snapshot(state, { lean = false, at = 0 } = {}) {
       col: g.col,
       sheetId: g.sheetId,
       contours: g.contours,
+      // Three numbers, and only on imported glyphs: the spacing the source font
+      // arrived with. Everything else an imported glyph carries — ink, inkWidth,
+      // profiles — is derivable from the contours above and is recomputed on
+      // restore rather than stored, but this cannot be derived from anything.
+      // It is a fact about a file that is no longer open.
+      original: g.original,
       // The raster is what the review grid draws its thumbnail from. Under lite
       // mode it is dropped: that mode means "this device is working hard, or I
       // want less of everything", and 118 KB of copying on every save is

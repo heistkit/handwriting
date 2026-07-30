@@ -29,6 +29,7 @@ const suites = [
   './congrats.test.mjs',
   './sw.test.mjs',
   './fontimport.test.mjs',
+  './errorpaths.test.mjs',
   './segment.test.mjs',
   './endtoend.test.mjs',
 ];

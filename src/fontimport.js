@@ -311,6 +311,31 @@ export function normaliseImported(ch, glyph, scale) {
 }
 
 /**
+ * Rebuild what an autosave did not store.
+ *
+ * session.js keeps the contours and the original bearings and nothing else,
+ * because ink, inkWidth and profiles are all functions of the contours — sixty
+ * scanlines times three arrays per glyph of data that can be recomputed in a
+ * millisecond. Without this they are simply absent after a reload, and
+ * computeSpacing reads `g.ink.y1` of undefined on the first glyph it touches.
+ *
+ * It has to agree with normaliseImported exactly. If the two ever drift, a font
+ * built after a reload is spaced differently from the same font built before
+ * one, which is the kind of difference nobody thinks to look for. They sit
+ * beside each other for that reason, and a test compares their output.
+ */
+export function rehydrateImported(g) {
+  if (!g?.contours?.length || g.profiles) return g;
+  const box = boundsOf(g.contours);
+  if (!box) return g;
+  g.ink = { x0: 0, y0: box.y0, x1: box.x1 - box.x0, y1: box.y1 };
+  g.inkWidth = box.x1 - box.x0;
+  g.profiles = profilesFromContours(g.contours);
+  g.imported = true;
+  return g;
+}
+
+/**
  * Put back the spacing the font arrived with.
  *
  * computeSpacing overwrites lsb, rsb and advanceWidth on every glyph it is given,

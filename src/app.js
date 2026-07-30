@@ -50,7 +50,7 @@ import { describe as describeScreen } from './meta.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { init as initPointer } from './pointer.js';
 import { init as initOffline } from './offline.js';
-import { readFont } from './fontimport.js';
+import { readFont, rehydrateImported } from './fontimport.js';
 import { once as celebrateOnce } from './celebrate.js';
 import { panel as congratsPanel, shown as congratsChars, FAMILY as CONGRATS_FAMILY } from './congrats.js';
 import * as session from './session.js';
@@ -163,6 +163,15 @@ function restoreSession(record) {
   state.naturalSlant = record.naturalSlant ?? 0;
   state.settings = { ...state.settings, ...record.settings };
   state.glyphs = record.glyphs;
+  state.imported = record.imported ?? null;
+  if (state.imported) {
+    // Recomputed rather than restored. ink, inkWidth and profiles are all
+    // functions of the contours, which were saved — storing them as well would
+    // be sixty scanlines times three arrays per glyph of data that can be
+    // rebuilt in a millisecond. Without this they are simply absent, and
+    // computeSpacing reads `g.ink.y1` of undefined on the first glyph.
+    for (const g of state.glyphs) rehydrateImported(g);
+  }
   state.captures = new Map(
     (record.sheets ?? []).map((s) => [s.id, {
       glyphs: record.glyphs.filter((g) => g.sheetId === s.id),
@@ -1317,6 +1326,10 @@ function invalidateBuild() {
 function buildGlyphSet() {
   const captures = [...state.captures.values()];
   state.glyphs = mergeCaptures(captures);
+  // These came off photographs, whatever was here before. Leaving the flag set
+  // after an import followed by a capture would send traced glyphs down the
+  // normalised path, where computeSpacing reads an `ink` they do not have.
+  state.imported = null;
   invalidateBuild();
   const slants = captures.map((c) => c.slant).filter(Number.isFinite);
   state.naturalSlant = slants.length
