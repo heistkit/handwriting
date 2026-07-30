@@ -38,7 +38,7 @@
  */
 
 /* Bump on any change to PRECACHE or to the strategies below. */
-const VERSION = 'handwrite-v1';
+const VERSION = 'handwrite-v2';
 
 /**
  * Everything the app needs to start with no network at all.

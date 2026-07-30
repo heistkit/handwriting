@@ -237,11 +237,23 @@ export function analyse(extracted, normalized, rows, opts = {}) {
   }
 
   // -- Glyphs that barely have any ink --------------------------------------
-  const inkAreas = extracted.map((g) => {
-    let n = 0;
-    for (let i = 0; i < g.bitmap.length; i++) n += g.bitmap[i];
-    return { ch: g.ch, area: n };
-  });
+  // Only glyphs that came off a photograph. A font read in through
+  // src/fontimport.js has outlines and no raster — there was never a page to
+  // scan — and this line used to reach straight into `g.bitmap.length` and throw
+  // a TypeError inside analyse(). runCompile catches it, returns false, and the
+  // whole import silently stopped one step short of the Refine screen with four
+  // font faces already registered and nothing on screen to explain it.
+  //
+  // Skipped rather than defaulted, because the check is about ink on paper:
+  // "came out very faint" means a light pen stroke or a shadow, and neither is a
+  // thing that can happen to an outline someone else already drew.
+  const inkAreas = extracted
+    .filter((g) => g.bitmap)
+    .map((g) => {
+      let n = 0;
+      for (let i = 0; i < g.bitmap.length; i++) n += g.bitmap[i];
+      return { ch: g.ch, area: n };
+    });
   const medianArea = median(inkAreas.filter((a) => a.area > 0).map((a) => a.area)) ?? 1;
   const faint = inkAreas.filter((a) => a.area < medianArea * 0.06 && !isSmallByNature(a.ch));
   if (faint.length) {

@@ -50,6 +50,7 @@ import { describe as describeScreen } from './meta.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { init as initPointer } from './pointer.js';
 import { init as initOffline } from './offline.js';
+import { readFont } from './fontimport.js';
 import { once as celebrateOnce } from './celebrate.js';
 import { panel as congratsPanel, shown as congratsChars, FAMILY as CONGRATS_FAMILY } from './congrats.js';
 import * as session from './session.js';
@@ -95,6 +96,10 @@ const state = {
   step: 'start',
   captures: new Map(),
   glyphs: [],
+  // Set when the glyphs came from a font file rather than a photograph.
+  // compile() needs telling: imported glyphs are already normalised and must
+  // not go back through the baseline solver they exist to bypass.
+  imported: null,
   naturalSlant: 0,
   family: null,
   serialised: null,
@@ -1088,6 +1093,8 @@ async function congratsFace() {
   try {
     const family = compile(state.glyphs, {
       ...state.settings,
+      normalised: Boolean(state.imported),
+      keepOriginalSpacing: Boolean(state.imported),
       naturalSlant: state.naturalSlant,
       styles: STYLES.filter((s) => s.name === 'Regular'),
     });
@@ -1140,6 +1147,139 @@ async function showCongrats(sheetId) {
   // Once per sheet. Replacing a photograph is not new work, and a burst every
   // time somebody retakes a blurry shot is a burst that stops meaning anything.
   celebrateOnce(complete ? 'all-set' : `sheet:${sheetId}`, built, complete ? 'large' : 'small');
+}
+
+/**
+ * Read a font the reader already owns, and offer to finish it.
+ *
+ * Nothing is built here. The file is parsed, what it says about itself is put on
+ * screen, and the reader decides — because this is the one path where the input
+ * may not be theirs to derive from, and the app cannot know that. What it can do
+ * is show them what the font's own maker recorded and let them answer.
+ */
+async function handleFontFile(file) {
+  if (!allowHeavyOp()) return;
+  let read;
+  try {
+    busy(true, 'Reading the font', 0.2, 'import');
+    const buffer = await file.arrayBuffer();
+    read = readFont(buffer, { chars: REQUIRED.map((e) => e.ch) });
+  } catch (err) {
+    // The exception names a table offset, which helps nobody holding a file.
+    console.error(err);
+    toast('That file could not be read as a font. It may be damaged, or a format '
+      + 'this browser cannot open — try an .otf or .ttf.', true);
+    return;
+  } finally {
+    busy(false);
+  }
+
+  if (!read.glyphs.length) {
+    toast('No usable characters were found in that font.', true);
+    return;
+  }
+  pendingImport = read;
+  renderImportPanel(read, file);
+  openModal('#import');
+}
+
+/** The parsed font waiting on a decision, or null. */
+let pendingImport = null;
+
+function renderImportPanel(read, file) {
+  const body = $('#import-body');
+  const rows = [];
+  const say = (label, value) => { if (value) rows.push([label, value]); };
+
+  say('Family', read.licence.family ?? file.name);
+  say('Designer', read.licence.designer);
+  say('Characters found', `${read.found.length} of ${REQUIRED.length}`);
+  say('Units per em', String(read.unitsPerEm));
+
+  const dl = document.createElement('dl');
+  dl.className = 'import-facts';
+  for (const [k, v] of rows) {
+    const dt = document.createElement('dt'); dt.textContent = k;
+    const dd = document.createElement('dd'); dd.textContent = v;
+    dl.append(dt, dd);
+  }
+
+  body.replaceChildren(dl);
+
+  // The font's own words, quoted rather than summarised. Whether somebody may
+  // build on this file is a question about their licence, not about this app,
+  // and paraphrasing a licence is how you get it wrong.
+  if (read.licence.description || read.licence.url) {
+    const h = document.createElement('h3');
+    h.className = 'import-licence__head';
+    h.textContent = 'What this font says about its licence';
+    body.append(h);
+    if (read.licence.description) {
+      const p = document.createElement('p');
+      p.className = 'import-licence';
+      p.textContent = read.licence.description;
+      body.append(p);
+    }
+    if (read.licence.url) {
+      const a = document.createElement('a');
+      a.className = 'import-licence__url';
+      a.href = read.licence.url;
+      a.rel = 'noopener noreferrer';
+      a.target = '_blank';
+      a.textContent = read.licence.url;
+      body.append(a);
+    }
+  }
+
+  const note = document.createElement('p');
+  note.className = 'import-note';
+  const go = $('#import-go');
+
+  if (read.licence.restricted) {
+    // Refused, not warned about. This bit is the vendor stating outright that
+    // the font may not be embedded, and it is the one signal in the file that is
+    // unambiguous. Everything else here is information; this is an answer.
+    note.classList.add('is-bad');
+    note.textContent = 'This font is marked by its maker as not licensed for '
+      + 'embedding, so it will not be built from here. If you made it yourself, '
+      + 'the setting can be changed in the tool that produced it.';
+    go.disabled = true;
+  } else {
+    note.textContent = 'Nothing leaves your device. The font is read here, and the '
+      + 'four styles are built here. Only import a font you made or are licensed to build on.';
+    go.disabled = false;
+  }
+  body.append(note);
+}
+
+/** Take the parsed font as the working glyph set and go straight to Refine. */
+async function commitImport() {
+  const read = pendingImport;
+  if (!read || read.licence.restricted) return;
+  closeModal('#import');
+
+  state.captures.clear();
+  state.glyphs = read.glyphs;
+  state.imported = { family: read.licence.family, count: read.found.length };
+  // An imported font is already upright as its maker drew it. Measuring a slant
+  // and then offering to remove it would be offering to alter their letterforms.
+  state.naturalSlant = 0;
+  if (read.licence.family) state.settings.familyName = read.licence.family;
+  invalidateBuild();
+  saveSession();
+
+  // Compile before navigating, not after. reachable() gates every step past
+  // Review on `state.glyphs.length && state.family`, and state.family does not
+  // exist until a compile has produced one — so going first meant goto('refine')
+  // was refused, the reader stayed on the landing page, and the only evidence
+  // anything had happened was a preview font quietly registering behind them.
+  const ok = await runCompile(false);
+  if (!ok) {
+    toast('That font was read, but a family could not be built from it.', true);
+    return;
+  }
+  goto('refine');
+  toast(`Imported ${read.found.length} characters. Bold, Italic and Bold Italic are built from them.`);
 }
 
 function refreshCaptureState() {
@@ -1422,6 +1562,8 @@ async function runCompile(previewOnly = false) {
 
     const family = compile(state.glyphs, {
       ...state.settings,
+      normalised: Boolean(state.imported),
+      keepOriginalSpacing: Boolean(state.imported),
       naturalSlant: state.naturalSlant,
       styles,
     });
@@ -3055,6 +3197,19 @@ function init() {
   // resumed offline. Nothing depends on it: with this line removed the app needs
   // the network for its own code again and behaves exactly as it used to.
   initOffline();
+
+  {
+    const input = $('#import-file');
+    $('#open-import')?.addEventListener('click', () => input?.click());
+    input?.addEventListener('change', () => {
+      if (input.files?.[0]) handleFontFile(input.files[0]);
+      // Cleared so choosing the same file twice still fires a change event.
+      input.value = '';
+    });
+    $('#import-go')?.addEventListener('click', commitImport);
+    $('#import-cancel')?.addEventListener('click', () => closeModal('#import'));
+    $('#close-import')?.addEventListener('click', () => closeModal('#import'));
+  }
 
   renderSteps();
   renderSheets();

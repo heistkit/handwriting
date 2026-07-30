@@ -57,8 +57,13 @@ const REFUSE = [
   {
     what: 'font',
     say: 'a font',
-    // Worth its own line: this app makes fonts, so someone will try it.
+    // Worth its own line: this app makes fonts, so someone will try it — and now
+    // there is somewhere for them to go. The message names it rather than
+    // refusing flatly, because a font dropped on a sheet slot is not a mistake
+    // about what the app does, it is a mistake about which control to use.
     ext: ['otf', 'ttf', 'woff', 'woff2', 'eot'],
+    message: 'That is a font rather than a photograph. To build the other three '
+      + 'styles from a font you already have, use “Import a font” on the first screen.',
   },
 ];
 
@@ -89,7 +94,8 @@ export function classify(file) {
       return {
         ok: false,
         what: group.what,
-        message: `That looks like ${group.say}. This needs a photograph of your handwriting.`,
+        message: group.message
+          ?? `That looks like ${group.say}. This needs a photograph of your handwriting.`,
       };
     }
   }

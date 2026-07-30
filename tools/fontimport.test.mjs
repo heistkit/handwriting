@@ -261,6 +261,26 @@ export async function run() {
       threwOrEmptied, 'if this passes silently, `normalised` is not load-bearing');
   }
 
+  // -- the health report survives a font with no raster ---------------------
+  //
+  // analyse() sums each glyph's bitmap to find characters that came out faint.
+  // An imported glyph has outlines and never had a raster, and reaching into
+  // g.bitmap.length threw a TypeError inside runCompile's try — which caught it,
+  // returned false, and stopped the import one step short of the Refine screen
+  // with four faces already registered and nothing on screen to explain it.
+  {
+    const { compile } = await import('../src/pipeline.js');
+    const { analyse } = await import('../src/health.js');
+    const { glyphs } = readFont(makeFont().toArrayBuffer(), { chars: ['x', 'o', 'l'] });
+    const family = compile(glyphs, { familyName: 'H', normalised: true, keepOriginalSpacing: true });
+    let report = null;
+    try {
+      report = analyse(glyphs, family.metrics.glyphs, family.metrics.rows, { slant: 0, sheets: [] });
+    } catch { report = null; }
+    check('the health report runs on a font that never had a bitmap',
+      report !== null && Number.isFinite(report.score), report ? String(report.score) : 'threw');
+  }
+
   return results;
 }
 

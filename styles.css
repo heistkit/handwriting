@@ -5195,3 +5195,36 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.5; }
 @media (prefers-reduced-motion: reduce) {
   .congrats { animation: none; }
 }
+
+/* ── Import a font ──────────────────────────────────────────────────────
+   The second way in, for somebody who already has a handwriting font. Quiet
+   on purpose: it sits under the main call to action and must not compete
+   with it, because writing a sheet is still what most visitors are here for.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.cta__alt { margin: 1.1rem 0 0; color: var(--text-2); font-size: .95rem; }
+
+.linkish {
+  background: none; border: 0; padding: 0; font: inherit; color: var(--text);
+  text-decoration: underline; text-underline-offset: .18em; cursor: pointer;
+}
+:where(html[data-pointer="fine"]) .linkish:hover { color: var(--accent); }
+.linkish:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+.import-facts { display: grid; grid-template-columns: auto 1fr; gap: .35rem 1.25rem; margin: 0 0 1.1rem; }
+.import-facts dt { color: var(--text-2); }
+.import-facts dd { margin: 0; }
+
+.import-licence__head { margin: 0 0 .35rem; font-size: 1rem; }
+.import-licence {
+  margin: 0 0 .5rem; padding: .75rem .9rem;
+  background: var(--surface-2); border-radius: var(--r-md);
+  color: var(--text-2); font-size: .9rem; line-height: 1.5;
+  /* A licence can be a wall of text. Bounded, and scrollable inside itself,
+     rather than pushing the decision off the bottom of the dialogue. */
+  max-height: 11rem; overflow-y: auto; white-space: pre-wrap;
+}
+.import-licence__url { display: inline-block; margin-bottom: .75rem; font-size: .9rem; }
+
+.import-note { margin: 1rem 0 0; color: var(--text-2); font-size: .9rem; }
+.import-note.is-bad { color: var(--text); border-left: 3px solid var(--warn, var(--border-strong)); padding-left: .8rem; }

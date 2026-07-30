@@ -681,6 +681,17 @@
           </span>
           <span class="inkbtn__label">Start writing</span>
         </button>
+
+        <!-- The other way in. Somebody who already made a handwriting font has
+             the hard part and cannot get Bold, Italic or kerning out of it;
+             this skips the whole image pipeline and enters at the vector stage. -->
+        <p class="cta__alt">
+          Already have a handwriting font?
+          <button class="linkish" id="open-import" type="button">Import it</button>
+          and get the other three styles.
+        </p>
+        <input type="file" id="import-file" accept=".otf,.ttf,font/otf,font/ttf"
+               hidden aria-label="A font file to import">
       </section>
     </div>
   </section>
@@ -1179,6 +1190,23 @@
 </div>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- What the font says about itself, shown before anything is built from it. -->
+<div class="sheet-modal" id="import" hidden>
+  <div class="sheet-modal-panel" role="dialog" aria-modal="true" aria-labelledby="import-title">
+    <header class="modal-head">
+      <h2 id="import-title">Import a font</h2>
+      <button class="btn btn-icon" id="close-import" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+      </button>
+    </header>
+    <div class="modal-body" id="import-body"><!-- populated --></div>
+    <footer class="modal-foot" id="import-foot">
+      <button class="btn" id="import-cancel" type="button">Cancel</button>
+      <button class="btn btn-primary" id="import-go" type="button">Build the other three styles</button>
+    </footer>
+  </div>
+</div>
 
 <div class="sheet-modal" id="feedback" hidden>
   <div class="sheet-modal-panel" role="dialog" aria-modal="true" aria-labelledby="fb-title">
