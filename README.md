@@ -4,7 +4,7 @@
 
 **[Try it →](https://handwritingfont.vercel.app)**
 
-Write about 120 characters on blank paper, photograph the page, and get back an
+Write about 120 characters on paper, photograph the page, and get back an
 OpenType family — Regular, Bold, Italic, Bold Italic — in your own hand, with
 proper spacing, kerning, and letters that vary the way real writing does.
 

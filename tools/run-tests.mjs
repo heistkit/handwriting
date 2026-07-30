@@ -28,6 +28,7 @@ const suites = [
   './imageproc.test.mjs',
   './congrats.test.mjs',
   './sw.test.mjs',
+  './fontimport.test.mjs',
   './segment.test.mjs',
   './endtoend.test.mjs',
 ];
