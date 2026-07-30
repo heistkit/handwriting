@@ -705,6 +705,44 @@ export function buildMetrics(extracted, opts = {}) {
 }
 
 /**
+ * Space and kern glyphs that are already normalised.
+ *
+ * buildMetrics above assumes its input came off a photograph: it solves a
+ * baseline per row and then maps every glyph out of bitmap space. Outlines read
+ * from a font file have been in font units with the baseline at zero since before
+ * this app saw them, so there is nothing to solve and `solveAllRows` would be
+ * solving it from `page` coordinates that do not exist.
+ *
+ * The two functions deliberately return the same shape, so everything downstream
+ * — buildFamily, the kerning writer, the health report — cannot tell which one
+ * produced its input, and neither needs a branch for it. `rows` is empty rather
+ * than absent for the same reason.
+ *
+ * @param {Array} glyphs  already carrying contours, ink, inkWidth and profiles
+ * @param {object} [opts]
+ * @param {boolean} [opts.keepOriginalSpacing]  restore each glyph's own bearings
+ *   after measuring, for a font that arrived with spacing somebody chose
+ */
+export function metricsFromNormalised(glyphs, opts = {}) {
+  const spacing = computeSpacing(glyphs, opts);
+
+  // computeSpacing has to run even when its answer is going to be replaced: the
+  // ascender and descender it measures are what the kerning grid is built over,
+  // and they are properties of the whole set rather than of any one glyph.
+  if (opts.keepOriginalSpacing) {
+    for (const g of glyphs) {
+      if (!g.original) continue;
+      g.lsb = g.original.lsb;
+      g.rsb = g.original.rsb;
+      g.advanceWidth = g.original.advanceWidth;
+    }
+  }
+
+  const kerning = opts.kerning === false ? [] : computeKerning(glyphs, spacing, opts);
+  return { glyphs, spacing, kerning, rows: new Map() };
+}
+
+/**
  * Width of the space character.
  *
  * Derived from the writer's own letters rather than fixed: someone who writes

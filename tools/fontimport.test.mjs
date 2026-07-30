@@ -183,6 +183,84 @@ export async function run() {
       licence(noSub).noSubset === true && licence(noSub).restricted === false);
   }
 
+  // -- the whole point: one style in, four styles out ------------------------
+  //
+  // The claim the feature makes. Everything above is a component check; this is
+  // whether a font can actually go in one end and come out as a family.
+  {
+    const { compile, serialise } = await import('../src/pipeline.js');
+
+    const source = makeFont();
+    const { glyphs, found } = readFont(source.toArrayBuffer(), { chars: ['x', 'o', 'l'] });
+    const wanted = glyphs.map((g) => ({ ch: g.ch, advance: g.original.advanceWidth }));
+
+    const family = compile(glyphs, {
+      familyName: 'Imported Hand',
+      normalised: true,
+      keepOriginalSpacing: true,
+      variantCount: 3,
+    });
+    check('an imported font compiles to four styles',
+      family.styles.length === 4, `${family.styles.length}`);
+
+    const built = serialise(family);
+    check('and every style serialises to real bytes',
+      built.length === 4 && built.every((s) => s.otf && s.otf.byteLength > 1000),
+      built.map((s) => `${s.style}:${s.otf?.byteLength}`).join(' '));
+
+    // Re-parsed rather than inspected in memory, so this measures what a font
+    // manager would actually install.
+    const out = opentype.parse(built[0].otf);
+    check('the built font carries every character that was imported',
+      found.every((ch) => {
+        const g = out.charToGlyph(ch);
+        return g && g.name !== '.notdef';
+      }), found.join(''));
+
+    check('and every one of them has an outline',
+      found.every((ch) => (out.charToGlyph(ch).path?.commands?.length ?? 0) > 0));
+
+    // The spacing that was preserved has to survive compilation, not just
+    // survive computeSpacing. Compared as a ratio because the built font is on
+    // this app's em rather than the source font's.
+    const ratio = out.unitsPerEm / 1000;
+    const drift = wanted.map(({ ch, advance }) =>
+      Math.abs(out.charToGlyph(ch).advanceWidth / ratio - advance));
+    check('and the spacing the source font chose is what got written',
+      Math.max(...drift) < 2,
+      wanted.map((w, i) => `${w.ch} off by ${drift[i].toFixed(2)}`).join(', '));
+
+    // Bold has to be heavier than Regular. It is the whole reason to import.
+    const bold = opentype.parse(built.find((s) => s.style === 'Bold').otf);
+    const inkWidth = (font, ch) => {
+      const b = font.charToGlyph(ch).getBoundingBox();
+      return b.x2 - b.x1;
+    };
+    check('Bold is heavier than Regular, which is the point of importing',
+      inkWidth(bold, 'l') > inkWidth(out, 'l'),
+      `${inkWidth(bold, 'l').toFixed(0)} against ${inkWidth(out, 'l').toFixed(0)}`);
+  }
+
+  // -- and the baseline solver is genuinely bypassed -------------------------
+  {
+    // The failure this guards is silent. An imported glyph has no `page` and no
+    // `row`, so routing it through buildMetrics does not throw — solveAllRows
+    // simply finds nothing to solve and normalizeGlyph reads undefined
+    // coordinates, producing a font of empty or wildly misplaced glyphs.
+    const { compile } = await import('../src/pipeline.js');
+    const { glyphs } = readFont(makeFont().toArrayBuffer(), { chars: ['x', 'o', 'l'] });
+    let threwOrEmptied = false;
+    try {
+      const wrong = compile(glyphs.map((g) => ({ ...g })), { familyName: 'X' });
+      const any = wrong.styles?.[0]?.glyphs ?? [];
+      threwOrEmptied = any.length === 0;
+    } catch {
+      threwOrEmptied = true;
+    }
+    check('routing imported glyphs through the photograph path does not quietly work',
+      threwOrEmptied, 'if this passes silently, `normalised` is not load-bearing');
+  }
+
   return results;
 }
 

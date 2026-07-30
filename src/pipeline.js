@@ -29,7 +29,7 @@
 import { preprocess, labelComponents, paintYield } from './imageproc.js';
 import { segmentSheet, extractGlyph, identifySheet } from './segment.js';
 import { vectorize } from './trace.js';
-import { buildMetrics, deriveSpaceWidth, TARGET_X_HEIGHT } from './metrics.js';
+import { buildMetrics, deriveSpaceWidth, TARGET_X_HEIGHT, metricsFromNormalised } from './metrics.js';
 import { buildFamily, STYLES } from './fontbuild.js';
 import { buildGposKerning, buildGroupMap } from './gpos.js';
 import { finalise } from './sfnt.js';
@@ -253,13 +253,26 @@ export function compile(glyphs, settings = {}) {
     // The tuner passes a single style so a dragged slider only rebuilds the
     // weight actually on screen; export passes all four.
     styles = STYLES,
+    // Set when the glyphs came out of a font file rather than a photograph.
+    // They are already in font units with the baseline at zero, so the baseline
+    // solver has nothing to solve and would be reading `page` coordinates that
+    // do not exist. Explicit rather than sniffed off the glyphs, because "were
+    // these normalised" is a fact about where they came from and the caller is
+    // the only one who knows it.
+    normalised = false,
+    // Keep the spacing an imported font arrived with instead of re-deriving it.
+    // Whoever made that font may have tuned its bearings by eye, and this app's
+    // spacing engine is good but it is not better than that.
+    keepOriginalSpacing = false,
   } = settings;
 
   const prepared = straighten && naturalSlant
     ? glyphs.map((g) => ({ ...g, contours: unslantContours(g.contours, naturalSlant, g) }))
     : glyphs;
 
-  const metrics = buildMetrics(prepared, { spacingFactor, kerning });
+  const metrics = normalised
+    ? metricsFromNormalised(prepared, { spacingFactor, kerning, keepOriginalSpacing })
+    : buildMetrics(prepared, { spacingFactor, kerning });
 
   // Italic is always a *further* lean than the writing already has, so someone
   // whose hand slopes 14° forward does not get an "italic" identical to their
