@@ -77,6 +77,7 @@ const PRECACHE = [
   '/src/flourish.js',
   '/src/fold.js',
   '/src/fontbuild.js',
+  '/src/fontimport.js',
   '/src/gpos.js',
   '/src/health.js',
   '/src/imageproc.js',
