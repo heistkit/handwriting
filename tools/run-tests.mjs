@@ -25,6 +25,7 @@ const suites = [
   './markup.test.mjs',
   './seo.test.mjs',
   './hover.test.mjs',
+  './imageproc.test.mjs',
   './segment.test.mjs',
   './endtoend.test.mjs',
 ];

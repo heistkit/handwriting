@@ -2502,6 +2502,25 @@ function applyInert() {
   }
   for (const m of $$('.sheet-modal')) {
     m.toggleAttribute('inert', m !== top);
+
+    // Paint order has to follow the stack, and it did not.
+    //
+    // Every dialogue sits at the same z-index, so which one covered which was
+    // decided by document order — and `#settings` is written after `#legal`.
+    // The "What's stored?" link inside Settings therefore opened the privacy
+    // document *underneath* the panel it was clicked from, and the line above
+    // dutifully marked Settings inert because it was no longer the innermost
+    // dialogue. What the reader got was the Settings panel still on screen and
+    // no longer responding to anything: the erase button dead, the autosave
+    // switch dead, and the document they asked for invisible behind it. Three
+    // separate bug reports, all of them this.
+    //
+    // Driven off the stack rather than a fixed pair of values so that the
+    // arrangement cannot go stale: whatever is innermost paints highest, for any
+    // dialogue nested in any other. Two per level leaves room for a backdrop.
+    const depth = modalStack.indexOf(m);
+    if (depth < 0) m.style.removeProperty('z-index');
+    else m.style.zIndex = String(60 + depth * 2);
   }
 }
 

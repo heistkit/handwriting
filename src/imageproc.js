@@ -376,6 +376,188 @@ export function despeckle(bin, w, h, { relative = 0.02, absolute = 6 } = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Ruled paper
+// ---------------------------------------------------------------------------
+
+/**
+ * How far the ink runs vertically through one point, giving up early.
+ *
+ * The question asked of every candidate pixel is only ever "is this thinner than
+ * a rule?", so counting past the threshold is wasted work. Bounded like this the
+ * whole pass stays linear in the image rather than in the image times the
+ * thickest stroke on it.
+ */
+function thinVertically(bin, w, h, x, y, maxThick) {
+  let n = 1;
+  for (let yy = y - 1; yy >= 0 && bin[yy * w + x]; yy--) if (++n > maxThick) return false;
+  for (let yy = y + 1; yy < h && bin[yy * w + x]; yy++) if (++n > maxThick) return false;
+  return true;
+}
+
+/** The same question the other way round, for the margin rule. */
+function thinHorizontally(bin, w, h, x, y, maxThick) {
+  const row = y * w;
+  let n = 1;
+  for (let xx = x - 1; xx >= 0 && bin[row + xx]; xx--) if (++n > maxThick) return false;
+  for (let xx = x + 1; xx < w && bin[row + xx]; xx++) if (++n > maxThick) return false;
+  return true;
+}
+
+/**
+ * Erase the printed rules on lined paper, and leave the handwriting.
+ *
+ * The app asks for blank paper, and people use the pad of lined paper that is
+ * on the desk. What arrives is a page whose strongest horizontal features are
+ * not the rows of writing but the rules underneath them, and segmentation reads
+ * exactly what it is given: the rules become the rows, the letters get bundled
+ * into whichever band they touch, and the review grid fills with horizontal bars
+ * and the occasional cell containing half the page. Every character is found and
+ * every one of them is wrong.
+ *
+ * No model, and none needed. A printed rule is not distinguishable from ink by
+ * darkness — a photograph flattens that, which is why thresholding cannot help —
+ * but it is trivially distinguishable by *shape*. It runs a long way, and it is
+ * thin. Handwriting is the opposite on at least one of those axes everywhere.
+ * So a pixel is erased when both hold at once:
+ *
+ *   its horizontal ink run is a large fraction of the page wide, AND
+ *   its vertical ink run is no thicker than a rule
+ *
+ * The conjunction is what protects the letters, and it is the whole design. A
+ * rule passing behind the stem of a 'b' is, at the crossing, part of a vertical
+ * run several times a rule's thickness — so those pixels fail the second test
+ * and stay. The rule is erased either side of the stem and the stem survives
+ * intact, which is the outcome a darkness-based approach cannot reach at any
+ * threshold, because at the crossing the rule and the ink are the same pixels.
+ *
+ * A letter cannot trip the first test by accident. At the 30% default a rule has
+ * to cross nearly a third of the page to qualify, and the sheets are thirteen
+ * characters wide — a single character spans about a fourteenth of it. The
+ * margin rule down the left edge is caught by the transposed test.
+ *
+ * Runs on every page, including the ones with no rules on them, because a blank
+ * page has nothing that satisfies both conditions and the pass then removes
+ * nothing. There is no detection step to get wrong and no setting to explain.
+ *
+ * @returns {{bin: Uint8Array, removed: number, rules: number}} `rules` counts
+ *   the distinct long thin runs found, which is roughly the number of printed
+ *   lines and is what tells the caller the page was ruled at all.
+ */
+export function removeRules(bin, w, h, opts = {}) {
+  const {
+    // A rule spans the page; a letter spans a cell. Anything between the two is
+    // an underline, which is not a character either.
+    minFraction = 0.3,
+    // A guard for very small images, where 30% of the width is a few pixels and
+    // would start matching letter strokes.
+    minAbsolute = 40,
+    // How much thicker than the rules themselves still counts as a rule. The
+    // rules' own thickness is measured below rather than assumed — see why.
+    tolerance = 1.7,
+    minThick = 2,
+    maxThickCap = 24,
+  } = opts;
+
+  const minH = Math.max(minAbsolute, Math.round(w * minFraction));
+  const minV = Math.max(minAbsolute, Math.round(h * minFraction));
+
+  /**
+   * How thick the rules on THIS page are.
+   *
+   * This was a fraction of the page's smaller side, picked by reasoning about
+   * what a printed hairline ought to come to at the working resolution. It came
+   * to six pixels, and on a photograph whose rules binarised to eight it removed
+   * nothing at all — every rule pixel failed the thinness test, so the page went
+   * through untouched and segmentation broke exactly as before. A fixed fraction
+   * cannot know how hard the paper was lit, how far away the camera was, or how
+   * much the threshold spread the line.
+   *
+   * The page knows. Most of a rule's length is not crossing a letter, so if the
+   * vertical thickness is sampled along every long horizontal run, the ordinary
+   * value is the rule and the outliers are the crossings — which makes the
+   * median the rule's own thickness, robust to however many letters sit on it.
+   * Sampled sparsely because this only needs to be approximately right, and
+   * capped so a page that is mostly one huge blot cannot return a thickness that
+   * would swallow the writing.
+   */
+  const samples = [];
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let x = 0;
+    while (x < w) {
+      if (!bin[row + x]) { x++; continue; }
+      let end = x;
+      while (end < w && bin[row + end]) end++;
+      if (end - x >= minH) {
+        for (let i = x; i < end; i += 16) {
+          let n = 1;
+          for (let yy = y - 1; yy >= 0 && bin[yy * w + i]; yy--) if (++n > maxThickCap) break;
+          for (let yy = y + 1; yy < h && bin[yy * w + i]; yy++) if (++n > maxThickCap) break;
+          samples.push(Math.min(n, maxThickCap));
+        }
+      }
+      x = end;
+    }
+  }
+
+  let maxThick = minThick;
+  if (samples.length) {
+    samples.sort((a, b) => a - b);
+    const median = samples[samples.length >> 1];
+    maxThick = Math.min(maxThickCap, Math.max(minThick, Math.round(median * tolerance)));
+  }
+
+  // Decided against the original, then applied in one sweep. Erasing in place
+  // would let the pass see its own output: a rule two pixels tall, cleared one
+  // row at a time, is thinner by the time the second row is examined, and the
+  // vertical run through a stem would shrink as the rule around it disappeared.
+  const doomed = new Uint8Array(w * h);
+  let rules = 0;
+
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let x = 0;
+    while (x < w) {
+      if (!bin[row + x]) { x++; continue; }
+      let end = x;
+      while (end < w && bin[row + end]) end++;
+      if (end - x >= minH) {
+        rules++;
+        for (let i = x; i < end; i++) {
+          if (thinVertically(bin, w, h, i, y, maxThick)) doomed[row + i] = 1;
+        }
+      }
+      x = end;
+    }
+  }
+
+  for (let x = 0; x < w; x++) {
+    let y = 0;
+    while (y < h) {
+      if (!bin[y * w + x]) { y++; continue; }
+      let end = y;
+      while (end < h && bin[end * w + x]) end++;
+      if (end - y >= minV) {
+        rules++;
+        for (let i = y; i < end; i++) {
+          if (thinHorizontally(bin, w, h, x, i, maxThick)) doomed[i * w + x] = 1;
+        }
+      }
+      y = end;
+    }
+  }
+
+  if (!rules) return { bin, removed: 0, rules: 0 };
+
+  const out = new Uint8Array(bin.length);
+  let removed = 0;
+  for (let i = 0; i < bin.length; i++) {
+    if (doomed[i]) { removed++; out[i] = 0; } else out[i] = bin[i];
+  }
+  return { bin: out, removed, rules };
+}
+
+// ---------------------------------------------------------------------------
 // Deskew
 // ---------------------------------------------------------------------------
 
@@ -653,6 +835,17 @@ export async function preprocess(source, opts = {}) {
   await stage('Separating ink from paper', 0.7);
   let bin = sauvolaBinarize(gray, w, h);
 
+  // After thresholding and before anything reads the shape of the page.
+  //
+  // Deliberately not before estimateSkew, which ran further up on its own copy:
+  // on lined paper the rules are the strongest horizontal signal there is, and
+  // they are parallel to the writing by construction, so they make the angle
+  // easier to find rather than harder. Removing them first would throw away the
+  // best evidence for the one measurement that wants it.
+  await stage('Removing printed lines', 0.8);
+  const ruled = removeRules(bin, w, h);
+  bin = ruled.bin;
+
   await stage('Removing speckles', 0.9);
   bin = despeckle(bin, w, h);
 
@@ -667,7 +860,13 @@ export async function preprocess(source, opts = {}) {
   // overwrites the label on its next line, so a yield here would only add a
   // task between two labels the reader never sees separately.
   onProgress('Ready', 1);
-  return { bin, gray, w, h, angle, slant, inkRatio: countInk(bin) / (w * h) };
+  return {
+    bin, gray, w, h, angle, slant,
+    inkRatio: countInk(bin) / (w * h),
+    // Reported so the caller can say the page was ruled, rather than the reader
+    // having to work out why a sheet they expected to fail did not.
+    ruled: { rules: ruled.rules, removed: ruled.removed },
+  };
 }
 
 function countInk(bin) {
