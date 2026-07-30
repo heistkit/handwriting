@@ -3,7 +3,7 @@
 Handwrite turns a photograph of handwriting into an installable OpenType family.
 Static site, no build step, no bundler, one vendored dependency.
 
-`node tools/run-tests.mjs` — 622 checks, plain Node, no framework. Run it before
+`node tools/run-tests.mjs` — 625 checks, plain Node, no framework. Run it before
 every commit.
 
 Read `docs/HANDOFF.md` first — the pipeline's stage-by-stage data contract and the
@@ -51,10 +51,12 @@ A change that breaks one of these is wrong regardless of how well it works.
 ## Open work
 
 ### Next
-- **Font import has no UI yet.** `src/fontimport.js` is the engine and is tested;
-  what is missing is a way to reach it — a drop target, the licence panel showing
-  `fsType` and name IDs 13/14 before anything is built, and `filetype.js` no
-  longer refusing `.otf`/`.ttf` with "that looks like a font".
+- **Font import works end to end** — entry under the landing CTA, licence panel,
+  `fsType` gate, builds to /refine. What is untested is real-world fonts: every
+  fixture so far is built by opentype.js, so composites, unusual cmaps and CFF2
+  have never been through it.
+- **The wrong-sheet guard weakened** when the sheets became fourteen steps. Steps
+  of the same length share a silhouette and `identifySheet` cannot separate them.
 
 
 ### Phase 2 — sub-pixel tracing on the photo path
