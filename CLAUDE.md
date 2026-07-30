@@ -51,12 +51,6 @@ A change that breaks one of these is wrong regardless of how well it works.
 ## Open work
 
 ### Next
-- **Theme control in the topbar.** The skeuomorphic day/night switch shows stray
-  dots on Android (its stars and moon craters) and is a *second* theme control
-  that can only express light or dark — so flipping it destroys the System option
-  the Settings panel offers. Replace with a monochrome icon button cycling
-  System → Light → Dark. `theme.js` already has `apply(null)` and `bindChoice`;
-  `bindToggle` is the two-state one to retire. Delete the `.theme-switch*` CSS.
 - **Capture copy is out of date.** Ruled paper works now (`imageproc.removeRules`)
   but the guidance still says blank paper. Maintainer's prose — ask first.
 - **Five congratulations panels**, one per sheet, then "You are all set". Panels
