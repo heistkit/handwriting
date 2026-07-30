@@ -26,7 +26,8 @@ works in any application that can pick a font.
 ## Requirements
 
 - Any modern browser. A desktop machine is easier for the review step; phones work.
-- Blank paper and a pen. A fine-liner or gel pen around 0.5 mm is best.
+- Paper and a pen. A fine-liner or gel pen around 0.5 mm is best. Lined paper
+  works: the printed rules are found and removed before the characters are read.
 - A phone camera or a flatbed scanner.
 - Nothing else. No account, no sign-up, no payment, no software to install.
 

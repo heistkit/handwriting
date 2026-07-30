@@ -693,6 +693,7 @@ function renderSheets() {
 
   const tips = [
     'Use a dark pen — a fine-liner or gel pen around 0.5 mm. Pencil is too faint.',
+    'Lined paper is fine. The printed rules are found and removed before your characters are read, so the pad already on your desk will do.',
     'Write at your natural size and speed. Deliberately neat handwriting makes a worse font.',
     'Leave a clear gap between characters. Touching letters is the one thing that cannot be fixed automatically.',
     'Keep rows well separated so tails and loops do not collide.',

@@ -21,7 +21,7 @@ export const LESSONS = [
     id: 'what',
     title: 'What you are about to do',
     body: [
-      'You copy about 120 characters onto blank paper, photograph the page, and get back a font of your own handwriting that you can install and type with.',
+      'You copy about 120 characters onto paper, photograph the page, and get back a font of your own handwriting that you can install and type with.',
       'Everything runs inside this browser tab. Nothing is uploaded and there is no account. The one thing the page still needs the network for is fetching its own code — parts of the app load on demand the first time you reach them.',
     ],
   },
