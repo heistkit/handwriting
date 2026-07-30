@@ -3,7 +3,7 @@
 Handwrite turns a photograph of handwriting into an installable OpenType family.
 Static site, no build step, no bundler, one vendored dependency.
 
-`node tools/run-tests.mjs` — 574 checks, plain Node, no framework. Run it before
+`node tools/run-tests.mjs` — 598 checks, plain Node, no framework. Run it before
 every commit.
 
 Read `docs/HANDOFF.md` first — the pipeline's stage-by-stage data contract and the
@@ -53,9 +53,7 @@ A change that breaks one of these is wrong regardless of how well it works.
 ### Next
 - **README still says blank paper.** The app's own copy was corrected when
   `removeRules` landed; the README is the maintainer's prose, so ask first.
-- **Service worker** for offline resume. Catch: `connect-src 'none'` applies to
-  the worker through its own response headers, so `/sw.js` needs its own
-  `vercel.json` header entry or `caches.addAll` is blocked.
+
 
 ### Phase 2 — sub-pixel tracing on the photo path
 Gated on a real S Pen sample. Settle the coverage field first: Sauvola's
