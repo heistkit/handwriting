@@ -51,11 +51,8 @@ A change that breaks one of these is wrong regardless of how well it works.
 ## Open work
 
 ### Next
-- **Capture copy is out of date.** Ruled paper works now (`imageproc.removeRules`)
-  but the guidance still says blank paper. Maintainer's prose — ask first.
-- **Five congratulations panels**, one per sheet, then "You are all set". Panels
-  render in the user's own font by naming the family `'HandwriteLivePreview'`;
-  `celebrate.js` already has `burst()` and `once()`.
+- **README still says blank paper.** The app's own copy was corrected when
+  `removeRules` landed; the README is the maintainer's prose, so ask first.
 - **Service worker** for offline resume. Catch: `connect-src 'none'` applies to
   the worker through its own response headers, so `/sw.js` needs its own
   `vercel.json` header entry or `caches.addAll` is blocked.
