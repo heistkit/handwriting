@@ -49,6 +49,7 @@ import { read as readRoute, write as pushRoute, base as routeBase, overlayPath }
 import { describe as describeScreen } from './meta.js';
 import { run as runBrowserGate } from './browsergate.js';
 import { init as initPointer } from './pointer.js';
+import { init as initOffline } from './offline.js';
 import { once as celebrateOnce } from './celebrate.js';
 import { panel as congratsPanel, shown as congratsChars, FAMILY as CONGRATS_FAMILY } from './congrats.js';
 import * as session from './session.js';
@@ -3049,6 +3050,11 @@ function init() {
   // the attribute this maintains, so a screen built before it is settled is a
   // screen where nothing responds to the mouse.
   initPointer();
+
+  // Keeps the app itself on the device, so a session interrupted offline can be
+  // resumed offline. Nothing depends on it: with this line removed the app needs
+  // the network for its own code again and behaves exactly as it used to.
+  initOffline();
 
   renderSteps();
   renderSheets();

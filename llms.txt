@@ -82,6 +82,11 @@ The served page carries a content-security policy containing `connect-src
 outbound request at all. That is checkable in any browser's developer tools
 rather than something a visitor has to take on trust.
 
+The app also keeps a copy of itself — this page, its stylesheet, its code and its
+two typefaces, about four hundred kilobytes — in a cache on the device, so a later
+visit works with no connection at all. That cache holds program code and nothing
+derived from the visitor, which is why it has no switch while the saved work does.
+
 Seven small values are kept in the browser's local storage — theme, text size,
 motion preference and similar. No cookies, no session storage, no analytics.
 

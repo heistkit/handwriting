@@ -27,9 +27,35 @@ const PORT = Number(process.env.PORT) || 8745;
  * means the browser refuses the same things in development that it refuses
  * live, and a test asserts the two are still the same string.
  */
-const CSP = JSON.parse(await readFile(join(ROOT, 'vercel.json'), 'utf8'))
-  .headers.find((h) => h.source === '/(.*)')
-  .headers.find((h) => h.key === 'Content-Security-Policy').value;
+const VERCEL_HEADERS = JSON.parse(await readFile(join(ROOT, 'vercel.json'), 'utf8')).headers;
+
+const cspFor = (source) =>
+  VERCEL_HEADERS.find((h) => h.source === source)
+    ?.headers.find((h) => h.key === 'Content-Security-Policy')?.value;
+
+const CSP = cspFor('/(.*)');
+
+/**
+ * Paths that vercel.json gives a policy of their own.
+ *
+ * `/sw.js` is the only one so far, and it has to be honoured here or offline
+ * support cannot be tested locally at all. The site-wide policy carries
+ * `connect-src 'none'`, a service worker inherits the policy of its own script,
+ * and `connect-src` governs the fetches `cache.addAll` makes — so serving the
+ * worker under the site-wide policy makes it install and then immediately fail,
+ * with the registration going straight to `redundant`. Which is exactly what
+ * happened here, and it looks precisely like a bug in the worker.
+ *
+ * Matched exactly rather than by pattern. vercel.json's sources are its own glob
+ * dialect and reimplementing it would be a second thing to get wrong; an exact
+ * lookup is enough for every override this file has, and an override that stops
+ * matching is caught by tools/sw.test.mjs asserting the entry exists.
+ */
+const OVERRIDES = new Map(
+  ['/sw.js']
+    .map((source) => [source, cspFor(source)])
+    .filter(([, value]) => value)
+);
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -101,7 +127,7 @@ createServer(async (req, res) => {
     res.writeHead(200, {
       'content-type': TYPES[extname(path).toLowerCase()] ?? 'application/octet-stream',
       'cache-control': 'no-store',
-      'content-security-policy': CSP,
+      'content-security-policy': OVERRIDES.get(url) ?? CSP,
     });
     res.end(body);
   } catch (err) {
